@@ -1,0 +1,139 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  UserID        Int      @id @default(autoincrement())
+  Username      String   @unique
+  Email         String   @unique
+  Password      String
+  ProfilePicture String?
+  Bio           String?
+  IsPrivate     Boolean  @default(false)
+  Role          Role     @default(USER)
+  CreatedAt     DateTime @default(now())
+  UpdatedAt     DateTime @updatedAt
+  Posts         Post[]
+  Stories       Story[]
+  Comments      Comment[]
+  Likes         Like[]
+  MessagesSent  Message[] @relation("SentMessages")
+  MessagesReceived Message[] @relation("ReceivedMessages")
+  Followers     Follower[] @relation("Followers")
+  Following     Follower[] @relation("Following")
+  Notifications Notification[]
+  Reports       Report[]
+  SupportRequests SupportRequest[]
+  SavedPosts    SavedPost[]
+}
+
+model Post {
+  PostID        Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  Content       String
+  ImageURL      String?
+  VideoURL      String?
+  CreatedAt     DateTime @default(now())
+  UpdatedAt     DateTime @updatedAt
+  Comments      Comment[]
+  Likes         Like[]
+  Reports       Report[]
+  SavedPosts    SavedPost[]
+}
+
+model Story {
+  StoryID       Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  MediaURL      String
+  CreatedAt     DateTime @default(now())
+  ExpiresAt     DateTime
+}
+
+model Comment {
+  CommentID     Int      @id @default(autoincrement())
+  PostID        Int
+  Post          Post     @relation(fields: [PostID], references: [PostID])
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  Content       String
+  CreatedAt     DateTime @default(now())
+}
+
+model Like {
+  LikeID        Int      @id @default(autoincrement())
+  PostID        Int
+  Post          Post     @relation(fields: [PostID], references: [PostID])
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  CreatedAt     DateTime @default(now())
+}
+
+model Message {
+  MessageID     Int      @id @default(autoincrement())
+  SenderID      Int
+  Sender        User     @relation("SentMessages", fields: [SenderID], references: [UserID])
+  ReceiverID    Int
+  Receiver      User     @relation("ReceivedMessages", fields: [ReceiverID], references: [UserID])
+  Content       String
+  IsRead        Boolean  @default(false)
+  CreatedAt     DateTime @default(now())
+}
+
+model Follower {
+  FollowerID    Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation("Followers", fields: [UserID], references: [UserID])
+  FollowerUserID Int
+  FollowerUser  User     @relation("Following", fields: [FollowerUserID], references: [UserID])
+  CreatedAt     DateTime @default(now())
+}
+
+model Notification {
+  NotificationID Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  Type          String
+  Content       String
+  IsRead        Boolean  @default(false)
+  CreatedAt     DateTime @default(now())
+}
+
+model Report {
+  ReportID      Int      @id @default(autoincrement())
+  PostID        Int
+  Post          Post     @relation(fields: [PostID], references: [PostID])
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  Reason        String
+  CreatedAt     DateTime @default(now())
+}
+
+model SupportRequest {
+  RequestID     Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  Subject       String
+  Content       String
+  CreatedAt     DateTime @default(now())
+}
+
+model SavedPost {
+  SavedPostID   Int      @id @default(autoincrement())
+  UserID        Int
+  User          User     @relation(fields: [UserID], references: [UserID])
+  PostID        Int
+  Post          Post     @relation(fields: [PostID], references: [PostID])
+  CreatedAt     DateTime @default(now())
+}
