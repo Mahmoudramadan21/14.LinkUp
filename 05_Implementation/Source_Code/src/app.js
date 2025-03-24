@@ -1,16 +1,16 @@
 const express = require("express");
-const authRoutes = require("./routes/authRoutes"); // Correct import
-const errorHandler = require("./middleware/errorHandler"); // Import error handler
-
+const swaggerSetup = require("./docs/swagger");
+const routes = require("./routes/index");
 const app = express();
 
-// Middleware
+// Setup Swagger for API documentation
+swaggerSetup(app);
+
+// Middleware to parse JSON requests
 app.use(express.json());
 
-// Routes
-app.use("/api/auth", authRoutes);
+// Use the routes defined in the routes folder
+app.use("/api", routes);
 
-// Error handler (must be after all routes)
-app.use(errorHandler);
-
+// Export the app for use in server.js
 module.exports = app;

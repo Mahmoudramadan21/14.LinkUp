@@ -22,10 +22,10 @@ const signup = async (req, res) => {
         .json({ message: "Email or username already exists." });
     }
 
-    // Hash the password
+    // Hash the password before saving it to the database
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create a new user
+    // Create a new user in the database
     const newUser = await prisma.user.create({
       data: {
         Username: username,
@@ -34,7 +34,7 @@ const signup = async (req, res) => {
       },
     });
 
-    // Return success response
+    // Return success response with the new user's ID
     res.status(201).json({
       message: "User registered successfully",
       userId: newUser.UserID,
@@ -59,21 +59,21 @@ const login = async (req, res) => {
       },
     });
 
-    // If user not found or password is incorrect, return a generic error message
+    // If user not found or password is incorrect, return an error
     if (!user || !(await bcrypt.compare(password, user.Password))) {
       return res
-        .status(401)
+        .status(401) // Ensure this is 401
         .json({ message: "Invalid username/email or password" });
     }
 
-    // Generate JWT token
+    // Generate a JWT token for authentication
     const token = jwt.sign(
       { userId: user.UserID, email: user.Email },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    // Return success response with token
+    // Return success response with the token
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     console.error("Error in login:", error);
@@ -91,13 +91,12 @@ const forgotPassword = async (req, res) => {
       where: { Email: email },
     });
 
-    // If user exists, generate and save reset token
+    // If user exists, generate and save a reset token
     if (user) {
-      // Generate reset token
       const resetToken = crypto.randomBytes(20).toString("hex");
       const resetTokenExpiry = new Date(Date.now() + 3600000); // Token valid for 1 hour
 
-      // Save reset token and expiry in the database
+      // Save the reset token and expiry in the database
       await prisma.user.update({
         where: { UserID: user.UserID },
         data: {
@@ -106,12 +105,12 @@ const forgotPassword = async (req, res) => {
         },
       });
 
-      // Send reset link to the user's email
+      // Send the reset link to the user's email
       const resetLink = `http://localhost:3000/api/auth/reset-password?token=${resetToken}`;
-      await sendResetEmail(email, resetLink); // Call the email service
+      await sendResetEmail(email, resetLink);
     }
 
-    // Always return the same message, regardless of whether the email exists or not
+    // Always return the same message to avoid exposing whether the email exists
     res.status(200).json({
       message: "If the email exists, a password reset link has been sent.",
     });
@@ -140,10 +139,10 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired token" });
     }
 
-    // Hash the new password
+    // Hash the new password before saving it
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update user's password and clear the reset token
+    // Update the user's password and clear the reset token
     await prisma.user.update({
       where: { UserID: user.UserID },
       data: {
