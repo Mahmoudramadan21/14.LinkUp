@@ -23,6 +23,8 @@ model User {
   Role          Role     @default(USER)
   CreatedAt     DateTime @default(now())
   UpdatedAt     DateTime @updatedAt
+  resetToken    String?  
+  resetTokenExpiry DateTime?  
   Posts         Post[]
   Stories       Story[]
   Comments      Comment[]

@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# LinkUp - Social Media Web Application
+
+LinkUp is a modern social media web application that allows users to connect, share content, and interact with each other. The application includes features like user authentication, posting content (text, images, and videos), stories, direct messaging, notifications, and personalized profiles. Built using Next.js and PostgreSQL, LinkUp aims to provide a seamless and engaging user experience.
+
+## Features
+
+- **User Authentication:** Sign up, log in, and manage your account securely.
+- **Content Sharing:** Create and share posts (text, images, or videos) and stories.
+- **Social Interaction:** Like, comment, share, and report posts.
+- **Notifications:** Real-time notifications for new followers, likes, comments, and messages.
+- **Direct Messaging:** Chat with other users in real-time.
+- **Personalized Profiles:** Customize your profile with a profile picture, bio, and highlighted stories.
+- **Admin Panel:** Manage users and review reported content.
+- **Search Functionality:** Search for users and content.
+- **Responsive Design:** Works seamlessly across all devices.
+
+## Technology Stack
+
+- **Frontend:** Next.js (React), Tailwind CSS
+- **Backend:** Next.js API Routes
+- **Database:** PostgreSQL
+- **Authentication:** JWT (JSON Web Tokens)
+- **Real-Time Communication:** Socket.io
+- **Deployment:** Vercel
+- **Version Control:** GitHub
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js (v16 or higher)
+- PostgreSQL
+- Git
+
+### Installation
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/Mahmoudramadan21/14.LinkUp.git
+   cd 14.LinkUp/05_Implementation/Source_Code
+   ```
+
+2. **Install dependencies:**
+
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+
+   - Create a `.env` file in the root directory.
+   - Add the following variables:
+     ```env
+     DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME"
+     JWT_SECRET="your_jwt_secret"
+     EMAIL_USER="your_email@gmail.com"
+     EMAIL_PASS="your_email_password_or_app_password"
+     ```
+
+4. **Run database migrations:**
+
+   ```bash
+   npx prisma migrate dev --name init
+   ```
+
+5. **Start the development server:**
+
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser and visit:**
+   ```bash
+   http://localhost:3000
+   ```
+
+## Running Tests
+
+To run the test suite, use the following command:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## License
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Contact
 
-## Learn More
+If you have any questions or suggestions, feel free to reach out:
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Email:** mahmoud.fci25@gmail.com
+- **GitHub:** [Mahmoudramadan21](https://github.com/Mahmoudramadan21)
