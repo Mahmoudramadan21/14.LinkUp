@@ -6,6 +6,7 @@ const authMiddleware = async (req, res, next) => {
   try {
     // Get the token from the Authorization header
     const token = req.header("Authorization").replace("Bearer ", "");
+    if (!token) throw new Error("No token provided");
 
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -13,6 +14,7 @@ const authMiddleware = async (req, res, next) => {
     // Find the user in the database
     const user = await prisma.user.findUnique({
       where: { UserID: decoded.userId },
+      select: { UserID: true, IsPrivate: true }, // Only select needed fields
     });
 
     if (!user) {

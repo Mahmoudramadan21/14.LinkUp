@@ -18,4 +18,24 @@ const validatePassword = (password) => {
   return passwordRegex.test(password);
 };
 
-module.exports = { validateUsername, validateEmail, validatePassword };
+const URL_REGEX = /^(https?:\/\/)[^\s$.?#].[^\s]*$/i;
+const IMAGE_EXT_REGEX = /\.(jpeg|jpg|png|webp)$/i;
+
+// Validate image URL and image ext
+const validateImageUrl = (url) => {
+  if (!URL_REGEX.test(url)) return false;
+  if (!IMAGE_EXT_REGEX.test(url)) return false;
+  return true;
+};
+
+// Validate highlight title
+const validateHighlightTitle = (title) => {
+  return title.length >= 2 && title.length <= 50;
+};
+module.exports = {
+  validateUsername,
+  validateEmail,
+  validatePassword,
+  validateImageUrl,
+  validateHighlightTitle,
+};
