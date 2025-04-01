@@ -3,12 +3,17 @@ const bcrypt = require("bcryptjs");
 const { RateLimiterPrisma } = require("rate-limiter-flexible");
 const { validationResult } = require("express-validator");
 
-// Get user profile
+// Salt rounds for password hashing - recommended value
+const SALT_ROUNDS = 10;
+
+/**
+ * Retrieves user profile while excluding sensitive information
+ * Returns 404 if user not found
+ */
 const getProfile = async (req, res) => {
   const userId = req.user.UserID;
 
   try {
-    // Fetch user details from the database
     const user = await prisma.user.findUnique({
       where: { UserID: userId },
       select: {
@@ -28,7 +33,6 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Return the user's profile
     res.status(200).json({ profile: user });
   } catch (error) {
     res
@@ -37,13 +41,16 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Update user profile
+/**
+ * Updates user profile with validation for duplicate email/username
+ * Returns updated profile data excluding sensitive fields
+ */
 const updateProfile = async (req, res) => {
   const { username, email, bio, profilePicture } = req.body;
   const userId = req.user.UserID;
 
   try {
-    // Check if the new username already exists (excluding the current user)
+    // Validate username uniqueness if provided
     if (username) {
       const existingUsername = await prisma.user.findFirst({
         where: {
@@ -57,7 +64,7 @@ const updateProfile = async (req, res) => {
       }
     }
 
-    // Check if the new email already exists (excluding the current user)
+    // Validate email uniqueness if provided
     if (email) {
       const existingEmail = await prisma.user.findFirst({
         where: {
@@ -71,7 +78,6 @@ const updateProfile = async (req, res) => {
       }
     }
 
-    // Update the user's profile in the database
     const updatedUser = await prisma.user.update({
       where: { UserID: userId },
       data: {
@@ -92,7 +98,6 @@ const updateProfile = async (req, res) => {
       },
     });
 
-    // Return the updated profile
     res.status(200).json({
       message: "Profile updated successfully",
       profile: updatedUser,
@@ -104,30 +109,30 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Change user password
+/**
+ * Changes user password after verifying old password
+ * Uses bcrypt for secure password hashing
+ */
 const changePassword = async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   const userId = req.user.UserID;
 
   try {
-    // Find the user in the database
     const user = await prisma.user.findUnique({ where: { UserID: userId } });
 
-    // Check if the user exists
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Verify the old password
+    // Verify old password matches stored hash
     const isPasswordValid = await bcrypt.compare(oldPassword, user.Password);
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Old password is incorrect" });
     }
 
-    // Hash the new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    // Hash new password with current salt rounds
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    // Update the user's password in the database
     await prisma.user.update({
       where: { UserID: userId },
       data: {
@@ -143,13 +148,15 @@ const changePassword = async (req, res) => {
   }
 };
 
-// Update user privacy settings
+/**
+ * Updates user privacy setting (public/private account)
+ * Returns updated profile information
+ */
 const updatePrivacySettings = async (req, res) => {
   const { isPrivate } = req.body;
   const userId = req.user.UserID;
 
   try {
-    // Update the user's privacy settings in the database
     const updatedUser = await prisma.user.update({
       where: { UserID: userId },
       data: {
@@ -167,7 +174,6 @@ const updatePrivacySettings = async (req, res) => {
       },
     });
 
-    // Return the updated profile
     res.status(200).json({
       message: "Privacy settings updated successfully",
       profile: updatedUser,
@@ -180,12 +186,14 @@ const updatePrivacySettings = async (req, res) => {
   }
 };
 
-// Delete user profile
+/**
+ * Permanently deletes user account and all associated data
+ * Requires authentication
+ */
 const deleteProfile = async (req, res) => {
   const userId = req.user.UserID;
 
   try {
-    // Delete the user from the database
     await prisma.user.delete({
       where: { UserID: userId },
     });
@@ -198,16 +206,18 @@ const deleteProfile = async (req, res) => {
   }
 };
 
-// Get user's saved posts
+/**
+ * Retrieves user's saved posts with full post details
+ * Returns empty array if no posts saved
+ */
 const getSavedPosts = async (req, res) => {
   const userId = req.user.UserID;
 
   try {
-    // Fetch the user's saved posts from the database
     const savedPosts = await prisma.savedPost.findMany({
       where: { UserID: userId },
       include: {
-        Post: true, // Include the post details
+        Post: true,
       },
     });
 
@@ -219,6 +229,10 @@ const getSavedPosts = async (req, res) => {
   }
 };
 
+/**
+ * Custom rate limiter implementation using in-memory storage
+ * Limits requests to 5 per minute per IP
+ */
 class RateLimiter {
   constructor() {
     this.limits = new Map();
@@ -260,7 +274,10 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter();
 
-// Follow a user with enhanced follow request system
+/**
+ * Handles follow requests with support for private accounts
+ * Implements rate limiting to prevent abuse
+ */
 const followUser = async (req, res) => {
   try {
     await rateLimiter.consume(req.ip);
@@ -360,7 +377,10 @@ const followUser = async (req, res) => {
   }
 };
 
-// Accept follow request - returns users who accepted follow requests
+/**
+ * Accepts pending follow request and returns updated followers list
+ * Validates request ownership before processing
+ */
 const acceptFollowRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -393,7 +413,6 @@ const acceptFollowRequest = async (req, res) => {
       });
     }
 
-    // Get all accepted followers
     const acceptedFollowers = await prisma.follower.findMany({
       where: {
         UserID: userId,
@@ -419,7 +438,10 @@ const acceptFollowRequest = async (req, res) => {
   }
 };
 
-// Get pending follow requests - returns users with pending requests
+/**
+ * Retrieves pending follow requests for the current user
+ * Includes basic requester information
+ */
 const getPendingFollowRequests = async (req, res) => {
   try {
     const userId = req.user.UserID;
@@ -457,7 +479,10 @@ const getPendingFollowRequests = async (req, res) => {
   }
 };
 
-// Reject follow request - returns users who rejected follow requests
+/**
+ * Rejects follow request and removes the follow relationship
+ * Validates request ownership before processing
+ */
 const rejectFollowRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -485,32 +510,18 @@ const rejectFollowRequest = async (req, res) => {
       });
     }
 
-    // Get all rejected follow requests (stored in a separate table or as status)
-    const rejectedFollows = await prisma.follower.findMany({
-      where: {
-        UserID: userId,
-        Status: "REJECTED",
-      },
-      select: {
-        FollowerUser: {
-          select: {
-            UserID: true,
-            Username: true,
-          },
-        },
-      },
-    });
-
     res.status(200).json({
       message: "Follow request rejected",
-      rejectedUsers: rejectedFollows.map((f) => f.FollowerUser),
     });
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Unfollow a user
+/**
+ * Removes follow relationship between users
+ * Validates user IDs to prevent self-unfollow
+ */
 const unfollowUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -537,19 +548,20 @@ const unfollowUser = async (req, res) => {
   }
 };
 
-// Get user's followers with proper access control
+/**
+ * Retrieves user's followers with privacy checks
+ * For private accounts, verifies follow status before showing
+ */
 const getFollowers = async (req, res) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user?.UserID;
     const parsedUserId = parseInt(userId);
 
-    // Validate user ID
     if (isNaN(parsedUserId)) {
       return res.status(400).json({ error: "Invalid user ID format" });
     }
 
-    // Get user privacy status and basic info
     const user = await prisma.user.findUnique({
       where: { UserID: parsedUserId },
       select: {
@@ -563,11 +575,9 @@ const getFollowers = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Check access rights
     const isOwner = currentUserId === user.UserID;
     let hasAccess = !user.IsPrivate || isOwner;
 
-    // If account is private and user isn't owner, check if following
     if (user.IsPrivate && !isOwner && currentUserId) {
       const followRelationship = await prisma.follower.findFirst({
         where: {
@@ -579,7 +589,6 @@ const getFollowers = async (req, res) => {
       hasAccess = followRelationship !== null;
     }
 
-    // Handle access denial
     if (!hasAccess) {
       return res.status(403).json({
         error: "Private account",
@@ -587,7 +596,6 @@ const getFollowers = async (req, res) => {
       });
     }
 
-    // Get followers (only accepted follows)
     const followers = await prisma.follower.findMany({
       where: {
         UserID: user.UserID,
@@ -599,7 +607,7 @@ const getFollowers = async (req, res) => {
             UserID: true,
             Username: true,
             ProfilePicture: true,
-            IsPrivate: true, // Include privacy status of followers
+            IsPrivate: true,
           },
         },
         CreatedAt: true,
@@ -626,7 +634,10 @@ const getFollowers = async (req, res) => {
   }
 };
 
-// Get users being followed
+/**
+ * Retrieves users being followed with privacy checks
+ * For private accounts, verifies follow status before showing
+ */
 const getFollowing = async (req, res) => {
   try {
     const { userId } = req.params;

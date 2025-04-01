@@ -272,6 +272,7 @@ router.get("/saved-posts", authMiddleware, getSavedPosts);
  *       429:
  *         description: Too many requests
  */
+
 router.post(
   "/follow/:userId",
   authMiddleware,

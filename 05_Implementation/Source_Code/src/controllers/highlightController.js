@@ -5,19 +5,21 @@ const {
 } = require("../validators/highlightValidators");
 const { validationResult } = require("express-validator");
 
-// Create highlight with stories
+/**
+ * Creates a new highlight after validating:
+ * - User owns all stories being added
+ * - Input meets validation requirements
+ */
 const createHighlight = async (req, res) => {
-  // First check validation results
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
+  if (!errors.isEmpty())
     return res.status(400).json({ errors: errors.array() });
-  }
 
   const { title, coverImage, storyIds } = req.body;
   const userId = req.user.UserID;
 
   try {
-    // Verify user owns all stories
+    // Security check: Verify user owns all stories before creating highlight
     const validStories = await prisma.story.count({
       where: { StoryID: { in: storyIds }, UserID: userId },
     });
@@ -33,37 +35,38 @@ const createHighlight = async (req, res) => {
         UserID: userId,
         Stories: { connect: storyIds.map((id) => ({ StoryID: id })) },
       },
-      include: { Stories: { select: { StoryID: true } } },
+      include: { Stories: { select: { StoryID: true } } }, // Only return story IDs
     });
 
     res.status(201).json(highlight);
   } catch (error) {
-    res.status(500).json({ error: "Highlight creation failed" });
+    res.status(500).json({
+      error: "Highlight creation failed",
+      details: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 
-// Get highlights with privacy checks
+/**
+ * Gets highlights with privacy considerations:
+ * - Full access for owner
+ * - Restricted based on account privacy and follow status
+ */
 const getUserHighlights = async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
     const currentUserId = req.user?.UserID;
     const isOwner = userId === currentUserId;
 
-    // Return all highlights without privacy checks for owner
     if (isOwner) {
       const highlights = await prisma.highlight.findMany({
         where: { UserID: userId },
-        select: {
-          HighlightID: true,
-          Title: true,
-          CoverImage: true,
-          _count: { select: { Stories: true } },
-        },
+        select: basicHighlightFields, // Reusable field selection
       });
       return res.json(highlights);
     }
 
-    // Privacy checks for non-owners
+    // Privacy check for non-owners
     const user = await prisma.user.findUnique({
       where: { UserID: userId },
       select: {
@@ -73,37 +76,46 @@ const getUserHighlights = async (req, res) => {
     });
 
     if (!user) return res.status(404).json({ error: "User not found" });
-    const canView = !user.IsPrivate || user.Followers.length > 0;
-    if (!canView) return res.status(403).json({ error: "Private account" });
+    if (user.IsPrivate && user.Followers.length === 0) {
+      return res.status(403).json({ error: "Private account" });
+    }
 
     const highlights = await prisma.highlight.findMany({
       where: { UserID: userId },
-      select: {
-        HighlightID: true,
-        Title: true,
-        CoverImage: true,
-        _count: { select: { Stories: true } },
-      },
+      select: basicHighlightFields,
     });
 
     res.json(highlights);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch highlights" });
+    res.status(500).json({
+      error: "Failed to fetch highlights",
+      details: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 
-// Get single highlight with full privacy validation
+// Reusable field selection for highlight responses
+const basicHighlightFields = {
+  HighlightID: true,
+  Title: true,
+  CoverImage: true,
+  _count: { select: { Stories: true } },
+};
+
+/**
+ * Gets full highlight details with strict access control:
+ * - Validates highlight ownership
+ * - Checks follow status for private accounts
+ */
 const getHighlightDetails = async (req, res) => {
   try {
     const highlightId = parseInt(req.params.highlightId);
-    if (isNaN(highlightId)) {
+    if (isNaN(highlightId))
       return res.status(400).json({ error: "Invalid highlight ID" });
-    }
 
-    if (!req.user?.UserID) {
+    const currentUserId = req.user?.UserID;
+    if (!currentUserId)
       return res.status(401).json({ error: "Authentication required" });
-    }
-    const currentUserId = req.user.UserID;
 
     const highlight = await prisma.highlight.findUnique({
       where: { HighlightID: highlightId },
@@ -113,56 +125,47 @@ const getHighlightDetails = async (req, res) => {
       },
     });
 
-    if (!highlight) {
+    if (!highlight)
       return res.status(404).json({ error: "Highlight not found" });
-    }
 
-    // Access control
+    // Access control checks
     const isOwner = highlight.UserID === currentUserId;
-    if (isOwner) {
+    const isPrivate = highlight.User.IsPrivate;
+    const isFollowing =
+      isPrivate &&
+      (await prisma.follower.count({
+        where: { UserID: highlight.UserID, FollowerUserID: currentUserId },
+      })) > 0;
+
+    if (isOwner || !isPrivate || isFollowing) {
       return res.json(highlight);
     }
 
-    if (highlight.User.IsPrivate) {
-      const isFollowing =
-        (await prisma.follower.count({
-          where: {
-            UserID: highlight.UserID,
-            FollowerUserID: currentUserId,
-          },
-        })) > 0;
-
-      if (!isFollowing) {
-        return res
-          .status(403)
-          .json({ error: "Private account - Follow to view" });
-      }
-    }
-
-    return res.json(highlight);
+    return res.status(403).json({ error: "Private account - Follow to view" });
   } catch (error) {
-    return res.status(500).json({
+    res.status(500).json({
       error: "Internal server error",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      details: process.env.NODE_ENV === "development" ? error.message : null,
     });
   }
 };
 
-// Update Highlight
+/**
+ * Updates highlight with partial update support:
+ * - Validates user ownership
+ * - Checks story ownership when updating stories
+ */
 const updateHighlight = async (req, res) => {
-  // First check validation results
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
+  if (!errors.isEmpty())
     return res.status(400).json({ errors: errors.array() });
-  }
 
   const { title, coverImage, storyIds } = req.body;
   const { highlightId } = req.params;
   const userId = req.user.UserID;
 
   try {
-    // Verify highlight exists and belongs to user
+    // Verify highlight ownership
     const existingHighlight = await prisma.highlight.findUnique({
       where: { HighlightID: parseInt(highlightId) },
     });
@@ -171,30 +174,18 @@ const updateHighlight = async (req, res) => {
       return res.status(404).json({ error: "Highlight not found" });
     }
 
-    // Prepare update data
     const updateData = {};
+    if (typeof title !== "undefined") updateData.Title = title;
+    if (typeof coverImage !== "undefined") updateData.CoverImage = coverImage;
 
-    // Handle title update
-    if (typeof title !== "undefined") {
-      updateData.Title = title;
-    }
-
-    // Handle coverImage update
-    if (typeof coverImage !== "undefined") {
-      updateData.CoverImage = coverImage;
-    }
-
-    // Handle stories update
+    // Handle story updates with validation
     if (typeof storyIds !== "undefined") {
       if (storyIds.length === 0) {
         return res.status(400).json({ error: "Must include at least 1 story" });
       }
 
       const validStories = await prisma.story.count({
-        where: {
-          StoryID: { in: storyIds },
-          UserID: userId,
-        },
+        where: { StoryID: { in: storyIds }, UserID: userId },
       });
 
       if (validStories !== storyIds.length) {
@@ -204,7 +195,6 @@ const updateHighlight = async (req, res) => {
       updateData.Stories = { set: storyIds.map((id) => ({ StoryID: id })) };
     }
 
-    // Perform the update only if there's something to update
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -219,47 +209,42 @@ const updateHighlight = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Failed to update highlight",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      details: process.env.NODE_ENV === "development" ? error.message : null,
     });
   }
 };
 
-// Delete Highlight
+/**
+ * Deletes highlight safely using transaction:
+ * 1. Removes all story associations
+ * 2. Deletes the highlight record
+ */
 const deleteHighlight = async (req, res) => {
   try {
     const highlightId = parseInt(req.params.highlightId);
     const userId = req.user.UserID;
 
-    // Verify highlight exists and belongs to user
+    // Ownership verification
     const highlight = await prisma.highlight.findFirst({
-      where: {
-        HighlightID: highlightId,
-        UserID: userId,
-      },
+      where: { HighlightID: highlightId, UserID: userId },
     });
 
     if (!highlight) {
       const exists = await prisma.highlight.count({
         where: { HighlightID: highlightId },
       });
-
       return res.status(exists ? 403 : 404).json({
         error: exists ? "You don't own this highlight" : "Highlight not found",
       });
     }
 
-    // Delete using transaction for safety
+    // Atomic delete operation
     await prisma.$transaction([
-      // First: Remove all story relations
       prisma.highlight.update({
         where: { HighlightID: highlightId },
         data: { Stories: { set: [] } },
       }),
-      // Second: Delete the highlight
-      prisma.highlight.delete({
-        where: { HighlightID: highlightId },
-      }),
+      prisma.highlight.delete({ where: { HighlightID: highlightId } }),
     ]);
 
     res.json({
@@ -270,8 +255,7 @@ const deleteHighlight = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Deletion failed",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      details: process.env.NODE_ENV === "development" ? error.message : null,
     });
   }
 };
