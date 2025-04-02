@@ -1,5 +1,7 @@
 const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
+const { RateLimiterPrisma } = require("rate-limiter-flexible");
+const { validationResult } = require("express-validator");
 
 // Get user profile
 const getProfile = async (req, res) => {
@@ -217,6 +219,475 @@ const getSavedPosts = async (req, res) => {
   }
 };
 
+class RateLimiter {
+  constructor() {
+    this.limits = new Map();
+    setInterval(() => this.cleanup(), 60000);
+  }
+
+  cleanup() {
+    const now = Date.now();
+    for (const [ip, entries] of this.limits.entries()) {
+      const filtered = entries.filter((time) => now - time < 60000);
+      if (filtered.length > 0) {
+        this.limits.set(ip, filtered);
+      } else {
+        this.limits.delete(ip);
+      }
+    }
+  }
+
+  async consume(ip) {
+    const now = Date.now();
+    if (!this.limits.has(ip)) {
+      this.limits.set(ip, []);
+    }
+
+    const requests = this.limits.get(ip);
+    const windowStart = now - 60000;
+    const recentRequests = requests.filter((t) => t > windowStart);
+
+    if (recentRequests.length >= 5) {
+      const error = new Error("Too many requests");
+      error.remainingPoints = 0;
+      throw error;
+    }
+
+    requests.push(now);
+    return { remainingPoints: 5 - recentRequests.length - 1 };
+  }
+}
+
+const rateLimiter = new RateLimiter();
+
+// Follow a user with enhanced follow request system
+const followUser = async (req, res) => {
+  try {
+    await rateLimiter.consume(req.ip);
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const followerId = req.user.UserID;
+
+    if (userId === followerId) {
+      return res.status(400).json({ error: "Cannot follow yourself" });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { UserID: parseInt(userId) },
+      select: { IsPrivate: true, Username: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const existingFollow = await prisma.follower.findFirst({
+      where: {
+        UserID: parseInt(userId),
+        FollowerUserID: followerId,
+      },
+    });
+
+    if (existingFollow) {
+      const statusMap = {
+        PENDING: "Your follow request is still pending",
+        ACCEPTED: "You are already following this user",
+        REJECTED: "Your previous follow request was rejected",
+      };
+      return res.status(409).json({
+        error:
+          statusMap[existingFollow.Status] || "Already following this user",
+        status: existingFollow.Status,
+      });
+    }
+
+    const follow = await prisma.follower.create({
+      data: {
+        UserID: parseInt(userId),
+        FollowerUserID: followerId,
+        Status: targetUser.IsPrivate ? "PENDING" : "ACCEPTED",
+      },
+    });
+
+    if (targetUser.IsPrivate) {
+      await prisma.notification.create({
+        data: {
+          UserID: parseInt(userId),
+          Type: "FOLLOW_REQUEST",
+          Content: `${req.user.Username} wants to follow you`,
+          Metadata: {
+            requestId: follow.FollowerID,
+            requesterId: followerId,
+            requesterUsername: req.user.Username,
+          },
+        },
+      });
+      return res.status(201).json({
+        message: "Follow request sent",
+        status: "PENDING",
+      });
+    }
+
+    await prisma.notification.create({
+      data: {
+        UserID: parseInt(userId),
+        Type: "FOLLOW",
+        Content: `${req.user.Username} started following you`,
+        Metadata: {
+          followerId: followerId,
+        },
+      },
+    });
+
+    res.status(201).json({
+      message: "Successfully followed user",
+      status: "ACCEPTED",
+    });
+  } catch (error) {
+    if (error.remainingPoints === 0) {
+      return res.status(429).json({ error: "Too many requests" });
+    }
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+};
+
+// Accept follow request - returns users who accepted follow requests
+const acceptFollowRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = req.user.UserID;
+
+    const updatedFollow = await prisma.follower.update({
+      where: {
+        FollowerID: parseInt(requestId),
+        UserID: userId,
+        Status: "PENDING",
+      },
+      data: {
+        Status: "ACCEPTED",
+        UpdatedAt: new Date(),
+      },
+      include: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+          },
+        },
+      },
+    });
+
+    if (!updatedFollow) {
+      return res.status(404).json({
+        error: "Follow request not found or already processed",
+      });
+    }
+
+    // Get all accepted followers
+    const acceptedFollowers = await prisma.follower.findMany({
+      where: {
+        UserID: userId,
+        Status: "ACCEPTED",
+      },
+      select: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      message: "Follow request accepted",
+      acceptedFollowers: acceptedFollowers.map((f) => f.FollowerUser),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Get pending follow requests - returns users with pending requests
+const getPendingFollowRequests = async (req, res) => {
+  try {
+    const userId = req.user.UserID;
+
+    const requests = await prisma.follower.findMany({
+      where: {
+        UserID: userId,
+        Status: "PENDING",
+      },
+      include: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+            Bio: true,
+          },
+        },
+      },
+      orderBy: {
+        CreatedAt: "desc",
+      },
+    });
+
+    res.status(200).json({
+      count: requests.length,
+      pendingRequests: requests.map((r) => ({
+        requestId: r.FollowerID,
+        user: r.FollowerUser,
+        createdAt: r.CreatedAt,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Reject follow request - returns users who rejected follow requests
+const rejectFollowRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = req.user.UserID;
+
+    const deletedFollow = await prisma.follower.delete({
+      where: {
+        FollowerID: parseInt(requestId),
+        UserID: userId,
+        Status: "PENDING",
+      },
+      include: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+          },
+        },
+      },
+    });
+
+    if (!deletedFollow) {
+      return res.status(404).json({
+        error: "Follow request not found or already processed",
+      });
+    }
+
+    // Get all rejected follow requests (stored in a separate table or as status)
+    const rejectedFollows = await prisma.follower.findMany({
+      where: {
+        UserID: userId,
+        Status: "REJECTED",
+      },
+      select: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      message: "Follow request rejected",
+      rejectedUsers: rejectedFollows.map((f) => f.FollowerUser),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unfollow a user
+const unfollowUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const followerId = req.user.UserID;
+
+    if (userId === followerId) {
+      return res.status(400).json({ error: "Cannot unfollow yourself" });
+    }
+
+    const result = await prisma.follower.deleteMany({
+      where: {
+        UserID: parseInt(userId),
+        FollowerUserID: followerId,
+      },
+    });
+
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Follow relationship not found" });
+    }
+
+    res.status(200).json({ message: "Unfollowed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Get user's followers with proper access control
+const getFollowers = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user?.UserID;
+    const parsedUserId = parseInt(userId);
+
+    // Validate user ID
+    if (isNaN(parsedUserId)) {
+      return res.status(400).json({ error: "Invalid user ID format" });
+    }
+
+    // Get user privacy status and basic info
+    const user = await prisma.user.findUnique({
+      where: { UserID: parsedUserId },
+      select: {
+        IsPrivate: true,
+        Username: true,
+        UserID: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check access rights
+    const isOwner = currentUserId === user.UserID;
+    let hasAccess = !user.IsPrivate || isOwner;
+
+    // If account is private and user isn't owner, check if following
+    if (user.IsPrivate && !isOwner && currentUserId) {
+      const followRelationship = await prisma.follower.findFirst({
+        where: {
+          UserID: user.UserID,
+          FollowerUserID: currentUserId,
+          Status: "ACCEPTED",
+        },
+      });
+      hasAccess = followRelationship !== null;
+    }
+
+    // Handle access denial
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: "Private account",
+        message: `You must follow @${user.Username} to view their followers`,
+      });
+    }
+
+    // Get followers (only accepted follows)
+    const followers = await prisma.follower.findMany({
+      where: {
+        UserID: user.UserID,
+        Status: "ACCEPTED",
+      },
+      select: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+            IsPrivate: true, // Include privacy status of followers
+          },
+        },
+        CreatedAt: true,
+      },
+      orderBy: {
+        CreatedAt: "desc",
+      },
+      take: 100,
+    });
+
+    res.status(200).json({
+      count: followers.length,
+      followers: followers.map((f) => ({
+        ...f.FollowerUser,
+        followedAt: f.CreatedAt,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Get users being followed
+const getFollowing = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user?.UserID;
+    const parsedUserId = parseInt(userId);
+
+    if (isNaN(parsedUserId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { UserID: parsedUserId },
+      select: { IsPrivate: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isOwner = currentUserId === parsedUserId;
+    const hasAccess =
+      !user.IsPrivate ||
+      isOwner ||
+      (currentUserId &&
+        (await prisma.follower.count({
+          where: {
+            UserID: parsedUserId,
+            FollowerUserID: currentUserId,
+            Status: "ACCEPTED",
+          },
+        })) > 0);
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Private account" });
+    }
+
+    const following = await prisma.follower.findMany({
+      where: {
+        FollowerUserID: parsedUserId,
+        Status: "ACCEPTED",
+      },
+      select: {
+        User: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+          },
+        },
+      },
+      take: 100,
+    });
+
+    res.status(200).json({
+      following: following.map((f) => f.User),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -224,4 +695,11 @@ module.exports = {
   updatePrivacySettings,
   deleteProfile,
   getSavedPosts,
+  followUser,
+  unfollowUser,
+  getFollowers,
+  getFollowing,
+  acceptFollowRequest,
+  rejectFollowRequest,
+  getPendingFollowRequests,
 };

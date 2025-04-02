@@ -1,3 +1,5 @@
+const prisma = require("./prisma");
+
 // Validate username
 const validateUsername = (username) => {
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/; // Alphanumeric and underscore, 3-20 characters
@@ -32,10 +34,20 @@ const validateImageUrl = (url) => {
 const validateHighlightTitle = (title) => {
   return title.length >= 2 && title.length <= 50;
 };
+
+const isValidUserId = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { UserID: parseInt(userId) },
+    select: { UserID: true },
+  });
+  return !!user;
+};
+
 module.exports = {
   validateUsername,
   validateEmail,
   validatePassword,
   validateImageUrl,
   validateHighlightTitle,
+  isValidUserId,
 };

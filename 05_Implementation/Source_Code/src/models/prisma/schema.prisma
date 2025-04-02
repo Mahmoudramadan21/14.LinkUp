@@ -12,6 +12,21 @@ enum Role {
   ADMIN
 }
 
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  FOLLOW_REQUEST
+  FOLLOW_ACCEPTED
+  FOLLOW
+  LIKE
+  COMMENT
+  MESSAGE
+}
+
 model User {
   UserID           Int              @id @default(autoincrement())
   Username         String           @unique
@@ -39,6 +54,13 @@ model User {
   SavedPosts       SavedPost[]
   Highlights       Highlight[]
 }
+
+model RateLimiting {
+  key    String @id
+  points Int
+  expire Int?
+}
+
 
 model Post {
   PostID     Int         @id @default(autoincrement())
@@ -118,22 +140,25 @@ model Message {
 }
 
 model Follower {
-  FollowerID     Int      @id @default(autoincrement())
-  UserID         Int
-  User           User     @relation("Followers", fields: [UserID], references: [UserID])
+  FollowerID Int @id @default(autoincrement())
+  UserID     Int
+  User       User @relation("Followers", fields: [UserID], references: [UserID])
   FollowerUserID Int
-  FollowerUser   User     @relation("Following", fields: [FollowerUserID], references: [UserID])
-  CreatedAt      DateTime @default(now())
+  FollowerUser User @relation("Following", fields: [FollowerUserID], references: [UserID])
+  Status     FollowStatus @default(PENDING)
+  CreatedAt  DateTime @default(now())
+  UpdatedAt  DateTime @updatedAt
 }
 
 model Notification {
-  NotificationID Int      @id @default(autoincrement())
+  NotificationID Int              @id @default(autoincrement())
   UserID         Int
-  User           User     @relation(fields: [UserID], references: [UserID])
-  Type           String
+  User           User             @relation(fields: [UserID], references: [UserID])
+  Type           NotificationType
   Content        String
-  IsRead         Boolean  @default(false)
-  CreatedAt      DateTime @default(now())
+  IsRead         Boolean          @default(false)
+  Metadata       Json?
+  CreatedAt      DateTime         @default(now())
 }
 
 model Report {
