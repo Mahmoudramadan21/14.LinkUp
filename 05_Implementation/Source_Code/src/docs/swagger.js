@@ -33,14 +33,14 @@ const swaggerOptions = {
         name: "Profile",
         description: "User profile management",
       },
-      // {
-      //   name: "Auth",
-      //   description: "Authentication endpoints",
-      // },
-      // {
-      //   name: "Posts",
-      //   description: "User posts management",
-      // },
+      {
+        name: "Auth",
+        description: "Authentication endpoints",
+      },
+      {
+        name: "Posts",
+        description: "User posts management",
+      },
     ],
     components: {
       securitySchemes: {
@@ -267,13 +267,14 @@ const swaggerOptions = {
       },
     ],
   },
+  // File paths for Swagger to scan and generate API docs
   apis: ["./src/routes/*.js", "./src/controllers/*.js"],
 };
 
-// Generate Swagger documentation
+// Generated Swagger documentation object
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
-// Setup Swagger UI with custom options
+// Custom options for Swagger UI branding and functionality
 const swaggerUiOptions = {
   explorer: true,
   customSiteTitle: "LinkUp API Documentation",
@@ -284,15 +285,19 @@ const swaggerUiOptions = {
   customfavIcon: "https://linkup.com/favicon.ico",
 };
 
-// Setup Swagger UI
+/**
+ * Configures Swagger UI and JSON endpoints for API documentation
+ * @param {Express} app - Express application instance
+ */
 module.exports = (app) => {
+  // Serve Swagger UI at /api-docs with custom styling
   app.use(
     "/api-docs",
     swaggerUi.serve,
     swaggerUi.setup(swaggerDocs, swaggerUiOptions)
   );
 
-  // Serve Swagger JSON
+  // Expose raw Swagger JSON for external tools or debugging
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);

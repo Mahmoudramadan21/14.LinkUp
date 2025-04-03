@@ -4,13 +4,18 @@ const {
 } = require("../utils/validators");
 const { body } = require("express-validator");
 
+/**
+ * Validation rules for creating a new highlight
+ * Ensures title, cover image, and story IDs meet requirements
+ * @returns {Array} Express-validator middleware array
+ */
 const validateHighlightInput = [
   body("title")
     .trim()
     .notEmpty()
     .withMessage("Title is required")
     .bail()
-    .custom((value) => value.length >= 2 && value.length <= 50)
+    .custom(validateHighlightTitle) // Reuses utility function for consistency
     .withMessage("Title must be 2-50 characters"),
 
   body("coverImage")
@@ -28,6 +33,11 @@ const validateHighlightInput = [
   body("storyIds.*").isInt().withMessage("Invalid story ID").toInt(),
 ];
 
+/**
+ * Validation rules for updating an existing highlight
+ * Allows optional updates to title, cover image, and story IDs
+ * @returns {Array} Express-validator middleware array
+ */
 const validateHighlightUpdate = [
   body("title")
     .optional({ checkFalsy: true })
@@ -35,7 +45,7 @@ const validateHighlightUpdate = [
     .notEmpty()
     .withMessage("Title cannot be empty")
     .bail()
-    .custom((value) => value.length >= 2 && value.length <= 50)
+    .custom(validateHighlightTitle) // Reuses utility function for consistency
     .withMessage("Title must be 2-50 characters"),
 
   body("coverImage")

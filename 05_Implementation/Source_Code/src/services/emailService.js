@@ -1,12 +1,16 @@
 const sgMail = require("@sendgrid/mail");
 
-// Set SendGrid API Key
+// Set SendGrid API Key from environment variable
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Function to send a password reset email
+/**
+ * Sends a password reset email using SendGrid
+ * @param {string} email - Recipient's email address
+ * @param {string} resetLink - Link to reset the password
+ */
 const sendResetEmail = async (email, resetLink) => {
   try {
-    // Email options
+    // Email options for password reset
     const msg = {
       to: email,
       from: process.env.EMAIL_FROM, // Use the email you verified in SendGrid
@@ -15,7 +19,7 @@ const sendResetEmail = async (email, resetLink) => {
       html: `<p>Click the link to reset your password: <a href="${resetLink}">Reset Password</a></p>`,
     };
 
-    // Send email
+    // Send email via SendGrid
     const response = await sgMail.send(msg);
     console.log("Reset email sent successfully:", response);
   } catch (error) {

@@ -1,7 +1,11 @@
 const { body, param } = require("express-validator");
 const { isValidUserId } = require("../utils/validators");
 
-// Update profile validation rules
+/**
+ * Validation rules for updating user profile
+ * Ensures optional fields meet format and length requirements
+ * @returns {Array} Express-validator middleware array
+ */
 const updateProfileValidationRules = [
   body("username")
     .optional()
@@ -30,7 +34,11 @@ const updateProfileValidationRules = [
     .withMessage("Invalid profile picture URL"),
 ];
 
-// Change password validation rules
+/**
+ * Validation rules for changing user password
+ * Ensures old and new passwords meet security requirements
+ * @returns {Array} Express-validator middleware array
+ */
 const changePasswordValidationRules = [
   body("oldPassword").notEmpty().withMessage("Current password is required"),
 
@@ -47,7 +55,11 @@ const changePasswordValidationRules = [
     ),
 ];
 
-// Update privacy settings validation rules
+/**
+ * Validation rules for updating privacy settings
+ * Ensures privacy setting is a valid boolean
+ * @returns {Array} Express-validator middleware array
+ */
 const updatePrivacySettingsValidationRules = [
   body("isPrivate")
     .notEmpty()
@@ -56,7 +68,11 @@ const updatePrivacySettingsValidationRules = [
     .withMessage("Privacy setting must be a boolean value"),
 ];
 
-// User ID parameter validator
+/**
+ * Validation rules for user ID parameter
+ * Ensures user ID is valid and exists
+ * @returns {Array} Express-validator middleware array
+ */
 const userIdParamValidator = [
   param("userId")
     .isInt({ min: 1 })
@@ -66,7 +82,11 @@ const userIdParamValidator = [
     .toInt(),
 ];
 
-// Follow action validator
+/**
+ * Validation rules for follow/unfollow actions
+ * Prevents self-following
+ * @returns {Array} Express-validator middleware array
+ */
 const followActionValidator = [
   body().custom((_, { req }) => {
     if (req.params.userId === req.user.UserID.toString()) {

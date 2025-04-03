@@ -5,11 +5,13 @@ const router = express.Router();
 const authRoutes = require("./authRoutes");
 const profileRoutes = require("./profileRoutes");
 const highlightRoutes = require("./highlightRoutes");
+const postsRoutes = require("./postRoutes");
 
 // Use the routes
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
 router.use("/highlights", highlightRoutes);
+router.use("/posts", postsRoutes);
 
 // Export the router
 module.exports = router;

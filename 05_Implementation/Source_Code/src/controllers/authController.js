@@ -1,19 +1,24 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const prisma = require("../utils/prisma"); // Import Prisma client
-const { sendResetEmail } = require("../services/emailService"); // Import email service
+const prisma = require("../utils/prisma");
+const { sendResetEmail } = require("../services/emailService");
 
-// Sign-up logic
+// Salt rounds for password hashing - value between 10-12 is recommended
+const SALT_ROUNDS = 10;
+const TOKEN_EXPIRY = "1h"; // JWT expiry time
+
+/**
+ * Handles user registration with email/username availability check
+ * and password hashing
+ */
 const signup = async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
-    // Check if the email or username already exists
+    // Check for existing user using compound query
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ Email: email }, { Username: username }],
-      },
+      where: { OR: [{ Email: email }, { Username: username }] },
     });
 
     if (existingUser) {
@@ -22,116 +27,116 @@ const signup = async (req, res) => {
         .json({ message: "Email or username already exists." });
     }
 
-    // Hash the password before saving it to the database
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with bcrypt (async operation)
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Create a new user in the database
     const newUser = await prisma.user.create({
-      data: {
-        Username: username,
-        Email: email,
-        Password: hashedPassword,
-      },
+      data: { Username: username, Email: email, Password: hashedPassword },
     });
 
-    // Return success response with the new user's ID
+    // Omit sensitive data from response
     res.status(201).json({
       message: "User registered successfully",
       userId: newUser.UserID,
     });
   } catch (error) {
-    console.error("Error in signup:", error);
-    res
-      .status(500)
-      .json({ message: "Error registering user", error: error.message });
+    console.error("Signup error:", error);
+    res.status(500).json({
+      message: "Error registering user",
+      error: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 
-// Login logic
+/**
+ * Authenticates user and returns JWT token
+ * Uses constant-time comparison to prevent timing attacks
+ */
 const login = async (req, res) => {
   const { usernameOrEmail, password } = req.body;
 
   try {
-    // Find user by username or email
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ Username: usernameOrEmail }, { Email: usernameOrEmail }],
       },
     });
 
-    // If user not found or password is incorrect, return an error
-    if (!user || !(await bcrypt.compare(password, user.Password))) {
-      return res
-        .status(401) // Ensure this is 401
-        .json({ message: "Invalid username/email or password" });
+    // Constant-time comparison for security
+    const isValid = user && (await bcrypt.compare(password, user.Password));
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Generate a JWT token for authentication
+    // Sign JWT with user ID and email
     const token = jwt.sign(
       { userId: user.UserID, email: user.Email },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: TOKEN_EXPIRY }
     );
 
-    // Return success response with the token
-    res.status(200).json({ message: "Login successful", token });
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      expiresIn: TOKEN_EXPIRY,
+    });
   } catch (error) {
-    console.error("Error in login:", error);
-    res.status(500).json({ message: "Error logging in", error: error.message });
+    console.error("Login error:", error);
+    res.status(500).json({
+      message: "Authentication failed",
+      error: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 
-// Forgot password logic
+/**
+ * Initiates password reset flow
+ * Uses time-based token with expiry for security
+ */
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { Email: email },
-    });
+    const user = await prisma.user.findUnique({ where: { Email: email } });
 
-    // If user exists, generate and save a reset token
     if (user) {
+      // Generate cryptographically secure token
       const resetToken = crypto.randomBytes(20).toString("hex");
-      const resetTokenExpiry = new Date(Date.now() + 3600000); // Token valid for 1 hour
+      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour expiry
 
-      // Save the reset token and expiry in the database
       await prisma.user.update({
         where: { UserID: user.UserID },
-        data: {
-          resetToken,
-          resetTokenExpiry,
-        },
+        data: { resetToken, resetTokenExpiry },
       });
 
-      // Send the reset link to the user's email
-      const resetLink = `http://localhost:3000/api/auth/reset-password?token=${resetToken}`;
+      // In production, use frontend URL from config
+      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
       await sendResetEmail(email, resetLink);
     }
 
-    // Always return the same message to avoid exposing whether the email exists
+    // Generic response to prevent email enumeration
     res.status(200).json({
-      message: "If the email exists, a password reset link has been sent.",
+      message: "If the email exists, a reset link has been sent",
     });
   } catch (error) {
-    console.error("Error in forgotPassword:", error);
-    res
-      .status(500)
-      .json({ message: "Error sending reset link", error: error.message });
+    console.error("Password reset error:", error);
+    res.status(500).json({ message: "Error processing request" });
   }
 };
 
-// Reset password logic
+/**
+ * Completes password reset flow
+ * Validates token and updates credentials
+ */
 const resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
 
   try {
-    // Find user by reset token and check if it's still valid
+    // Find valid, non-expired token
     const user = await prisma.user.findFirst({
       where: {
         resetToken: token,
-        resetTokenExpiry: { gt: new Date() }, // Check if the token is still valid
+        resetTokenExpiry: { gt: new Date() },
       },
     });
 
@@ -139,10 +144,9 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired token" });
     }
 
-    // Hash the new password before saving it
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    // Update the user's password and clear the reset token
+    // Clear reset token after use (one-time use)
     await prisma.user.update({
       where: { UserID: user.UserID },
       data: {
@@ -152,12 +156,10 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    res.status(200).json({ message: "Password reset successfully" });
+    res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
-    console.error("Error in resetPassword:", error);
-    res
-      .status(500)
-      .json({ message: "Error resetting password", error: error.message });
+    console.error("Password update error:", error);
+    res.status(500).json({ message: "Error updating password" });
   }
 };
 

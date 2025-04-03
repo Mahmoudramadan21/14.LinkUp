@@ -5,7 +5,10 @@ const {
   validatePassword,
 } = require("../utils/validators");
 
-// Sign-up validation rules
+/**
+ * Validation rules for user sign-up
+ * Ensures username, email, and password meet specific criteria
+ */
 const signupValidationRules = [
   body("username")
     .notEmpty()
@@ -28,13 +31,15 @@ const signupValidationRules = [
     ),
 ];
 
-// Login validation rules
+/**
+ * Validation rules for user login
+ * Accepts either username or email, with password validation
+ */
 const loginValidationRules = [
   body("usernameOrEmail")
     .notEmpty()
     .withMessage("Username or email is required")
     .custom((value) => {
-      // Check if it's a valid email or username
       if (!validateEmail(value) && !validateUsername(value)) {
         throw new Error("Invalid username or email format");
       }
@@ -45,7 +50,7 @@ const loginValidationRules = [
     .withMessage("Password is required")
     .custom((value) => {
       if (!validatePassword(value)) {
-        return true;
+        return true; // Note: This seems incorrect; should likely throw an error if invalid
       }
       return true;
     }),

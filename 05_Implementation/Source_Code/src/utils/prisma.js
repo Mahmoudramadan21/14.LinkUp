@@ -1,7 +1,9 @@
 const { PrismaClient } = require("@prisma/client");
 
-// Create a new instance of PrismaClient
+/**
+ * Initializes PrismaClient for database interactions across the application
+ * @type {PrismaClient}
+ */
 const prisma = new PrismaClient();
 
-// Export the Prisma client for use in other parts of the application
 module.exports = prisma;

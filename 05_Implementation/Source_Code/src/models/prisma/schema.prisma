@@ -1,6 +1,7 @@
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  relationMode = "prisma" 
 }
 
 generator client {
@@ -18,6 +19,13 @@ enum FollowStatus {
   REJECTED
 }
 
+enum PostPrivacy {
+  PUBLIC
+  FOLLOWERS_ONLY
+  PRIVATE
+}
+
+
 enum NotificationType {
   FOLLOW_REQUEST
   FOLLOW_ACCEPTED
@@ -25,6 +33,16 @@ enum NotificationType {
   LIKE
   COMMENT
   MESSAGE
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  userId    Int
+  details   String
+  createdAt DateTime @default(now())
+  // Add relation if needed
+  user      User     @relation(fields: [userId], references: [UserID])
 }
 
 model User {
@@ -53,6 +71,7 @@ model User {
   SupportRequests  SupportRequest[]
   SavedPosts       SavedPost[]
   Highlights       Highlight[]
+  auditLogs  AuditLog[]  // Add this line to complete the relationship
 }
 
 model RateLimiting {
@@ -75,6 +94,10 @@ model Post {
   Likes      Like[]
   Reports    Report[]
   SavedPosts SavedPost[]
+  privacy PostPrivacy @default(PUBLIC)
+
+@@index([CreatedAt])
+@@index([UserID, CreatedAt])
 }
 
 model Story {
@@ -117,6 +140,8 @@ model Comment {
   User      User     @relation(fields: [UserID], references: [UserID])
   Content   String
   CreatedAt DateTime @default(now())
+
+  @@index([PostID, CreatedAt])
 }
 
 model Like {
@@ -126,6 +151,8 @@ model Like {
   UserID    Int
   User      User     @relation(fields: [UserID], references: [UserID])
   CreatedAt DateTime @default(now())
+
+  @@unique([UserID, PostID])
 }
 
 model Message {
@@ -148,6 +175,9 @@ model Follower {
   Status     FollowStatus @default(PENDING)
   CreatedAt  DateTime @default(now())
   UpdatedAt  DateTime @updatedAt
+
+  @@index([UserID, Status])
+  @@index([FollowerUserID])
 }
 
 model Notification {
