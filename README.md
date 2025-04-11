@@ -130,7 +130,7 @@ Set up environment variables (e.g., database credentials, API keys). Modify the 
 Start the backend server:
 
 ```bash
-npm start
+node .\server.js
 ```
 
 Start the frontend development server:
