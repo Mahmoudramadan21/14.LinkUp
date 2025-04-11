@@ -110,7 +110,7 @@ The project documentation is divided into several phases, each with its own deli
 
 ```bash
 git clone https://github.com/Mahmoudramadan21/14.LinkUp.git
-cd 14.LinkUp
+cd 14.LinkUp\05_Implementation\Source_Code\
 ```
 
 ### 2. Install Dependencies
