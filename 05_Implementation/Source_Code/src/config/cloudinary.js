@@ -1,19 +1,16 @@
-// Import Cloudinary SDK (using v2 API)
 const { v2: cloudinary } = require("cloudinary");
 
-/**
- * Configures Cloudinary with environment variables
- * Note: Ensure these ENV vars are set in your production environment:
- * - CLOUDINARY_CLOUD_NAME
- * - CLOUDINARY_API_KEY
- * - CLOUDINARY_API_SECRET
- */
+// Configure Cloudinary with environment variables
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, // Cloudinary cloud name
-  api_key: process.env.CLOUDINARY_API_KEY, // API key for authentication
-  api_secret: process.env.CLOUDINARY_API_SECRET, // API secret (keep secure!)
-  secure: true, // Enforce HTTPS for all requests
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+  api_proxy: process.env.HTTP_PROXY, // Use proxy if provided
+  upload_prefix: "https://api.cloudinary.com", // Ensure HTTPS for uploads
 });
 
-// Export configured Cloudinary instance
+// Log confirmation of Cloudinary setup
+console.log("Cloudinary configured for cloud:", cloudinary.config().cloud_name);
+
 module.exports = cloudinary;

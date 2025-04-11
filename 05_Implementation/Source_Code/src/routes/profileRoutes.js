@@ -35,7 +35,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/profile:
+ * /profile:
  *   get:
  *     tags: [Profile]
  *     summary: Get user profile
@@ -58,7 +58,7 @@ router.get("/", authMiddleware, getProfile);
 
 /**
  * @swagger
- * /api/profile/edit:
+ * /profile/edit:
  *   put:
  *     tags: [Profile]
  *     summary: Update user profile
@@ -107,7 +107,7 @@ router.put(
 
 /**
  * @swagger
- * /api/profile/change-password:
+ * /profile/change-password:
  *   put:
  *     tags: [Profile]
  *     summary: Change user password
@@ -150,7 +150,7 @@ router.put(
 
 /**
  * @swagger
- * /api/profile/privacy:
+ * /profile/privacy:
  *   put:
  *     tags: [Profile]
  *     summary: Update privacy settings
@@ -188,7 +188,7 @@ router.put(
 
 /**
  * @swagger
- * /api/profile:
+ * /profile:
  *   delete:
  *     tags: [Profile]
  *     summary: Delete user profile
@@ -207,7 +207,7 @@ router.delete("/", authMiddleware, deleteProfile);
 
 /**
  * @swagger
- * /api/profile/saved-posts:
+ * /profile/saved-posts:
  *   get:
  *     tags: [Profile]
  *     summary: Get saved posts
@@ -230,7 +230,7 @@ router.get("/saved-posts", authMiddleware, getSavedPosts);
 
 /**
  * @swagger
- * /api/profile/follow/{userId}:
+ * /profile/follow/{userId}:
  *   post:
  *     tags: [Profile]
  *     summary: Follow a user
@@ -284,7 +284,7 @@ router.post(
 
 /**
  * @swagger
- * /api/profile/follow-requests/pending:
+ * /profile/follow-requests/pending:
  *   get:
  *     tags: [Profile]
  *     summary: Get pending follow requests
@@ -316,7 +316,7 @@ router.get(
 
 /**
  * @swagger
- * /api/profile/follow-requests/{requestId}/accept:
+ * /profile/follow-requests/{requestId}/accept:
  *   put:
  *     tags: [Profile]
  *     summary: Accept follow request
@@ -355,7 +355,7 @@ router.put(
 
 /**
  * @swagger
- * /api/profile/follow-requests/{requestId}/reject:
+ * /profile/follow-requests/{requestId}/reject:
  *   delete:
  *     tags: [Profile]
  *     summary: Reject follow request
@@ -394,7 +394,7 @@ router.delete(
 
 /**
  * @swagger
- * /api/profile/unfollow/{userId}:
+ * /profile/unfollow/{userId}:
  *   delete:
  *     tags: [Profile]
  *     summary: Unfollow a user
@@ -428,7 +428,7 @@ router.delete(
 
 /**
  * @swagger
- * /api/profile/followers/{userId}:
+ * /profile/followers/{userId}:
  *   get:
  *     tags: [Profile]
  *     summary: Get user's followers
@@ -467,7 +467,7 @@ router.get(
 
 /**
  * @swagger
- * /api/profile/following/{userId}:
+ * /profile/following/{userId}:
  *   get:
  *     tags: [Profile]
  *     summary: Get users followed by a user

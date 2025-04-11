@@ -20,7 +20,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "http://localhost:3000",
+        url: "http://localhost:3000/api/",
         description: "Development server",
       },
       {
@@ -32,10 +32,6 @@ const swaggerOptions = {
       {
         name: "Profile",
         description: "User profile management",
-      },
-      {
-        name: "Auth",
-        description: "Authentication endpoints",
       },
       {
         name: "Posts",

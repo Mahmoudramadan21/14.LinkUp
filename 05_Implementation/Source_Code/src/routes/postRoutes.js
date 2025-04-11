@@ -39,7 +39,7 @@ const postLimiter = rateLimit({
 
 /**
  * @swagger
- * /api/posts:
+ * /posts:
  *   post:
  *     summary: Create a new post
  *     tags: [Posts]
@@ -79,7 +79,7 @@ router.post(
 
 /**
  * @swagger
- * /api/posts:
+ * /posts:
  *   get:
  *     summary: Get all public posts (paginated)
  *     tags: [Posts]
@@ -108,7 +108,7 @@ router.get("/", authMiddleware, getPosts);
 
 /**
  * @swagger
- * /api/posts/{postId}:
+ * /posts/{postId}:
  *   get:
  *     summary: Get a specific post by ID
  *     tags: [Posts]
@@ -133,7 +133,7 @@ router.get("/:postId", authMiddleware, getPostById);
 
 /**
  * @swagger
- * /api/posts/{postId}:
+ * /posts/{postId}:
  *   put:
  *     summary: Update a post
  *     tags: [Posts]
@@ -176,7 +176,7 @@ router.put(
 
 /**
  * @swagger
- * /api/posts/{postId}:
+ * /posts/{postId}:
  *   delete:
  *     summary: Delete a post
  *     tags: [Posts]
@@ -201,7 +201,7 @@ router.delete("/:postId", authMiddleware, checkPostOwnership, deletePost);
 
 /**
  * @swagger
- * /api/posts/{postId}/like:
+ * /posts/{postId}/like:
  *   post:
  *     summary: Like or unlike a post
  *     tags: [Posts]
@@ -224,7 +224,7 @@ router.post("/:postId/like", authMiddleware, postLimiter, likePost);
 
 /**
  * @swagger
- * /api/posts/{postId}/comment:
+ * /posts/{postId}/comment:
  *   post:
  *     summary: Add a comment to a post
  *     tags: [Posts]
@@ -265,7 +265,7 @@ router.post(
 
 /**
  * @swagger
- * /api/posts/{postId}/save:
+ * /posts/{postId}/save:
  *   post:
  *     summary: Save or unsave a post
  *     tags: [Posts]
@@ -288,7 +288,7 @@ router.post("/:postId/save", authMiddleware, savePost);
 
 /**
  * @swagger
- * /api/posts/{postId}/report:
+ * /posts/{postId}/report:
  *   post:
  *     summary: Report a post
  *     tags: [Posts]

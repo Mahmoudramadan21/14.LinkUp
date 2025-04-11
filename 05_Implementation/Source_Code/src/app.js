@@ -1,22 +1,18 @@
+require("dotenv").config();
+
 const express = require("express");
 const swaggerSetup = require("./docs/swagger");
 const routes = require("./routes/index");
 const app = express();
 
-/**
- * Configures Swagger for API documentation
- * @param {Express} app - The Express application instance
- */
+// Add these essential middlewares BEFORE your routes
+app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: true })); // For parsing form data
+
+// Configure Swagger
 swaggerSetup(app);
 
-// Middleware to parse JSON requests
-app.use(express.json());
+// Mount your routes
+app.use("/api", routes); // Make sure this matches your curl request path
 
-/**
- * Mounts all API routes under the /api prefix
- * Routes are defined in the routes/index module
- */
-app.use("/api", routes);
-
-// Export the app for use in server.js or testing
 module.exports = app;

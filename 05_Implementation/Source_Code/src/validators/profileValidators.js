@@ -76,10 +76,7 @@ const updatePrivacySettingsValidationRules = [
 const userIdParamValidator = [
   param("userId")
     .isInt({ min: 1 })
-    .withMessage("Invalid user ID")
-    .custom(isValidUserId)
-    .withMessage("User does not exist")
-    .toInt(),
+    .withMessage("User ID must be a positive integer"),
 ];
 
 /**
@@ -88,8 +85,8 @@ const userIdParamValidator = [
  * @returns {Array} Express-validator middleware array
  */
 const followActionValidator = [
-  body().custom((_, { req }) => {
-    if (req.params.userId === req.user.UserID.toString()) {
+  param("userId").custom((value, { req }) => {
+    if (parseInt(value) === req.user.userId) {
       throw new Error("Cannot follow yourself");
     }
     return true;

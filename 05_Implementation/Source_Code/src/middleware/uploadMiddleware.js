@@ -1,27 +1,30 @@
 const multer = require("multer");
 
-// Configured multer instance for file uploads
+// Configured multer instance for story file uploads
 const upload = multer({
-  // Store files in memory instead of disk
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB max file size
-    files: 1, // Limit to single file upload
+    fileSize: 100 * 1024 * 1024, // 100MB max file size for stories
+    files: 1,
   },
-  /**
-   * Filters uploaded files to allow only images and videos
-   * @param {Object} req - Express request object
-   * @param {Object} file - Uploaded file details
-   * @param {Function} cb - Callback to accept or reject file
-   */
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype.startsWith("image/") ||
-      file.mimetype.startsWith("video/")
-    ) {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "video/mp4",
+      "video/quicktime",
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only images and videos are allowed"), false);
+      cb(
+        new Error(
+          "Only images (JPEG, PNG, WebP) and videos (MP4, MOV) are allowed"
+        ),
+        false
+      );
     }
   },
 });
