@@ -1,0 +1,248 @@
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum PostPrivacy {
+  PUBLIC
+  FOLLOWERS_ONLY
+  PRIVATE
+}
+
+enum NotificationType {
+  FOLLOW_REQUEST
+  FOLLOW_ACCEPTED
+  FOLLOW
+  LIKE
+  COMMENT
+  MESSAGE
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  userId    Int
+  details   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [UserID])
+}
+
+model User {
+  UserID             Int              @id @default(autoincrement())
+  Username           String           @unique
+  Email              String           @unique
+  Password           String
+  ProfilePicture     String?
+  Bio                String?
+  IsPrivate          Boolean          @default(false)
+  Role               Role             @default(USER)
+  CreatedAt          DateTime         @default(now())
+  UpdatedAt          DateTime         @updatedAt
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  Posts              Post[]
+  Stories            Story[]
+  Comments           Comment[]
+  Likes              Like[]
+  lastActive         DateTime?        @updatedAt
+  conversations      Conversation[]   @relation("ParticipantConversations")
+  sentMessages       Message[]        @relation("MessageSender")
+  adminConversations Conversation[]   @relation("GroupAdmin")
+  readMessages       Message[]        @relation("MessageReadBy")
+  reactions          Reaction[]
+  Followers          Follower[]       @relation("Followers")
+  Following          Follower[]       @relation("Following")
+  Notifications      Notification[]
+  Reports            Report[]
+  SupportRequests    SupportRequest[]
+  SavedPosts         SavedPost[]
+  Highlights         Highlight[]
+  auditLogs          AuditLog[]
+}
+
+model Conversation {
+  id           String       @id @default(uuid())
+  participants User[]       @relation("ParticipantConversations")
+  messages     Message[]
+  title        String?
+  isGroup      Boolean      @default(false)
+  admin        User?        @relation("GroupAdmin", fields: [adminId], references: [UserID])
+  adminId      Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  @@index([updatedAt])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  content        String
+  sender         User         @relation("MessageSender", fields: [senderId], references: [UserID])
+  senderId       Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  readBy         User[]       @relation("MessageReadBy")
+  readAt         DateTime?
+  attachments    Attachment[]
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replyToId      String?
+  replies        Message[]    @relation("MessageReplies")
+  reactions      Reaction[]
+  createdAt      DateTime     @default(now())
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  url       String
+  type      String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  messageId String
+  fileName  String?
+  fileSize  Int?
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  messageId String
+  user      User     @relation(fields: [userId], references: [UserID])
+  userId    Int
+  @@unique([messageId, userId])
+}
+
+model RateLimiting {
+  key    String @id
+  points Int
+  expire Int?
+}
+
+model Post {
+  PostID     Int          @id @default(autoincrement())
+  UserID     Int
+  User       User         @relation(fields: [UserID], references: [UserID])
+  Content    String
+  ImageURL   String?
+  VideoURL   String?
+  CreatedAt  DateTime     @default(now())
+  UpdatedAt  DateTime     @updatedAt
+  Comments   Comment[]
+  Likes      Like[]
+  Reports    Report[]
+  SavedPosts SavedPost[]
+  privacy    PostPrivacy @default(PUBLIC)
+  @@index([CreatedAt])
+  @@index([UserID, CreatedAt])
+}
+
+model Story {
+  StoryID    Int      @id @default(autoincrement())
+  UserID     Int
+  User       User     @relation(fields: [UserID], references: [UserID])
+  MediaURL   String
+  CreatedAt  DateTime @default(now())
+  ExpiresAt  DateTime
+  Highlights Highlight[] @relation("StoryToHighlights")
+  @@index([UserID])
+  @@index([ExpiresAt])
+}
+
+model Highlight {
+  HighlightID Int      @id @default(autoincrement())
+  UserID      Int
+  User        User     @relation(fields: [UserID], references: [UserID])
+  Title       String   @db.VarChar(50)
+  CoverImage  String
+  CreatedAt   DateTime @default(now())
+  Stories     Story[]  @relation("StoryToHighlights")
+  @@index([UserID])
+  @@index([CreatedAt])
+}
+
+model SavedPost {
+  SavedPostID Int      @id @default(autoincrement())
+  UserID      Int
+  User        User     @relation(fields: [UserID], references: [UserID])
+  PostID      Int
+  Post        Post     @relation(fields: [PostID], references: [PostID])
+  CreatedAt   DateTime @default(now())
+}
+
+model Comment {
+  CommentID Int      @id @default(autoincrement())
+  PostID    Int
+  Post      Post     @relation(fields: [PostID], references: [PostID])
+  UserID    Int
+  User      User     @relation(fields: [UserID], references: [UserID])
+  Content   String
+  CreatedAt DateTime @default(now())
+  @@index([PostID, CreatedAt])
+}
+
+model Like {
+  LikeID    Int      @id @default(autoincrement())
+  PostID    Int
+  Post      Post     @relation(fields: [PostID], references: [PostID])
+  UserID    Int
+  User      User     @relation(fields: [UserID], references: [UserID])
+  CreatedAt DateTime @default(now())
+  @@unique([UserID, PostID])
+}
+
+model Follower {
+  FollowerID     Int          @id @default(autoincrement())
+  UserID         Int
+  User           User         @relation("Followers", fields: [UserID], references: [UserID])
+  FollowerUserID Int
+  FollowerUser   User         @relation("Following", fields: [FollowerUserID], references: [UserID])
+  Status         FollowStatus @default(PENDING)
+  CreatedAt      DateTime     @default(now())
+  UpdatedAt      DateTime     @updatedAt
+  @@index([UserID, Status])
+  @@index([FollowerUserID])
+}
+
+model Notification {
+  NotificationID Int              @id @default(autoincrement())
+  UserID         Int
+  User           User             @relation(fields: [UserID], references: [UserID])
+  Type           NotificationType
+  Content        String
+  IsRead         Boolean          @default(false)
+  Metadata       Json?
+  CreatedAt      DateTime         @default(now())
+}
+
+model Report {
+  ReportID  Int      @id @default(autoincrement())
+  PostID    Int
+  Post      Post     @relation(fields: [PostID], references: [PostID])
+  UserID    Int
+  User      User     @relation(fields: [UserID], references: [UserID])
+  Reason    String
+  CreatedAt DateTime @default(now())
+}
+
+model SupportRequest {
+  RequestID Int      @id @default(autoincrement())
+  UserID    Int
+  User      User     @relation(fields: [UserID], references: [UserID])
+  Subject   String
+  Content   String
+  CreatedAt DateTime @default(now())
+}
