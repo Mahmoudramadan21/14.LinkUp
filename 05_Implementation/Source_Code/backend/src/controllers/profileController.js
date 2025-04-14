@@ -2,12 +2,13 @@ const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
 const { RateLimiterPrisma } = require("rate-limiter-flexible");
 const { validationResult } = require("express-validator");
+const cloudinary = require("cloudinary").v2;
 
 // Salt rounds for password hashing - recommended value
 const SALT_ROUNDS = 10;
 
 /**
- * Retrieves user profile while excluding sensitive information
+ * Retrieves user profile with counts and additional details
  * Returns 404 if user not found
  */
 const getProfile = async (req, res) => {
@@ -21,11 +22,23 @@ const getProfile = async (req, res) => {
         Username: true,
         Email: true,
         ProfilePicture: true,
+        CoverPicture: true,
         Bio: true,
+        Address: true,
+        JobTitle: true,
+        DateOfBirth: true,
         IsPrivate: true,
         Role: true,
         CreatedAt: true,
         UpdatedAt: true,
+        _count: {
+          select: {
+            Posts: true, // Count of user's posts
+            Likes: true, // Count of likes given by user
+            Followers: { where: { Status: "ACCEPTED" } }, // Count of accepted followers
+            Following: { where: { Status: "ACCEPTED" } }, // Count of users followed
+          },
+        },
       },
     });
 
@@ -33,7 +46,28 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ profile: user });
+    // Format response with counts
+    const response = {
+      userId: user.UserID,
+      username: user.Username,
+      email: user.Email,
+      profilePicture: user.ProfilePicture,
+      coverPicture: user.CoverPicture,
+      bio: user.Bio,
+      address: user.Address,
+      jobTitle: user.JobTitle,
+      dateOfBirth: user.DateOfBirth,
+      isPrivate: user.IsPrivate,
+      role: user.Role,
+      createdAt: user.CreatedAt,
+      updatedAt: user.UpdatedAt,
+      postCount: user._count.Posts,
+      followerCount: user._count.Followers,
+      followingCount: user._count.Following,
+      likeCount: user._count.Likes,
+    };
+
+    res.status(200).json({ profile: response });
   } catch (error) {
     res
       .status(500)
@@ -42,14 +76,61 @@ const getProfile = async (req, res) => {
 };
 
 /**
- * Updates user profile with validation for duplicate email/username
- * Returns updated profile data excluding sensitive fields
+ * Updates user profile with validation for duplicates and new fields
+ * Supports profile and cover picture uploads
+ * Returns updated profile data
  */
 const updateProfile = async (req, res) => {
-  const { username, email, bio, profilePicture } = req.body;
+  const { username, email, bio, address, jobTitle, dateOfBirth } = req.body;
   const userId = req.user.UserID;
+  let profilePictureUrl, coverPictureUrl;
+
+  // Handle multiple file uploads (profilePicture and coverPicture)
+  const files = req.files || {};
+  const profilePictureFile = files.profilePicture
+    ? files.profilePicture[0]
+    : null;
+  const coverPictureFile = files.coverPicture ? files.coverPicture[0] : null;
 
   try {
+    // Upload profile picture if provided
+    if (profilePictureFile) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "profile_pictures",
+            public_id: `user_${userId}_profile`,
+            overwrite: true,
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        stream.end(profilePictureFile.buffer);
+      });
+      profilePictureUrl = uploadResult.secure_url;
+    }
+
+    // Upload cover picture if provided
+    if (coverPictureFile) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "cover_pictures",
+            public_id: `user_${userId}_cover`,
+            overwrite: true,
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        stream.end(coverPictureFile.buffer);
+      });
+      coverPictureUrl = uploadResult.secure_url;
+    }
+
     // Validate username uniqueness if provided
     if (username) {
       const existingUsername = await prisma.user.findFirst({
@@ -58,7 +139,6 @@ const updateProfile = async (req, res) => {
           UserID: { not: userId },
         },
       });
-
       if (existingUsername) {
         return res.status(400).json({ message: "Username already exists" });
       }
@@ -72,25 +152,42 @@ const updateProfile = async (req, res) => {
           UserID: { not: userId },
         },
       });
-
       if (existingEmail) {
         return res.status(400).json({ message: "Email already exists" });
       }
     }
 
+    // Validate dateOfBirth if provided
+    if (dateOfBirth) {
+      const parsedDate = new Date(dateOfBirth);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date of birth" });
+      }
+    }
+
+    // Update the user's profile
     const updatedUser = await prisma.user.update({
       where: { UserID: userId },
       data: {
         Username: username,
         Email: email,
         Bio: bio,
-        ProfilePicture: profilePicture,
+        Address: address,
+        JobTitle: jobTitle,
+        DateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        ProfilePicture: profilePictureUrl,
+        CoverPicture: coverPictureUrl,
       },
       select: {
+        UserID: true,
         Username: true,
         Email: true,
         ProfilePicture: true,
+        CoverPicture: true,
         Bio: true,
+        Address: true,
+        JobTitle: true,
+        DateOfBirth: true,
         IsPrivate: true,
         Role: true,
         CreatedAt: true,
@@ -98,9 +195,24 @@ const updateProfile = async (req, res) => {
       },
     });
 
+    // Respond with the updated profile
     res.status(200).json({
       message: "Profile updated successfully",
-      profile: updatedUser,
+      profile: {
+        userId: updatedUser.UserID,
+        username: updatedUser.Username,
+        email: updatedUser.Email,
+        profilePicture: updatedUser.ProfilePicture,
+        coverPicture: updatedUser.CoverPicture,
+        bio: updatedUser.Bio,
+        address: updatedUser.Address,
+        jobTitle: updatedUser.JobTitle,
+        dateOfBirth: updatedUser.DateOfBirth,
+        isPrivate: updatedUser.IsPrivate,
+        role: updatedUser.Role,
+        createdAt: updatedUser.CreatedAt,
+        updatedAt: updatedUser.UpdatedAt,
+      },
     });
   } catch (error) {
     res

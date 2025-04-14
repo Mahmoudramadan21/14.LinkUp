@@ -12,8 +12,15 @@ const {
   resetPasswordValidationRules,
 } = require("../validators/authValidators");
 const { validate } = require("../middleware/validationMiddleware");
+const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many login attempts, please try again later",
+});
 
 /**
  * @swagger
@@ -180,7 +187,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *       500:
  *         description: Internal server error
  */
-router.post("/login", loginValidationRules, validate, login);
+router.post("/login", loginLimiter, loginValidationRules, validate, login);
 
 /**
  * @swagger

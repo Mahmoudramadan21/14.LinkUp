@@ -100,22 +100,30 @@ const getPosts = async (req, res) => {
     const cachedPosts = await redis.get(cacheKey);
     if (cachedPosts) return res.json(cachedPosts);
 
-    // Get IDs of followed users plus current user
+    // Get IDs of followed users (exclude current user)
     const followingIds = (
       await prisma.follower.findMany({
         where: { FollowerUserID: userId, Status: "ACCEPTED" },
         select: { UserID: true },
       })
     ).map((f) => f.UserID);
-    followingIds.push(userId);
 
-    // Fetch posts with privacy considerations
+    // Log followed users for debugging
+    console.log(`User ${userId} follows:`, followingIds);
+
+    // If not following anyone, return empty array
+    if (followingIds.length === 0) {
+      await redis.set(cacheKey, [], POST_CACHE_TTL);
+      return res.json([]);
+    }
+
+    // Fetch posts from followed users
     const posts = await prisma.post.findMany({
       skip: offset,
       take: parseInt(limit),
       where: {
         UserID: { in: followingIds },
-        User: { OR: [{ IsPrivate: false }, { UserID: userId }] },
+        // Removed User privacy condition since following implies access
       },
       orderBy: { CreatedAt: "desc" },
       include: {
@@ -127,7 +135,20 @@ const getPosts = async (req, res) => {
             IsPrivate: true,
           },
         },
-        Likes: { where: { UserID: userId }, select: { UserID: true } },
+        Likes: {
+          // Get likes from users the current user follows
+          where: { UserID: { in: followingIds } },
+          take: 3, // Limit to first 3 likers
+          orderBy: { CreatedAt: "desc" }, // Most recent likes first
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+          },
+        },
         _count: { select: { Likes: true, Comments: true } },
       },
     });
@@ -135,15 +156,20 @@ const getPosts = async (req, res) => {
     // Format response with additional metadata
     const response = posts.map((post) => ({
       ...post,
-      isLiked: post.Likes.length > 0,
+      isLiked: post.Likes.some((like) => like.UserID === userId),
       likeCount: post._count.Likes,
       commentCount: post._count.Comments,
+      likedBy: post.Likes.map((like) => ({
+        username: like.User.Username,
+        profilePicture: like.User.ProfilePicture,
+      })),
     }));
 
     // Cache the response
     await redis.set(cacheKey, response, POST_CACHE_TTL);
     res.json(response);
   } catch (error) {
+    console.error("Error fetching posts:", error);
     handleServerError(res, error, "Failed to fetch posts");
   }
 };
@@ -171,6 +197,21 @@ const getPostById = async (req, res) => {
           },
         },
         Likes: { where: { UserID: userId }, select: { UserID: true } },
+        Comments: {
+          select: {
+            CommentID: true,
+            Content: true,
+            CreatedAt: true,
+            User: {
+              select: {
+                UserID: true,
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+          },
+          orderBy: { CreatedAt: "desc" }, // Newest comments first
+        },
         _count: { select: { Likes: true, Comments: true } },
       },
     });
@@ -180,7 +221,11 @@ const getPostById = async (req, res) => {
     // Privacy check for private accounts
     if (post.User.IsPrivate && post.User.UserID !== userId) {
       const isFollowing = await prisma.follower.count({
-        where: { UserID: post.User.UserID, FollowerUserID: userId },
+        where: {
+          UserID: post.User.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
       });
       if (!isFollowing)
         return res.status(403).json({ error: "Private account" });
@@ -190,14 +235,26 @@ const getPostById = async (req, res) => {
     const response = {
       ...post,
       isLiked: post.Likes.length > 0,
-      Likes: post._count.Likes,
-      Comments: post._count.Comments,
+      likeCount: post._count.Likes,
+      commentCount: post._count.Comments,
+      comments: post.Comments.map((comment) => ({
+        commentId: comment.CommentID,
+        content: comment.Content,
+        createdAt: comment.CreatedAt,
+        user: {
+          userId: comment.User.UserID,
+          username: comment.User.Username,
+          profilePicture: comment.User.ProfilePicture,
+        },
+      })),
     };
     delete response._count;
     delete response.Likes;
+    delete response.Comments;
 
     res.json(response);
   } catch (error) {
+    console.error("Error fetching post:", error);
     handleServerError(res, error, "Failed to fetch post");
   }
 };

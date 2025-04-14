@@ -1,11 +1,11 @@
-datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  relationMode = "prisma"
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -32,6 +32,7 @@ enum NotificationType {
   LIKE
   COMMENT
   MESSAGE
+  STORY_LIKE
 }
 
 model AuditLog {
@@ -49,7 +50,11 @@ model User {
   Email              String           @unique
   Password           String
   ProfilePicture     String?
+  CoverPicture       String?          // New field for cover picture
   Bio                String?
+  Address            String?          // New field for address
+  JobTitle           String?          // New field for job title
+  DateOfBirth        DateTime?        // New field for date of birth
   IsPrivate          Boolean          @default(false)
   Role               Role             @default(USER)
   CreatedAt          DateTime         @default(now())
@@ -58,6 +63,8 @@ model User {
   resetTokenExpiry   DateTime?
   Posts              Post[]
   Stories            Story[]
+  StoryViews         StoryView[]      @relation("StoryViewUser")
+  StoryLikes         StoryLike[]      @relation("StoryLikeUser")
   Comments           Comment[]
   Likes              Like[]
   lastActive         DateTime?        @updatedAt
@@ -151,27 +158,60 @@ model Post {
 }
 
 model Story {
-  StoryID    Int      @id @default(autoincrement())
-  UserID     Int
-  User       User     @relation(fields: [UserID], references: [UserID])
-  MediaURL   String
-  CreatedAt  DateTime @default(now())
-  ExpiresAt  DateTime
-  Highlights Highlight[] @relation("StoryToHighlights")
+  StoryID       Int              @id @default(autoincrement())
+  UserID        Int
+  User          User             @relation(fields: [UserID], references: [UserID])
+  MediaURL      String
+  CreatedAt     DateTime         @default(now())
+  ExpiresAt     DateTime
+  StoryLikes    StoryLike[]
+  StoryViews    StoryView[]      @relation("StoryToStoryView")
+  StoryHighlights StoryHighlight[] @relation("StoryToHighlight")
   @@index([UserID])
   @@index([ExpiresAt])
 }
 
+model StoryView {
+  ViewID    Int      @id @default(autoincrement())
+  StoryID   Int
+  Story     Story    @relation("StoryToStoryView", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  UserID    Int
+  User      User     @relation("StoryViewUser", fields: [UserID], references: [UserID])
+  ViewedAt  DateTime @default(now())
+  @@index([StoryID])
+  @@unique([StoryID, UserID])
+}
+
+model StoryLike {
+  LikeID    Int      @id @default(autoincrement())
+  StoryID   Int
+  Story     Story    @relation(fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  UserID    Int
+  User      User     @relation("StoryLikeUser", fields: [UserID], references: [UserID])
+  CreatedAt DateTime @default(now())
+  @@unique([UserID, StoryID])
+  @@index([StoryID])
+}
+
 model Highlight {
-  HighlightID Int      @id @default(autoincrement())
-  UserID      Int
-  User        User     @relation(fields: [UserID], references: [UserID])
-  Title       String   @db.VarChar(50)
-  CoverImage  String
-  CreatedAt   DateTime @default(now())
-  Stories     Story[]  @relation("StoryToHighlights")
+  HighlightID   Int              @id @default(autoincrement())
+  UserID        Int
+  User          User             @relation(fields: [UserID], references: [UserID])
+  Title         String           @db.VarChar(50)
+  CoverImage    String
+  CreatedAt     DateTime         @default(now())
+  StoryHighlights StoryHighlight[] @relation("HighlightToStory")
   @@index([UserID])
   @@index([CreatedAt])
+}
+
+model StoryHighlight {
+  StoryID     Int
+  HighlightID Int
+  Story       Story    @relation("StoryToHighlight", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  Highlight   Highlight @relation("HighlightToStory", fields: [HighlightID], references: [HighlightID], onDelete: Cascade)
+  AssignedAt  DateTime @default(now())
+  @@id([StoryID, HighlightID])
 }
 
 model SavedPost {
