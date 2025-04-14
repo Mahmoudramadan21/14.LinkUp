@@ -6,6 +6,7 @@ const {
   deleteHighlight,
 } = require("../controllers/highlightController");
 const authMiddleware = require("../middleware/authMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 const {
   validateHighlightInput,
   validateHighlightUpdate,
@@ -22,7 +23,37 @@ const router = express.Router();
 
 /**
  * @swagger
- * /highlights:
+ * components:
+ *   schemas:
+ *     Highlight:
+ *       type: object
+ *       properties:
+ *         HighlightID:
+ *           type: integer
+ *         Title:
+ *           type: string
+ *         CoverImage:
+ *           type: string
+ *         UserID:
+ *           type: integer
+ *         Stories:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               StoryID:
+ *                 type: integer
+ *         CreatedAt:
+ *           type: string
+ *           format: date-time
+ *         UpdatedAt:
+ *           type: string
+ *           format: date-time
+ */
+
+/**
+ * @swagger
+ * /api/highlights:
  *   post:
  *     summary: Create a new highlight
  *     tags: [Highlights]
@@ -31,7 +62,7 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -46,8 +77,8 @@ const router = express.Router();
  *                 example: "Summer Vacation"
  *               coverImage:
  *                 type: string
- *                 format: uri
- *                 example: "https://example.com/cover.jpg"
+ *                 format: binary
+ *                 description: Cover image file to upload (JPEG, PNG, WebP)
  *               storyIds:
  *                 type: array
  *                 items:
@@ -55,6 +86,7 @@ const router = express.Router();
  *                 minItems: 1
  *                 maxItems: 20
  *                 example: [1, 2, 3]
+ *                 description: Array of story IDs
  *     responses:
  *       201:
  *         description: Highlight created successfully
@@ -63,13 +95,19 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/Highlight'
  *       400:
- *         description: Validation error
+ *         description: Validation error or invalid file type
  *       403:
  *         description: Unauthorized story access
  *       500:
  *         description: Highlight creation failed
  */
-router.post("/", authMiddleware, validateHighlightInput, createHighlight);
+router.post(
+  "/",
+  authMiddleware,
+  upload.fields([{ name: "coverImage", maxCount: 1 }]),
+  validateHighlightInput,
+  createHighlight
+);
 
 /**
  * @swagger

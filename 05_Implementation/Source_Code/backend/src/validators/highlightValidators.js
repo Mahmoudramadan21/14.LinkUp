@@ -15,22 +15,58 @@ const validateHighlightInput = [
     .notEmpty()
     .withMessage("Title is required")
     .bail()
-    .custom(validateHighlightTitle) // Reuses utility function for consistency
+    .custom(validateHighlightTitle)
     .withMessage("Title must be 2-50 characters"),
 
-  body("coverImage")
-    .trim()
-    .notEmpty()
-    .withMessage("Cover image is required")
-    .bail()
-    .custom(validateImageUrl)
-    .withMessage("Invalid image URL format"),
+  body("coverImage").custom((_, { req }) => {
+    const files = req.files || {};
+    const coverImageFile = files.coverImage ? files.coverImage[0] : null;
+
+    if (!coverImageFile) {
+      throw new Error("Cover image file is required");
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(coverImageFile.mimetype)) {
+      throw new Error("Invalid media type. Only JPEG, PNG, WebP allowed");
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (coverImageFile.size > maxSize) {
+      throw new Error("Media file too large. Maximum size is 5MB");
+    }
+
+    return true;
+  }),
 
   body("storyIds")
-    .isArray({ min: 1, max: 20 })
-    .withMessage("Must include 1-20 stories"),
+    .custom((value) => {
+      let ids = value;
+      if (typeof value === "string") {
+        ids = value
+          .split(",")
+          .map((id) => parseInt(id.trim()))
+          .filter((id) => !isNaN(id));
+      }
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 20) {
+        throw new Error("Must include 1-20 stories");
+      }
+      if (!ids.every((id) => Number.isInteger(id) && id > 0)) {
+        throw new Error("Invalid story ID");
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      if (typeof value === "string") {
+        return value
+          .split(",")
+          .map((id) => parseInt(id.trim()))
+          .filter((id) => !isNaN(id));
+      }
+      return value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+    }),
 
-  body("storyIds.*").isInt().withMessage("Invalid story ID").toInt(),
+  body("storyIds.*").isInt({ min: 1 }).withMessage("Invalid story ID").toInt(),
 ];
 
 /**
@@ -45,7 +81,7 @@ const validateHighlightUpdate = [
     .notEmpty()
     .withMessage("Title cannot be empty")
     .bail()
-    .custom(validateHighlightTitle) // Reuses utility function for consistency
+    .custom(validateHighlightTitle)
     .withMessage("Title must be 2-50 characters"),
 
   body("coverImage")
@@ -59,10 +95,37 @@ const validateHighlightUpdate = [
 
   body("storyIds")
     .optional({ checkFalsy: true })
-    .isArray({ min: 1, max: 20 })
-    .withMessage("Must include 1-20 stories"),
+    .custom((value) => {
+      let ids = value;
+      if (typeof value === "string") {
+        ids = value
+          .split(",")
+          .map((id) => parseInt(id.trim()))
+          .filter((id) => !isNaN(id));
+      }
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 20) {
+        throw new Error("Must include 1-20 stories");
+      }
+      if (!ids.every((id) => Number.isInteger(id) && id > 0)) {
+        throw new Error("Invalid story ID");
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      if (typeof value === "string") {
+        return value
+          .split(",")
+          .map((id) => parseInt(id.trim()))
+          .filter((id) => !isNaN(id));
+      }
+      return value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+    }),
 
-  body("storyIds.*").optional().isInt().withMessage("Invalid story ID").toInt(),
+  body("storyIds.*")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Invalid story ID")
+    .toInt(),
 ];
 
 module.exports = {
