@@ -36,13 +36,18 @@ const router = express.Router();
  *           type: string
  *         UserID:
  *           type: integer
- *         Stories:
+ *         StoryHighlights:
  *           type: array
  *           items:
  *             type: object
  *             properties:
  *               StoryID:
  *                 type: integer
+ *               HighlightID:
+ *                 type: integer
+ *               AssignedAt:
+ *                 type: string
+ *                 format: date-time
  *         CreatedAt:
  *           type: string
  *           format: date-time
@@ -53,7 +58,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/highlights:
+ * /highlights:
  *   post:
  *     summary: Create a new highlight
  *     tags: [Highlights]
@@ -80,13 +85,9 @@ const router = express.Router();
  *                 format: binary
  *                 description: Cover image file to upload (JPEG, PNG, WebP)
  *               storyIds:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 minItems: 1
- *                 maxItems: 20
- *                 example: [1, 2, 3]
- *                 description: Array of story IDs
+ *                 type: string
+ *                 example: "1,2,3"
+ *                 description: Comma-separated story IDs or array
  *     responses:
  *       201:
  *         description: Highlight created successfully
@@ -143,7 +144,7 @@ router.post(
  *                   _count:
  *                     type: object
  *                     properties:
- *                       Stories:
+ *                       StoryHighlights:
  *                         type: integer
  *       403:
  *         description: Private account - cannot view highlights
@@ -175,32 +176,7 @@ router.get("/user/:userId", authMiddleware, getUserHighlights);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 HighlightID:
- *                   type: integer
- *                 Title:
- *                   type: string
- *                 CoverImage:
- *                   type: string
- *                 UserID:
- *                   type: integer
- *                 Stories:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       StoryID:
- *                         type: integer
- *                       MediaURL:
- *                         type: string
- *                 User:
- *                   type: object
- *                   properties:
- *                     IsPrivate:
- *                       type: boolean
- *                     UserID:
- *                       type: integer
+ *               $ref: '#/components/schemas/Highlight'
  *       400:
  *         description: Invalid highlight ID
  *       401:
@@ -230,9 +206,9 @@ router.get("/:highlightId", authMiddleware, getHighlightDetails);
  *           type: integer
  *         description: ID of the highlight to update
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -243,15 +219,12 @@ router.get("/:highlightId", authMiddleware, getHighlightDetails);
  *                 example: "Updated Vacation"
  *               coverImage:
  *                 type: string
- *                 format: uri
- *                 example: "https://example.com/new-cover.jpg"
+ *                 format: binary
+ *                 description: Cover image file to upload (JPEG, PNG, WebP)
  *               storyIds:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 minItems: 1
- *                 maxItems: 20
- *                 example: [1, 4, 5]
+ *                 type: string
+ *                 example: "1,4,5"
+ *                 description: Comma-separated story IDs or array
  *     responses:
  *       200:
  *         description: Highlight updated successfully
@@ -271,6 +244,7 @@ router.get("/:highlightId", authMiddleware, getHighlightDetails);
 router.put(
   "/:highlightId",
   authMiddleware,
+  upload.fields([{ name: "coverImage", maxCount: 1 }]),
   validateHighlightUpdate,
   updateHighlight
 );

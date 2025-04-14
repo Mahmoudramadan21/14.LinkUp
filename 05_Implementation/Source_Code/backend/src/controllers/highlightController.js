@@ -84,16 +84,20 @@ const createHighlight = async (req, res) => {
         CoverImage: coverImageUrl,
         UserID: userId,
         StoryHighlights: {
-          create: parsedStoryIds.map((id) => ({ StoryID: id })),
+          create: parsedStoryIds.map((id) => ({
+            StoryID: id,
+            AssignedAt: new Date(),
+          })),
         },
       },
-      include: { StoryHighlights: { select: { StoryID: true } } },
+      include: {
+        StoryHighlights: {
+          select: { StoryID: true, HighlightID: true, AssignedAt: true },
+        },
+      },
     });
 
-    res.status(201).json({
-      ...highlight,
-      Stories: highlight.StoryHighlights.map((sh) => ({ StoryID: sh.StoryID })),
-    });
+    res.status(201).json(highlight);
   } catch (error) {
     console.error("Create highlight error:", error);
     res.status(500).json({
@@ -180,7 +184,7 @@ const getHighlightDetails = async (req, res) => {
       include: {
         User: { select: { IsPrivate: true, UserID: true } },
         StoryHighlights: {
-          include: { Story: { select: { StoryID: true, MediaURL: true } } },
+          select: { StoryID: true, HighlightID: true, AssignedAt: true },
         },
       },
     });
@@ -198,17 +202,12 @@ const getHighlightDetails = async (req, res) => {
       })) > 0;
 
     if (isOwner || !isPrivate || isFollowing) {
-      return res.json({
-        ...highlight,
-        Stories: highlight.StoryHighlights.map((sh) => ({
-          StoryID: sh.Story.StoryID,
-          MediaURL: sh.Story.MediaURL,
-        })),
-      });
+      return res.json(highlight);
     }
 
     return res.status(403).json({ error: "Private account - Follow to view" });
   } catch (error) {
+    console.error("Get highlight details error:", error);
     res.status(500).json({
       error: "Internal server error",
       details: process.env.NODE_ENV === "development" ? error.message : null,
@@ -220,15 +219,18 @@ const getHighlightDetails = async (req, res) => {
  * Updates highlight with partial update support:
  * - Validates user ownership
  * - Checks story ownership when updating stories
+ * - Supports cover image file upload
  */
 const updateHighlight = async (req, res) => {
+  console.log("Request body:", req.body, "Files:", req.files); // Debug
   const errors = validationResult(req);
   if (!errors.isEmpty())
     return res.status(400).json({ errors: errors.array() });
 
-  const { title, coverImage, storyIds } = req.body;
+  const { title, storyIds } = req.body;
   const { highlightId } = req.params;
   const userId = req.user.UserID;
+  let coverImageUrl;
 
   try {
     // Verify highlight ownership
@@ -242,7 +244,32 @@ const updateHighlight = async (req, res) => {
 
     const updateData = {};
     if (typeof title !== "undefined") updateData.Title = title;
-    if (typeof coverImage !== "undefined") updateData.CoverImage = coverImage;
+
+    // Handle cover image upload
+    const files = req.files || {};
+    const coverImageFile = files.coverImage ? files.coverImage[0] : null;
+
+    if (coverImageFile) {
+      await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "linkup/highlights", resource_type: "image" },
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary error:", error);
+              reject(new Error(`Cloudinary upload failed: ${error.message}`));
+            }
+            coverImageUrl = result.secure_url;
+            resolve();
+          }
+        );
+
+        const bufferStream = new Readable();
+        bufferStream.push(coverImageFile.buffer);
+        bufferStream.push(null);
+        bufferStream.pipe(uploadStream);
+      });
+      updateData.CoverImage = coverImageUrl;
+    }
 
     // Handle story updates with validation
     if (typeof storyIds !== "undefined") {
@@ -250,17 +277,27 @@ const updateHighlight = async (req, res) => {
         return res.status(400).json({ error: "Must include at least 1 story" });
       }
 
+      const parsedStoryIds = storyIds
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
+      if (parsedStoryIds.length !== storyIds.length) {
+        return res.status(400).json({ error: "Invalid story IDs provided" });
+      }
+
       const validStories = await prisma.story.count({
-        where: { StoryID: { in: storyIds }, UserID: userId },
+        where: { StoryID: { in: parsedStoryIds }, UserID: userId },
       });
 
-      if (validStories !== storyIds.length) {
+      if (validStories !== parsedStoryIds.length) {
         return res.status(403).json({ error: "Invalid stories provided" });
       }
 
       updateData.StoryHighlights = {
         deleteMany: { HighlightID: parseInt(highlightId) },
-        create: storyIds.map((id) => ({ StoryID: id })),
+        create: parsedStoryIds.map((id) => ({
+          StoryID: id,
+          AssignedAt: new Date(),
+        })),
       };
     }
 
@@ -271,15 +308,14 @@ const updateHighlight = async (req, res) => {
     const updatedHighlight = await prisma.highlight.update({
       where: { HighlightID: parseInt(highlightId) },
       data: updateData,
-      include: { StoryHighlights: { select: { StoryID: true } } },
+      include: {
+        StoryHighlights: {
+          select: { StoryID: true, HighlightID: true, AssignedAt: true },
+        },
+      },
     });
 
-    res.json({
-      ...updatedHighlight,
-      Stories: updatedHighlight.StoryHighlights.map((sh) => ({
-        StoryID: sh.StoryID,
-      })),
-    });
+    res.json(updatedHighlight);
   } catch (error) {
     console.error("Update highlight error:", error);
     res.status(500).json({
