@@ -13,6 +13,7 @@ const {
   acceptFollowRequest,
   rejectFollowRequest,
   getPendingFollowRequests,
+  getUserPosts,
 } = require("../controllers/profileController");
 const { validate } = require("../middleware/validationMiddleware");
 const {
@@ -309,6 +310,46 @@ router.put(
  *         description: Unauthorized
  */
 router.delete("/", authMiddleware, deleteProfile);
+
+/**
+ * @swagger
+ * /profile/posts/{userId}:
+ *   get:
+ *     summary: Get all posts by a specific user
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user whose posts to retrieve
+ *     responses:
+ *       200:
+ *         description: List of user posts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                 posts:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Post'
+ *       400:
+ *         description: Invalid user ID format
+ *       403:
+ *         description: Private account
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/posts/:userId", authMiddleware, getUserPosts);
 
 /**
  * @swagger
@@ -638,5 +679,41 @@ router.get(
   validate,
   getFollowing
 );
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Post:
+ *       type: object
+ *       properties:
+ *         postId:
+ *           type: integer
+ *         content:
+ *           type: string
+ *         imageUrl:
+ *           type: string
+ *         videoUrl:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *         user:
+ *           type: object
+ *           properties:
+ *             UserID:
+ *               type: integer
+ *             Username:
+ *               type: string
+ *             ProfilePicture:
+ *               type: string
+ *         likeCount:
+ *           type: integer
+ *         commentCount:
+ *           type: integer
+ */
 
 module.exports = router;

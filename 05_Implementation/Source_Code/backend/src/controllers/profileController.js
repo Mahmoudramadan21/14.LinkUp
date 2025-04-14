@@ -319,6 +319,126 @@ const deleteProfile = async (req, res) => {
 };
 
 /**
+ * Retrieves all posts by a specific user with privacy checks
+ * For private accounts, verifies follow status before showing
+ */
+const getUserPosts = async (req, res) => {
+  try {
+    console.log("getUserPosts: Starting", {
+      userId: req.params.userId,
+      currentUserId: req.user?.UserID,
+    });
+    const { userId } = req.params;
+    const currentUserId = req.user?.UserID;
+    const parsedUserId = parseInt(userId);
+
+    if (isNaN(parsedUserId)) {
+      console.log("getUserPosts: Invalid userId");
+      return res.status(400).json({ error: "Invalid user ID format" });
+    }
+
+    console.log("getUserPosts: Fetching user", { parsedUserId });
+    const user = await prisma.user.findUnique({
+      where: { UserID: parsedUserId },
+      select: {
+        IsPrivate: true,
+        Username: true,
+        UserID: true,
+      },
+    });
+
+    if (!user) {
+      console.log("getUserPosts: User not found");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log("getUserPosts: User found", { user });
+    const isOwner = currentUserId === user.UserID;
+    let hasAccess = !user.IsPrivate || isOwner;
+
+    if (user.IsPrivate && !isOwner && currentUserId) {
+      console.log("getUserPosts: Checking follow relationship", {
+        userId: user.UserID,
+        followerId: currentUserId,
+      });
+      const followRelationship = await prisma.follower.findFirst({
+        where: {
+          UserID: user.UserID,
+          FollowerUserID: currentUserId,
+          Status: "ACCEPTED",
+        },
+      });
+      hasAccess = followRelationship !== null;
+      console.log("getUserPosts: Follow check result", { hasAccess });
+    }
+
+    if (!hasAccess) {
+      console.log("getUserPosts: Access denied");
+      return res.status(403).json({
+        error: "Private account",
+        message: `You must follow @${user.Username} to view their posts`,
+      });
+    }
+
+    console.log("getUserPosts: Fetching posts for user", {
+      userId: user.UserID,
+    });
+    const posts = await prisma.post.findMany({
+      where: {
+        UserID: user.UserID,
+      },
+      select: {
+        PostID: true,
+        Content: true,
+        ImageURL: true,
+        VideoURL: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        User: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+          },
+        },
+        _count: {
+          select: {
+            Likes: true,
+            Comments: true,
+          },
+        },
+      },
+      orderBy: {
+        CreatedAt: "desc",
+      },
+    });
+
+    console.log("getUserPosts: Posts fetched", { postCount: posts.length });
+    res.status(200).json({
+      count: posts.length,
+      posts: posts.map((post) => ({
+        postId: post.PostID,
+        content: post.Content,
+        imageUrl: post.ImageURL,
+        videoUrl: post.VideoURL,
+        createdAt: post.CreatedAt,
+        updatedAt: post.UpdatedAt,
+        user: post.User,
+        likeCount: post._count.Likes,
+        commentCount: post._count.Comments,
+      })),
+    });
+  } catch (error) {
+    console.error("getUserPosts error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
  * Retrieves user's saved posts with full post details
  * Returns empty array if no posts saved
  */
@@ -825,4 +945,5 @@ module.exports = {
   acceptFollowRequest,
   rejectFollowRequest,
   getPendingFollowRequests,
+  getUserPosts,
 };
