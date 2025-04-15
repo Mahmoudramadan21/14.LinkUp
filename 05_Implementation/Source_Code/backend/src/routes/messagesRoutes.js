@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const {
   getConversationsRules,
   createConversationRules,

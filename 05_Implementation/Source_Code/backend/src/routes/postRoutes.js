@@ -17,7 +17,7 @@ const {
   reportPostRules,
 } = require("../validators/postValidators");
 const { validate } = require("../middleware/validationMiddleware");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const checkPostOwnership = require("../middleware/postOwnershipMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const rateLimit = require("express-rate-limit");

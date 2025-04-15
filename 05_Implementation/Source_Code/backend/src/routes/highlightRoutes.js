@@ -5,7 +5,7 @@ const {
   updateHighlight,
   deleteHighlight,
 } = require("../controllers/highlightController");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const {
   validateHighlightInput,

@@ -1,6 +1,5 @@
 const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
-const { RateLimiterPrisma } = require("rate-limiter-flexible");
 const { validationResult } = require("express-validator");
 const cloudinary = require("cloudinary").v2;
 
@@ -937,6 +936,7 @@ module.exports = {
   changePassword,
   updatePrivacySettings,
   deleteProfile,
+  getUserPosts,
   getSavedPosts,
   followUser,
   unfollowUser,
@@ -945,5 +945,4 @@ module.exports = {
   acceptFollowRequest,
   rejectFollowRequest,
   getPendingFollowRequests,
-  getUserPosts,
 };

@@ -9,7 +9,7 @@ const {
   toggleStoryLike,
   getStoryViews,
 } = require("../controllers/storyController");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const rateLimit = require("express-rate-limit");
 

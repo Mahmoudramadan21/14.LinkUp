@@ -11,6 +11,7 @@ datasource db {
 enum Role {
   USER
   ADMIN
+  BANNED 
 }
 
 enum FollowStatus {
@@ -33,15 +34,25 @@ enum NotificationType {
   COMMENT
   MESSAGE
   STORY_LIKE
+  ADMIN_WARNING // Add this
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
 }
 
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  action    String
-  userId    Int
-  details   String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [UserID])
+  AuditLogID  Int      @id @default(autoincrement())
+  Action      String
+  Admin       User     @relation(fields: [AdminID], references: [UserID])
+  AdminID     Int
+  Details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([AdminID])
+  @@index([createdAt])
 }
 
 model User {
@@ -50,11 +61,11 @@ model User {
   Email              String           @unique
   Password           String
   ProfilePicture     String?
-  CoverPicture       String?          // New field for cover picture
+  CoverPicture       String?
   Bio                String?
-  Address            String?          // New field for address
-  JobTitle           String?          // New field for job title
-  DateOfBirth        DateTime?        // New field for date of birth
+  Address            String?
+  JobTitle           String?
+  DateOfBirth        DateTime?
   IsPrivate          Boolean          @default(false)
   Role               Role             @default(USER)
   CreatedAt          DateTime         @default(now())
@@ -76,8 +87,10 @@ model User {
   Followers          Follower[]       @relation("Followers")
   Following          Follower[]       @relation("Following")
   Notifications      Notification[]
-  Reports            Report[]
+  Reports            Report[]         @relation("Reporter") // Link to Reporter relation
   SupportRequests    SupportRequest[]
+  IsBanned       Boolean      @default(false)
+  BanReason      String?
   SavedPosts         SavedPost[]
   Highlights         Highlight[]
   auditLogs          AuditLog[]
@@ -269,13 +282,19 @@ model Notification {
 }
 
 model Report {
-  ReportID  Int      @id @default(autoincrement())
-  PostID    Int
-  Post      Post     @relation(fields: [PostID], references: [PostID])
-  UserID    Int
-  User      User     @relation(fields: [UserID], references: [UserID])
-  Reason    String
-  CreatedAt DateTime @default(now())
+  ReportID    Int          @id @default(autoincrement())
+  Post        Post         @relation(fields: [PostID], references: [PostID])
+  PostID      Int
+  Reporter    User         @relation("Reporter", fields: [ReporterID], references: [UserID]) // Match relation name
+  ReporterID  Int
+  Reason      String
+  Status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([PostID])
+  @@index([ReporterID])
+  @@index([Status])
 }
 
 model SupportRequest {

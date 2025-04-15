@@ -23,7 +23,7 @@ const {
   userIdParamValidator,
   followActionValidator,
 } = require("../validators/profileValidators");
-const authMiddleware = require("../middleware/authMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
