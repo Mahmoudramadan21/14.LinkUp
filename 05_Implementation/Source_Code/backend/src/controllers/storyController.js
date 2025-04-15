@@ -288,6 +288,11 @@ const getStoryById = async (req, res) => {
       return res.status(404).json({ error: "Story not found" });
     }
 
+    // Check expiration for non-owners
+    if (story.User.UserID !== UserID && story.ExpiresAt < new Date()) {
+      return res.status(404).json({ error: "Story has expired" });
+    }
+
     // Check privacy for private accounts
     if (story.User.IsPrivate && story.User.UserID !== UserID) {
       const isFollowing = await prisma.follower.count({

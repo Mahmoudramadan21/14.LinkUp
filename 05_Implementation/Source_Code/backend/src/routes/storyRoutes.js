@@ -198,7 +198,7 @@ router.get("/feed", authMiddleware, getStoryFeed);
  *         description: ID of the story to retrieve
  *     responses:
  *       200:
- *         description: Story details
+ *         description: Story details (owners can access expired stories)
  *         content:
  *           application/json:
  *             schema:
@@ -223,6 +223,8 @@ router.get("/feed", authMiddleware, getStoryFeed);
  *                       type: string
  *                     ProfilePicture:
  *                       type: string
+ *                     IsPrivate:
+ *                       type: boolean
  *                 _count:
  *                   type: object
  *                   properties:
@@ -235,7 +237,7 @@ router.get("/feed", authMiddleware, getStoryFeed);
  *       403:
  *         description: Private account - cannot view story
  *       404:
- *         description: Story not found
+ *         description: Story not found or has expired (for non-owners)
  */
 router.get("/:storyId", authMiddleware, getStoryById);
 

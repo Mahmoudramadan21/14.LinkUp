@@ -268,10 +268,13 @@ const updatePrivacySettings = async (req, res) => {
   const userId = req.user.UserID;
 
   try {
+    // Convert string "true"/"false" to boolean
+    const isPrivateBoolean = isPrivate === "true";
+
     const updatedUser = await prisma.user.update({
       where: { UserID: userId },
       data: {
-        IsPrivate: isPrivate,
+        IsPrivate: isPrivateBoolean,
       },
       select: {
         Username: true,
@@ -312,7 +315,7 @@ const deleteProfile = async (req, res) => {
     res.status(200).json({ message: "Profile deleted successfully" });
   } catch (error) {
     res
-      .status(500)
+      .storyId(500)
       .json({ message: "Error deleting profile", error: error.message });
   }
 };
@@ -457,6 +460,43 @@ const getSavedPosts = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching saved posts", error: error.message });
+  }
+};
+
+/**
+ * Retrieves all stories for the authenticated user with StoryID, MediaURL, and CreatedAt
+ * Includes both expired and active stories
+ */
+const getUserStories = async (req, res) => {
+  const userId = req.user.UserID;
+
+  try {
+    const stories = await prisma.story.findMany({
+      where: { UserID: userId },
+      select: {
+        StoryID: true,
+        MediaURL: true,
+        CreatedAt: true,
+      },
+      orderBy: {
+        CreatedAt: "desc",
+      },
+    });
+
+    res.status(200).json({
+      count: stories.length,
+      stories: stories.map((story) => ({
+        storyId: story.StoryID,
+        mediaUrl: story.MediaURL,
+        createdAt: story.CreatedAt,
+      })),
+    });
+  } catch (error) {
+    console.error("getUserStoryIds error:", error);
+    res.status(500).json({
+      error: "Failed to fetch stories",
+      details: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 
@@ -938,6 +978,7 @@ module.exports = {
   deleteProfile,
   getUserPosts,
   getSavedPosts,
+  getUserStories,
   followUser,
   unfollowUser,
   getFollowers,

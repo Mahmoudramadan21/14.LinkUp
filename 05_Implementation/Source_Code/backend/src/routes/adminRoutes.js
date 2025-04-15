@@ -189,7 +189,7 @@ const { authMiddleware, authorize } = require("../middleware/authMiddleware");
 
 /**
  * @swagger
- * /api/admin/reports:
+ * /admin/reports:
  *   get:
  *     summary: Get all reported posts
  *     tags: [Admin]
@@ -254,7 +254,7 @@ router.get(
 
 /**
  * @swagger
- * /api/admin/users:
+ * /admin/users:
  *   get:
  *     summary: Get all users
  *     tags: [Admin]
@@ -316,7 +316,7 @@ router.get(
 
 /**
  * @swagger
- * /api/admin/users/{userId}:
+ * /admin/users/{userId}:
  *   get:
  *     summary: Get user details
  *     tags: [Admin]
@@ -357,7 +357,7 @@ router.get(
 
 /**
  * @swagger
- * /api/admin/users/{userId}:
+ * /admin/users/{userId}:
  *   put:
  *     summary: Update user role or ban status
  *     tags: [Admin]
@@ -409,7 +409,7 @@ router.put(
 
 /**
  * @swagger
- * /api/admin/actions:
+ * /admin/actions:
  *   post:
  *     summary: Take admin action
  *     tags: [Admin]

@@ -74,7 +74,7 @@ const createPost = async (req, res) => {
 
 /**
  * Fetches posts from followed users
- * Uses Redis caching
+ * Returns recent posts in random order
  */
 const getPosts = async (req, res) => {
   try {
@@ -100,12 +100,15 @@ const getPosts = async (req, res) => {
       return res.json([]);
     }
 
-    // Fetch posts
+    // Fetch recent posts (within last 7 days)
     const posts = await prisma.post.findMany({
       skip: offset,
-      take: parseInt(limit),
+      take: parseInt(limit) * 2, // Fetch extra to allow shuffling
       where: {
         UserID: { in: followingIds },
+        CreatedAt: {
+          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
+        },
       },
       orderBy: { CreatedAt: "desc" },
       include: {
@@ -134,8 +137,15 @@ const getPosts = async (req, res) => {
       },
     });
 
+    // Shuffle posts randomly
+    const shuffledPosts = posts
+      .map((post) => ({ post, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ post }) => post)
+      .slice(0, parseInt(limit)); // Take only requested limit
+
     // Format response
-    const response = posts.map((post) => ({
+    const response = shuffledPosts.map((post) => ({
       ...post,
       isLiked: post.Likes.some((like) => like.UserID === userId),
       likeCount: post._count.Likes,
@@ -283,7 +293,23 @@ const deletePost = async (req, res) => {
     const userId = req.user.UserID;
     const isAdmin = req.user.Role === "ADMIN";
 
-    // Delete post and related data
+    // Validate post exists and user has permission
+    const post = await prisma.post.findUnique({
+      where: { PostID: parseInt(postId) },
+      select: { UserID: true },
+    });
+
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    if (!isAdmin && post.UserID !== userId) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to delete this post" });
+    }
+
+    // Delete post and related data in a transaction
     await prisma.$transaction([
       prisma.comment.deleteMany({ where: { PostID: parseInt(postId) } }),
       prisma.like.deleteMany({ where: { PostID: parseInt(postId) } }),
@@ -292,14 +318,13 @@ const deletePost = async (req, res) => {
       prisma.post.delete({
         where: {
           PostID: parseInt(postId),
-          ...(isAdmin ? {} : { UserID: userId }),
         },
       }),
       prisma.auditLog.create({
         data: {
-          action: "DELETE_POST",
-          userId: userId,
-          details: JSON.stringify({ postId, deletedByAdmin: isAdmin }),
+          Action: "DELETE_POST", // Match schema field name (case-sensitive)
+          AdminID: userId, // Use AdminID as per schema
+          Details: JSON.stringify({ postId, deletedByAdmin: isAdmin }),
         },
       }),
     ]);

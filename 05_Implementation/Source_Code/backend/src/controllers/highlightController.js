@@ -216,6 +216,105 @@ const getHighlightDetails = async (req, res) => {
 };
 
 /**
+ * Gets stories in a highlight with access control:
+ * - Validates highlight and story existence
+ * - Checks follow status for private accounts
+ * - Returns non-expired stories
+ */
+const getHighlightStories = async (req, res) => {
+  try {
+    const highlightId = parseInt(req.params.highlightId);
+    if (isNaN(highlightId)) {
+      return res.status(400).json({ error: "Invalid highlight ID" });
+    }
+
+    const currentUserId = req.user?.UserID;
+    if (!currentUserId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Fetch highlight with owner and story details
+    const highlight = await prisma.highlight.findUnique({
+      where: { HighlightID: highlightId },
+      include: {
+        User: {
+          select: { UserID: true, Username: true, IsPrivate: true },
+        },
+        StoryHighlights: {
+          include: {
+            Story: {
+              select: {
+                StoryID: true,
+                MediaURL: true,
+                CreatedAt: true,
+                ExpiresAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!highlight) {
+      return res.status(404).json({ error: "Highlight not found" });
+    }
+
+    // Access control checks
+    const isOwner = highlight.UserID === currentUserId;
+    const isPrivate = highlight.User.IsPrivate;
+    let isFollowing = false;
+
+    if (isPrivate && !isOwner) {
+      isFollowing =
+        (await prisma.follower.count({
+          where: {
+            UserID: highlight.UserID,
+            FollowerUserID: currentUserId,
+            Status: "ACCEPTED",
+          },
+        })) > 0;
+      if (!isFollowing) {
+        return res.status(403).json({
+          error: `Private account - Follow @${highlight.User.Username} to view`,
+        });
+      }
+    }
+
+    // Filter non-expired stories
+    const stories = highlight.StoryHighlights.filter(
+      (sh) => sh.Story && sh.Story.ExpiresAt > new Date()
+    ).map((sh) => ({
+      storyId: sh.Story.StoryID,
+      mediaUrl: sh.Story.MediaURL,
+      createdAt: sh.Story.CreatedAt,
+      expiresAt: sh.Story.ExpiresAt,
+      assignedAt: sh.AssignedAt,
+    }));
+
+    // Format response
+    const response = {
+      highlightId: highlight.HighlightID,
+      title: highlight.Title,
+      coverImage: highlight.CoverImage,
+      user: {
+        userId: highlight.User.UserID,
+        username: highlight.User.Username,
+        isPrivate: highlight.User.IsPrivate,
+      },
+      stories,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get highlight stories error:", error);
+    res.status(500).json({
+      error: "Failed to fetch highlight stories",
+      details: process.env.NODE_ENV === "development" ? error.message : null,
+    });
+  }
+};
+
+/**
  * Updates highlight with partial update support:
  * - Validates user ownership
  * - Checks story ownership when updating stories
@@ -373,6 +472,7 @@ module.exports = {
   createHighlight,
   getUserHighlights,
   getHighlightDetails,
+  getHighlightStories,
   updateHighlight,
   deleteHighlight,
 };

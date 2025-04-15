@@ -1,70 +1,126 @@
 const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prisma");
 
-/**
- * Authenticates requests by verifying JWT and attaching user to req
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
- */
+// Middleware to authenticate requests using JWT
 const authMiddleware = async (req, res, next) => {
   try {
+    // Check for Authorization header
     const authHeader = req.header("Authorization");
     if (!authHeader) {
-      return res
-        .status(401)
-        .json({ message: "No Authorization header provided" });
+      return res.status(401).json({
+        message: "Authentication token required",
+        code: "MISSING_AUTH_TOKEN",
+      });
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    // Extract token from header
+    const token = authHeader.replace("Bearer ", "").trim();
     if (!token) {
-      return res.status(401).json({ message: "No token provided" });
+      return res.status(401).json({
+        message: "Invalid token format",
+        code: "INVALID_TOKEN_FORMAT",
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-      issuer: "linkup-api",
-      maxAge: "1h",
-    });
-    console.log("Decoded token:", decoded);
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET, {
+        issuer: "linkup-api",
+        maxAge: "1h",
+      });
+      // Explicitly check expiration
+      const now = Math.floor(Date.now() / 1000);
+      if (decoded.exp < now) {
+        throw new Error("Token expired");
+      }
+    } catch (jwtError) {
+      return res.status(401).json({
+        message: "Invalid or expired token",
+        error: jwtError.message,
+        code: "INVALID_OR_EXPIRED_TOKEN",
+      });
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { UserID: decoded.userId },
-      select: { UserID: true, IsPrivate: true, Role: true },
-    });
+    // Find user in database
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { UserID: decoded.userId },
+        select: {
+          UserID: true,
+          IsPrivate: true,
+          Role: true,
+          IsBanned: true,
+        },
+      });
+    } catch (dbError) {
+      console.error("Database error in authMiddleware:", dbError);
+      return res.status(503).json({
+        message: "Database connection failed",
+        error: dbError.message,
+        code: "DATABASE_UNAVAILABLE",
+      });
+    }
 
+    // Check if user exists
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "User not found",
+        code: "USER_NOT_FOUND",
+      });
     }
 
+    // Check if user is banned
+    if (user.IsBanned) {
+      return res.status(403).json({
+        message: "This account is banned",
+        code: "ACCOUNT_BANNED",
+      });
+    }
+
+    // Attach user info to request
     req.user = {
       UserID: user.UserID,
-      Role: user.Role, // Include Role for authorize middleware
+      Role: user.Role,
+      IsPrivate: user.IsPrivate,
     };
-    console.log("req.user set to:", req.user);
+
     next();
   } catch (error) {
-    console.error("authMiddleware error:", error.message);
-    return res
-      .status(401)
-      .json({ message: "Please authenticate", error: error.message });
+    console.error("Auth middleware error:", error);
+    res.status(500).json({
+      message: "Authentication error",
+      error: error.message,
+      code: "AUTHENTICATION_ERROR",
+    });
   }
 };
 
-/**
- * Role-based authorization middleware
- * @param {string|string[]} allowedRoles - Roles that have access
- */
+// Middleware for role-based authorization
 const authorize = (allowedRoles) => {
-  // Normalize allowedRoles to array for consistency
-  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-
   return (req, res, next) => {
-    if (!req.user || !req.user.Role || !roles.includes(req.user.Role)) {
+    // Check if user and role exist
+    if (!req.user || !req.user.Role) {
       return res.status(403).json({
         error: "Forbidden",
-        message: "You do not have permission to access this resource",
+        message: "No sufficient permissions",
+        code: "MISSING_USER_ROLE",
       });
     }
+
+    // Normalize roles to array
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
+    // Check if user role is allowed
+    if (!roles.includes(req.user.Role)) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Insufficient permissions to access this resource",
+        code: "INSUFFICIENT_PERMISSIONS",
+      });
+    }
+
     next();
   };
 };

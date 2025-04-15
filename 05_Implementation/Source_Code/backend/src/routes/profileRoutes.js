@@ -14,6 +14,7 @@ const {
   rejectFollowRequest,
   getPendingFollowRequests,
   getUserPosts,
+  getUserStories,
 } = require("../controllers/profileController");
 const { validate } = require("../middleware/validationMiddleware");
 const {
@@ -350,6 +351,44 @@ router.delete("/", authMiddleware, deleteProfile);
  *         description: Server error
  */
 router.get("/posts/:userId", authMiddleware, getUserPosts);
+
+/**
+ * @swagger
+ * /profile/stories:
+ *   get:
+ *     tags: [Profile]
+ *     summary: Get all stories for the user
+ *     description: Retrieve a list of all stories (expired and active) belonging to the authenticated user, including StoryID, MediaURL, and CreatedAt.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of stories retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                 stories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       storyId:
+ *                         type: integer
+ *                       mediaUrl:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/stories", authMiddleware, getUserStories);
 
 /**
  * @swagger

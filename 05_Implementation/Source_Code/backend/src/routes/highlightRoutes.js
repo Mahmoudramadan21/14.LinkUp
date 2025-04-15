@@ -2,6 +2,7 @@ const {
   createHighlight,
   getUserHighlights,
   getHighlightDetails,
+  getHighlightStories,
   updateHighlight,
   deleteHighlight,
 } = require("../controllers/highlightController");
@@ -189,6 +190,75 @@ router.get("/user/:userId", authMiddleware, getUserHighlights);
  *         description: Internal server error
  */
 router.get("/:highlightId", authMiddleware, getHighlightDetails);
+
+/**
+ * @swagger
+ * /highlights/{highlightId}/stories:
+ *   get:
+ *     summary: Get stories in a highlight
+ *     tags: [Highlights]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: highlightId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the highlight to retrieve stories from
+ *     responses:
+ *       200:
+ *         description: Stories in the highlight
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 highlightId:
+ *                   type: integer
+ *                 title:
+ *                   type: string
+ *                 coverImage:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     isPrivate:
+ *                       type: boolean
+ *                 stories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       storyId:
+ *                         type: integer
+ *                       mediaUrl:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       expiresAt:
+ *                         type: string
+ *                         format: date-time
+ *                       assignedAt:
+ *                         type: string
+ *                         format: date-time
+ *       400:
+ *         description: Invalid highlight ID
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Private account - Follow to view
+ *       404:
+ *         description: Highlight not found
+ *       500:
+ *         description: Failed to fetch highlight stories
+ */
+router.get("/:highlightId/stories", authMiddleware, getHighlightStories);
 
 /**
  * @swagger
