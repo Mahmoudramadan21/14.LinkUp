@@ -300,7 +300,6 @@ router.post("/:postId/save", authMiddleware, savePost);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to report
  *     requestBody:
  *       required: true
  *       content:
@@ -310,12 +309,23 @@ router.post("/:postId/save", authMiddleware, savePost);
  *             properties:
  *               reason:
  *                 type: string
- *                 enum: [SPAM, HARASSMENT, INAPPROPRIATE, OTHER]
+ *                 example: SPAM
  *     responses:
- *       200:
+ *       201:
  *         description: Post reported successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 reportId:
+ *                   type: integer
  *       400:
- *         description: Post already reported or invalid reason
+ *         description: Invalid input or duplicate report
+ *       403:
+ *         description: No access to private account
  *       404:
  *         description: Post not found
  */

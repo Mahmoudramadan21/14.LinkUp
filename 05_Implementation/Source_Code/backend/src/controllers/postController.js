@@ -478,30 +478,95 @@ const reportPost = async (req, res) => {
     const { reason } = req.body;
     const userId = req.user.UserID;
 
+    // Validate postId
+    const parsedPostId = parseInt(postId);
+    if (isNaN(parsedPostId)) {
+      return res.status(400).json({ error: "Invalid post ID" });
+    }
+
+    // Fetch post with owner's privacy status
     const post = await prisma.post.findUnique({
-      where: { PostID: parseInt(postId) },
-      select: { UserID: true },
+      where: { PostID: parsedPostId },
+      select: {
+        PostID: true,
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+            Username: true,
+          },
+        },
+      },
     });
-    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // Check access for private accounts
+    const isOwner = userId === post.UserID;
+    let hasAccess = !post.User.IsPrivate || isOwner;
+
+    if (post.User.IsPrivate && !isOwner) {
+      const followRelationship = await prisma.follower.findFirst({
+        where: {
+          UserID: post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      hasAccess = followRelationship !== null;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: "Private account",
+        message: `You must follow @${post.User.Username} to report their posts`,
+      });
+    }
 
     // Prevent duplicate reports
     const existingReport = await prisma.report.findFirst({
-      where: { PostID: parseInt(postId), UserID: userId },
+      where: {
+        PostID: parsedPostId,
+        ReporterID: userId,
+      },
     });
+
     if (existingReport) {
-      return res.status(400).json({ error: "Post already reported" });
+      return res
+        .status(400)
+        .json({ error: "You have already reported this post" });
     }
 
-    await prisma.report.create({
-      data: { PostID: parseInt(postId), UserID: userId, Reason: reason },
+    // Validate reason
+    if (!reason || typeof reason !== "string" || reason.trim() === "") {
+      return res.status(400).json({ error: "Reason is required" });
+    }
+
+    // Create report
+    const report = await prisma.report.create({
+      data: {
+        PostID: parsedPostId,
+        ReporterID: userId,
+        Reason: reason.trim(),
+        Status: "PENDING",
+      },
     });
 
-    // Notify all admin users
-    notifyAdminsAboutReport(postId, userId, reason).catch(console.error);
-
-    res.json({ success: true });
+    res
+      .status(201)
+      .json({
+        message: "Post reported successfully",
+        reportId: report.ReportID,
+      });
   } catch (error) {
-    handleServerError(res, error, "Failed to report post");
+    console.error("Error reporting post:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 

@@ -285,7 +285,7 @@ model Report {
   ReportID    Int          @id @default(autoincrement())
   Post        Post         @relation(fields: [PostID], references: [PostID])
   PostID      Int
-  Reporter    User         @relation("Reporter", fields: [ReporterID], references: [UserID]) // Match relation name
+  Reporter    User         @relation("Reporter", fields: [ReporterID], references: [UserID])
   ReporterID  Int
   Reason      String
   Status      ReportStatus @default(PENDING)
