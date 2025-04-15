@@ -3,20 +3,21 @@ const redis = require("../utils/redis");
 const { uploadToCloud } = require("../services/cloudService");
 const { handleServerError } = require("../utils/errorHandler");
 
-// Create a new story with media upload
+/**
+ * Creates a new story with media
+ * Expires after 24 hours
+ */
 const createStory = async (req, res) => {
   try {
     const { UserID } = req.user;
     const mediaFile = req.file;
 
-    // Check if media file is provided
+    // Verify media presence
     if (!mediaFile) {
       return res.status(400).json({ error: "Media file is required" });
     }
 
-    console.log("Uploading file for user:", UserID);
-
-    // Upload file to Cloudinary
+    // Upload media to Cloudinary
     const uploadResult = await uploadToCloud(mediaFile.buffer, {
       folder: "stories",
       resource_type: "auto",
@@ -27,10 +28,10 @@ const createStory = async (req, res) => {
       throw new Error("No secure URL received from Cloudinary");
     }
 
-    // Set story expiration to 24 hours from now
+    // Set expiration time
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // Create story in database
+    // Create story
     const story = await prisma.story.create({
       data: {
         MediaURL: uploadResult.secure_url,
@@ -49,28 +50,26 @@ const createStory = async (req, res) => {
       },
     });
 
-    // Clear user stories and feed cache
+    // Clear cache
     await redis.del(`stories:${UserID}`);
     await redis.del(`stories:feed:${UserID}`);
 
-    console.log("Story created successfully:", story.StoryID);
-    return res.status(201).json(story);
+    res.status(201).json(story);
   } catch (error) {
-    console.error("Error creating story:", error);
-    return res.status(500).json({
-      error: "Failed to create story",
-      details: process.env.NODE_ENV === "development" ? error.message : null,
-    });
+    handleServerError(res, error, "Failed to create story");
   }
 };
 
-// Get story IDs for a specific user
+/**
+ * Fetches stories for a user
+ * Includes privacy checks
+ */
 const getUserStories = async (req, res) => {
   const { userId } = req.params;
   const currentUserId = req.user.UserID;
 
   try {
-    // Check if user exists
+    // Verify user exists
     const userExists = await prisma.user.findUnique({
       where: { UserID: parseInt(userId) },
       select: { IsPrivate: true, UserID: true },
@@ -80,7 +79,7 @@ const getUserStories = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Check if account is private and user is not following
+    // Check privacy for private accounts
     if (userExists.IsPrivate && userExists.UserID !== currentUserId) {
       const isFollowing = await prisma.follower.count({
         where: {
@@ -95,7 +94,7 @@ const getUserStories = async (req, res) => {
       }
     }
 
-    // Get non-expired story IDs
+    // Fetch non-expired stories
     const stories = await prisma.story.findMany({
       where: {
         UserID: parseInt(userId),
@@ -107,24 +106,22 @@ const getUserStories = async (req, res) => {
       orderBy: { CreatedAt: "desc" },
     });
 
-    const storyIds = stories.map((story) => story.StoryID);
-    res.json(storyIds);
+    res.json(stories.map((story) => story.StoryID));
   } catch (error) {
-    console.error("Error fetching stories:", error);
-    res.status(500).json({
-      error: "Failed to fetch stories",
-      details: process.env.NODE_ENV === "development" ? error.message : null,
-    });
+    handleServerError(res, error, "Failed to fetch stories");
   }
 };
 
-// Get views and likes for a specific story
+/**
+ * Fetches views and likes for a story
+ * Requires ownership
+ */
 const getStoryViews = async (req, res) => {
   try {
     const { storyId } = req.params;
     const userId = req.user.UserID;
 
-    // Check if story exists and belongs to user
+    // Verify story ownership
     const story = await prisma.story.findUnique({
       where: { StoryID: parseInt(storyId) },
       select: { UserID: true },
@@ -138,7 +135,7 @@ const getStoryViews = async (req, res) => {
       return res.status(403).json({ error: "You don't own this story" });
     }
 
-    // Get story views
+    // Fetch views
     const views = await prisma.storyView.findMany({
       where: { StoryID: parseInt(storyId) },
       include: {
@@ -149,7 +146,7 @@ const getStoryViews = async (req, res) => {
       orderBy: { ViewedAt: "desc" },
     });
 
-    // Get users who liked the story
+    // Fetch likes
     const likes = await prisma.storyLike.findMany({
       where: { StoryID: parseInt(storyId) },
       include: {
@@ -167,22 +164,24 @@ const getStoryViews = async (req, res) => {
       likedBy: likes.map((like) => like.User),
     });
   } catch (error) {
-    console.error("Error fetching story views:", error);
-    res.status(500).json({ error: "Failed to fetch story views" });
+    handleServerError(res, error, "Failed to fetch story views");
   }
 };
 
-// Get story feed with priority for unviewed stories
+/**
+ * Fetches story feed for followed users
+ * Prioritizes unviewed stories
+ */
 const getStoryFeed = async (req, res) => {
   const { UserID } = req.user;
 
   try {
-    // Check cache first
+    // Check cache
     const cacheKey = `stories:feed_ids:${UserID}`;
     const cachedData = await redis.get(cacheKey);
     if (cachedData) return res.json(cachedData);
 
-    // Get IDs of followed users
+    // Get followed users
     const following = await prisma.follower.findMany({
       where: {
         FollowerUserID: UserID,
@@ -192,9 +191,9 @@ const getStoryFeed = async (req, res) => {
     });
 
     const followingIds = following.map((f) => f.UserID);
-    followingIds.push(UserID); // Include current user's stories
+    followingIds.push(UserID);
 
-    // Get stories with view status
+    // Fetch stories with view status
     const stories = await prisma.story.findMany({
       where: {
         UserID: { in: followingIds },
@@ -227,20 +226,20 @@ const getStoryFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // Prepare response with view status
+    // Format response
     const result = Object.values(usersWithStories).map((user) => ({
       userId: user.userId,
       hasUnviewedStories: user.storyIds.length > user.viewedStoryIds.length,
     }));
 
-    // Sort by unviewed stories first
+    // Sort by unviewed stories
     result.sort((a, b) => {
       if (a.hasUnviewedStories && !b.hasUnviewedStories) return -1;
       if (!a.hasUnviewedStories && b.hasUnviewedStories) return 1;
       return 0;
     });
 
-    // Cache for 5 minutes
+    // Cache response
     await redis.set(cacheKey, result, 300);
 
     res.json(result);
@@ -249,13 +248,16 @@ const getStoryFeed = async (req, res) => {
   }
 };
 
-// Get a specific story by ID
+/**
+ * Fetches a specific story
+ * Records view for non-owners
+ */
 const getStoryById = async (req, res) => {
   const { storyId } = req.params;
   const { UserID } = req.user;
 
   try {
-    // Get story details
+    // Fetch story details
     const story = await prisma.story.findUnique({
       where: {
         StoryID: parseInt(storyId),
@@ -276,7 +278,7 @@ const getStoryById = async (req, res) => {
         _count: {
           select: {
             StoryLikes: true,
-            StoryViews: true, // Count of views
+            StoryViews: true,
           },
         },
       },
@@ -286,7 +288,7 @@ const getStoryById = async (req, res) => {
       return res.status(404).json({ error: "Story not found" });
     }
 
-    // Check if account is private and user is not following
+    // Check privacy for private accounts
     if (story.User.IsPrivate && story.User.UserID !== UserID) {
       const isFollowing = await prisma.follower.count({
         where: {
@@ -301,7 +303,7 @@ const getStoryById = async (req, res) => {
       }
     }
 
-    // Record view if not the story owner
+    // Record view for non-owners
     if (story.User.UserID !== UserID) {
       await prisma.storyView.upsert({
         where: {
@@ -323,7 +325,7 @@ const getStoryById = async (req, res) => {
       await redis.del(`stories:feed:${UserID}`);
     }
 
-    // Check if user liked the story
+    // Check like status
     const hasLiked =
       (await prisma.storyLike.count({
         where: {
@@ -337,21 +339,20 @@ const getStoryById = async (req, res) => {
       hasLiked,
     });
   } catch (error) {
-    console.error("Error fetching story:", error);
-    res.status(500).json({
-      error: "Failed to fetch story",
-      details: process.env.NODE_ENV === "development" ? error.message : null,
-    });
+    handleServerError(res, error, "Failed to fetch story");
   }
 };
 
-// Toggle like on a story
+/**
+ * Toggles like status on a story
+ * Creates notifications
+ */
 const toggleStoryLike = async (req, res) => {
   const { storyId } = req.params;
   const { UserID } = req.user;
 
   try {
-    // Check if story exists
+    // Verify story exists
     const story = await prisma.story.findUnique({
       where: { StoryID: parseInt(storyId) },
       select: { UserID: true, ExpiresAt: true },
@@ -361,12 +362,12 @@ const toggleStoryLike = async (req, res) => {
       return res.status(404).json({ error: "Story not found" });
     }
 
-    // Check if story is expired
+    // Check expiration
     if (story.ExpiresAt < new Date()) {
       return res.status(400).json({ error: "Story has expired" });
     }
 
-    // Check if user can like the story
+    // Verify access for non-owners
     if (story.UserID !== UserID) {
       const isFollowing = await prisma.follower.count({
         where: {
@@ -381,7 +382,7 @@ const toggleStoryLike = async (req, res) => {
       }
     }
 
-    // Check if like exists
+    // Toggle like
     const existingLike = await prisma.storyLike.findUnique({
       where: {
         UserID_StoryID: {
@@ -393,7 +394,6 @@ const toggleStoryLike = async (req, res) => {
 
     let action;
     if (existingLike) {
-      // Remove like
       await prisma.storyLike.delete({
         where: {
           UserID_StoryID: {
@@ -404,7 +404,6 @@ const toggleStoryLike = async (req, res) => {
       });
       action = "unliked";
     } else {
-      // Add like
       await prisma.storyLike.create({
         data: {
           UserID: UserID,
@@ -412,7 +411,7 @@ const toggleStoryLike = async (req, res) => {
         },
       });
 
-      // Create notification if not the story owner
+      // Notify owner
       if (story.UserID !== UserID) {
         await prisma.notification.create({
           data: {
@@ -435,21 +434,20 @@ const toggleStoryLike = async (req, res) => {
 
     res.json({ success: true, action });
   } catch (error) {
-    console.error("Error toggling story like:", error);
-    res.status(500).json({
-      error: "Failed to toggle like",
-      details: process.env.NODE_ENV === "development" ? error.message : null,
-    });
+    handleServerError(res, error, "Failed to toggle like");
   }
 };
 
-// Delete a story
+/**
+ * Deletes a story and related data
+ * Requires ownership
+ */
 const deleteStory = async (req, res) => {
   const { storyId } = req.params;
   const { UserID } = req.user;
 
   try {
-    // Check if story exists and belongs to user
+    // Verify story ownership
     const story = await prisma.story.findFirst({
       where: {
         StoryID: parseInt(storyId),
@@ -463,12 +461,12 @@ const deleteStory = async (req, res) => {
       });
     }
 
-    // Delete related StoryHighlight records (to remove story from highlights)
+    // Delete related data
     await prisma.storyHighlight.deleteMany({
       where: { StoryID: parseInt(storyId) },
     });
 
-    // Delete the story (StoryView and StoryLike are handled by cascade)
+    // Delete story
     await prisma.story.delete({
       where: { StoryID: parseInt(storyId) },
     });

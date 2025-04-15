@@ -11,10 +11,8 @@ const ALLOWED_IMAGE_TYPES = ["jpg", "jpeg", "png", "gif", "webp"];
 const ALLOWED_VIDEO_TYPES = ["mp4", "mov", "avi", "mkv", "webm"];
 
 /**
- * Creates a new post with content moderation and media handling
-  - Validates content safety
-  - Processes media uploads (images/videos)
-  - Handles both text and media posts
+ * Creates a new post with moderation
+ * Supports text and media content
  */
 const createPost = async (req, res) => {
   try {
@@ -22,14 +20,14 @@ const createPost = async (req, res) => {
     const mediaFile = req.file;
     const userId = req.user.UserID;
 
-    // Validate at least content or media exists
+    // Validate content or media presence
     if (!content && !mediaFile) {
       return res
         .status(400)
         .json({ error: "Either content or media is required" });
     }
 
-    // Content safety check using moderation service
+    // Check content safety
     if (content && !(await LocalModeration.checkText(content))) {
       return res.status(400).json({ error: "Content violates guidelines" });
     }
@@ -38,31 +36,26 @@ const createPost = async (req, res) => {
       isImage = false,
       isVideo = false;
 
-    // Handle media upload if present
+    // Handle media upload
     if (mediaFile) {
-      try {
-        const uploadResult = await uploadToCloud(mediaFile.buffer, {
-          folder: "posts",
-          resource_type: "auto",
-        });
+      const uploadResult = await uploadToCloud(mediaFile.buffer, {
+        folder: "posts",
+        resource_type: "auto",
+      });
 
-        mediaUrl = uploadResult.secure_url || uploadResult;
+      mediaUrl = uploadResult.secure_url || uploadResult;
 
-        // Determine media type for proper storage
-        const fileExt = mediaFile.originalname.split(".").pop().toLowerCase();
-        isImage =
-          ALLOWED_IMAGE_TYPES.includes(fileExt) ||
-          mediaFile.mimetype.startsWith("image/");
-        isVideo =
-          ALLOWED_VIDEO_TYPES.includes(fileExt) ||
-          mediaFile.mimetype.startsWith("video/");
-      } catch (uploadError) {
-        console.error("Upload failed:", uploadError);
-        return res.status(500).json({ error: "Media upload failed" });
-      }
+      // Determine media type
+      const fileExt = mediaFile.originalname.split(".").pop().toLowerCase();
+      isImage =
+        ALLOWED_IMAGE_TYPES.includes(fileExt) ||
+        mediaFile.mimetype.startsWith("image/");
+      isVideo =
+        ALLOWED_VIDEO_TYPES.includes(fileExt) ||
+        mediaFile.mimetype.startsWith("video/");
     }
 
-    // Create the post record
+    // Create post
     const post = await prisma.post.create({
       data: {
         UserID: userId,
@@ -75,19 +68,13 @@ const createPost = async (req, res) => {
 
     res.status(201).json({ success: true, post });
   } catch (error) {
-    console.error("Post creation error:", error);
-    res.status(500).json({
-      error: "Failed to create post",
-      details: process.env.NODE_ENV === "development" ? error.message : null,
-    });
+    handleServerError(res, error, "Failed to create post");
   }
 };
 
 /**
- * Gets paginated posts from followed users with caching
-  - Implements Redis caching layer
-  - Handles private account visibility
-  - Includes like/comment counts
+ * Fetches posts from followed users
+ * Uses Redis caching
  */
 const getPosts = async (req, res) => {
   try {
@@ -95,12 +82,12 @@ const getPosts = async (req, res) => {
     const offset = (page - 1) * limit;
     const userId = req.user.UserID;
 
-    // Cache key structure: posts:userId:page:limit
+    // Check cache
     const cacheKey = `posts:${userId}:${page}:${limit}`;
     const cachedPosts = await redis.get(cacheKey);
     if (cachedPosts) return res.json(cachedPosts);
 
-    // Get IDs of followed users (exclude current user)
+    // Get followed users
     const followingIds = (
       await prisma.follower.findMany({
         where: { FollowerUserID: userId, Status: "ACCEPTED" },
@@ -108,22 +95,17 @@ const getPosts = async (req, res) => {
       })
     ).map((f) => f.UserID);
 
-    // Log followed users for debugging
-    console.log(`User ${userId} follows:`, followingIds);
-
-    // If not following anyone, return empty array
     if (followingIds.length === 0) {
       await redis.set(cacheKey, [], POST_CACHE_TTL);
       return res.json([]);
     }
 
-    // Fetch posts from followed users
+    // Fetch posts
     const posts = await prisma.post.findMany({
       skip: offset,
       take: parseInt(limit),
       where: {
         UserID: { in: followingIds },
-        // Removed User privacy condition since following implies access
       },
       orderBy: { CreatedAt: "desc" },
       include: {
@@ -136,10 +118,9 @@ const getPosts = async (req, res) => {
           },
         },
         Likes: {
-          // Get likes from users the current user follows
           where: { UserID: { in: followingIds } },
-          take: 3, // Limit to first 3 likers
-          orderBy: { CreatedAt: "desc" }, // Most recent likes first
+          take: 3,
+          orderBy: { CreatedAt: "desc" },
           include: {
             User: {
               select: {
@@ -153,7 +134,7 @@ const getPosts = async (req, res) => {
       },
     });
 
-    // Format response with additional metadata
+    // Format response
     const response = posts.map((post) => ({
       ...post,
       isLiked: post.Likes.some((like) => like.UserID === userId),
@@ -165,26 +146,24 @@ const getPosts = async (req, res) => {
       })),
     }));
 
-    // Cache the response
+    // Cache response
     await redis.set(cacheKey, response, POST_CACHE_TTL);
     res.json(response);
   } catch (error) {
-    console.error("Error fetching posts:", error);
     handleServerError(res, error, "Failed to fetch posts");
   }
 };
 
 /**
- * Gets single post with privacy checks
-  - Validates post visibility
-  - Handles private account access
-  - Returns post with engagement metrics
+ * Fetches a single post
+ * Includes privacy checks
  */
 const getPostById = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user?.UserID;
 
+    // Fetch post with details
     const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
       include: {
@@ -210,7 +189,7 @@ const getPostById = async (req, res) => {
               },
             },
           },
-          orderBy: { CreatedAt: "desc" }, // Newest comments first
+          orderBy: { CreatedAt: "desc" },
         },
         _count: { select: { Likes: true, Comments: true } },
       },
@@ -218,7 +197,7 @@ const getPostById = async (req, res) => {
 
     if (!post) return res.status(404).json({ error: "Post not found" });
 
-    // Privacy check for private accounts
+    // Verify privacy for private accounts
     if (post.User.IsPrivate && post.User.UserID !== userId) {
       const isFollowing = await prisma.follower.count({
         where: {
@@ -231,7 +210,7 @@ const getPostById = async (req, res) => {
         return res.status(403).json({ error: "Private account" });
     }
 
-    // Format response and remove internal fields
+    // Format response
     const response = {
       ...post,
       isLiked: post.Likes.length > 0,
@@ -254,16 +233,13 @@ const getPostById = async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error("Error fetching post:", error);
     handleServerError(res, error, "Failed to fetch post");
   }
 };
 
 /**
- * Updates post content with validation
-  - Checks content safety
-  - Clears relevant cache entries
-  - Returns updated post
+ * Updates post content
+ * Validates content safety
  */
 const updatePost = async (req, res) => {
   try {
@@ -271,11 +247,12 @@ const updatePost = async (req, res) => {
     const { content } = req.body;
     const userId = req.user.UserID;
 
-    // Validate content if provided
+    // Check content safety
     if (content && !(await LocalModeration.checkText(content))) {
       return res.status(400).json({ error: "Content violates guidelines" });
     }
 
+    // Update post
     const updatedPost = await prisma.post.update({
       where: { PostID: parseInt(postId), UserID: userId },
       data: { Content: content },
@@ -286,7 +263,7 @@ const updatePost = async (req, res) => {
       },
     });
 
-    // Clear cache for this post and all posts lists
+    // Clear cache
     await redis.del("posts:*");
     await redis.del(`post:${postId}`);
 
@@ -297,11 +274,8 @@ const updatePost = async (req, res) => {
 };
 
 /**
- * Deletes post and all related data
-  - Uses transaction for data integrity
-  - Clears cache entries
-  - Creates audit log
-  - Allows admin override
+ * Deletes a post and related data
+ * Supports admin override
  */
 const deletePost = async (req, res) => {
   try {
@@ -309,7 +283,7 @@ const deletePost = async (req, res) => {
     const userId = req.user.UserID;
     const isAdmin = req.user.Role === "ADMIN";
 
-    // Perform all deletions in a single transaction
+    // Delete post and related data
     await prisma.$transaction([
       prisma.comment.deleteMany({ where: { PostID: parseInt(postId) } }),
       prisma.like.deleteMany({ where: { PostID: parseInt(postId) } }),
@@ -330,7 +304,7 @@ const deletePost = async (req, res) => {
       }),
     ]);
 
-    // Clear relevant cache
+    // Clear cache
     await redis.del("posts:*");
     await redis.del(`post:${postId}`);
 
@@ -342,9 +316,7 @@ const deletePost = async (req, res) => {
 
 /**
  * Toggles like status on a post
-  - Handles like/unlike actions
-  - Creates notifications
-  - Updates cache
+ * Creates notifications
  */
 const likePost = async (req, res) => {
   try {
@@ -357,7 +329,7 @@ const likePost = async (req, res) => {
     });
     if (!postExists) return res.status(404).json({ error: "Post not found" });
 
-    // Check existing like status
+    // Toggle like
     const existingLike = await prisma.like.findFirst({
       where: { PostID: parseInt(postId), UserID: userId },
     });
@@ -371,7 +343,7 @@ const likePost = async (req, res) => {
       createLikeNotification(postId, userId).catch(console.error);
     }
 
-    // Invalidate cache
+    // Clear cache
     await redis.del(`post:${postId}`);
     await redis.del("posts:*");
 
@@ -382,10 +354,8 @@ const likePost = async (req, res) => {
 };
 
 /**
- * Adds comment to a post
-  - Validates comment content
-  - Creates notifications for post owner
-  - Updates cache
+ * Adds a comment to a post
+ * Notifies post owner
  */
 const addComment = async (req, res) => {
   try {
@@ -393,17 +363,19 @@ const addComment = async (req, res) => {
     const { content } = req.body;
     const userId = req.user.UserID;
 
-    // Validate comment content
+    // Check comment safety
     if (!(await LocalModeration.checkText(content))) {
       return res.status(400).json({ error: "Comment violates guidelines" });
     }
 
+    // Verify post exists
     const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
       select: { UserID: true },
     });
     if (!post) return res.status(404).json({ error: "Post not found" });
 
+    // Create comment
     const comment = await prisma.comment.create({
       data: { PostID: parseInt(postId), UserID: userId, Content: content },
       include: {
@@ -413,14 +385,14 @@ const addComment = async (req, res) => {
       },
     });
 
-    // Notify post owner if it's not their own comment
+    // Notify post owner
     if (post.UserID !== userId) {
       createCommentNotification(postId, userId, post.UserID).catch(
         console.error
       );
     }
 
-    // Invalidate cache for this post
+    // Clear cache
     await redis.del(`post:${postId}`);
 
     res.status(201).json(comment);
@@ -431,8 +403,7 @@ const addComment = async (req, res) => {
 
 /**
  * Toggles save status on a post
-  - Handles save/unsave actions
-  - Returns current save status
+ * Returns save status
  */
 const savePost = async (req, res) => {
   try {
@@ -445,7 +416,7 @@ const savePost = async (req, res) => {
     });
     if (!postExists) return res.status(404).json({ error: "Post not found" });
 
-    // Check existing save status
+    // Toggle save
     const existingSave = await prisma.savedPost.findFirst({
       where: { PostID: parseInt(postId), UserID: userId },
     });
@@ -468,9 +439,7 @@ const savePost = async (req, res) => {
 
 /**
  * Reports a post to admins
-  - Validates post exists
-  - Prevents duplicate reports
-  - Notifies all admins
+ * Prevents duplicate reports
  */
 const reportPost = async (req, res) => {
   try {
@@ -478,13 +447,13 @@ const reportPost = async (req, res) => {
     const { reason } = req.body;
     const userId = req.user.UserID;
 
-    // Validate postId
+    // Validate post ID
     const parsedPostId = parseInt(postId);
     if (isNaN(parsedPostId)) {
       return res.status(400).json({ error: "Invalid post ID" });
     }
 
-    // Fetch post with owner's privacy status
+    // Fetch post with owner details
     const post = await prisma.post.findUnique({
       where: { PostID: parsedPostId },
       select: {
@@ -554,26 +523,17 @@ const reportPost = async (req, res) => {
       },
     });
 
-    res
-      .status(201)
-      .json({
-        message: "Post reported successfully",
-        reportId: report.ReportID,
-      });
-  } catch (error) {
-    console.error("Error reporting post:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+    res.status(201).json({
+      message: "Post reported successfully",
+      reportId: report.ReportID,
     });
+  } catch (error) {
+    handleServerError(res, error, "Failed to report post");
   }
 };
 
 /**
- * Creates a like notification for post owner
- * @param {number} postId - The ID of the post being liked
- * @param {number} likerId - The ID of the user who liked the post
+ * Creates notification for post like
  */
 async function createLikeNotification(postId, likerId) {
   const post = await prisma.post.findUnique({
@@ -581,7 +541,7 @@ async function createLikeNotification(postId, likerId) {
     select: { UserID: true },
   });
 
-  // Only notify if the liker is not the post owner
+  // Notify post owner
   if (post && post.UserID !== likerId) {
     await prisma.notification.create({
       data: {
@@ -594,10 +554,7 @@ async function createLikeNotification(postId, likerId) {
 }
 
 /**
- * Creates a comment notification for post owner
- * @param {number} postId - The ID of the commented post
- * @param {number} commenterId - The ID of the commenter
- * @param {number} postOwnerId - The ID of the post owner
+ * Creates notification for post comment
  */
 async function createCommentNotification(postId, commenterId, postOwnerId) {
   await prisma.notification.create({
@@ -610,10 +567,7 @@ async function createCommentNotification(postId, commenterId, postOwnerId) {
 }
 
 /**
- * Notifies all admin users about a reported post
- * @param {number} postId - The ID of the reported post
- * @param {number} reporterId - The ID of the reporting user
- * @param {string} reason - The reason for the report
+ * Notifies admins about reported post
  */
 async function notifyAdminsAboutReport(postId, reporterId, reason) {
   const admins = await prisma.user.findMany({

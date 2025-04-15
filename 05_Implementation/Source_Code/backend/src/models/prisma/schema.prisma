@@ -34,7 +34,7 @@ enum NotificationType {
   COMMENT
   MESSAGE
   STORY_LIKE
-  ADMIN_WARNING // Add this
+  ADMIN_WARNING 
 }
 
 enum ReportStatus {

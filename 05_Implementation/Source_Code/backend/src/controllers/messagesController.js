@@ -1,12 +1,10 @@
-// messagesController.js
 const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { handleServerError } = require("../utils/errorHandler");
 
 /**
- * Gets list of user conversations
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Fetches user conversations with pagination
+ * Returns paginated list with last message
  */
 const getConversations = async (req, res) => {
   const { UserID } = req.user;
@@ -14,6 +12,8 @@ const getConversations = async (req, res) => {
 
   try {
     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch conversations with participants and last message
     const conversations = await prisma.conversation.findMany({
       where: {
         participants: {
@@ -44,6 +44,7 @@ const getConversations = async (req, res) => {
       },
     });
 
+    // Count total conversations for pagination
     const total = await prisma.conversation.count({
       where: {
         participants: {
@@ -52,6 +53,7 @@ const getConversations = async (req, res) => {
       },
     });
 
+    // Format response with last message
     res.json({
       conversations: conversations.map((conv) => ({
         ...conv,
@@ -62,21 +64,20 @@ const getConversations = async (req, res) => {
       limit: parseInt(limit),
     });
   } catch (error) {
-    console.error("Error fetching conversations:", error);
     handleServerError(res, error, "Failed to fetch conversations");
   }
 };
 
 /**
- * Creates a new conversation
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Creates a new conversation with participants
+ * Invalidates conversation cache
  */
 const createConversation = async (req, res) => {
   const { UserID } = req.user;
   const { participantIds, isGroup, title } = req.body;
 
   try {
+    // Validate group chat title
     if (isGroup && !title) {
       return res
         .status(400)
@@ -93,7 +94,7 @@ const createConversation = async (req, res) => {
       return res.status(400).json({ error: "Invalid participant IDs" });
     }
 
-    // Create conversation
+    // Create conversation with participants
     const conversation = await prisma.conversation.create({
       data: {
         isGroup: isGroup || false,
@@ -117,7 +118,7 @@ const createConversation = async (req, res) => {
       },
     });
 
-    // Invalidate cache
+    // Invalidate conversation cache for participants
     await redis.del(`conversations:${UserID}`);
     for (const id of participantIds) {
       await redis.del(`conversations:${id}`);
@@ -125,15 +126,13 @@ const createConversation = async (req, res) => {
 
     res.status(201).json(conversation);
   } catch (error) {
-    console.error("Error creating conversation:", error);
     handleServerError(res, error, "Failed to create conversation");
   }
 };
 
 /**
  * Updates group conversation members
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Requires admin permissions
  */
 const updateGroupMembers = async (req, res) => {
   const { UserID } = req.user;
@@ -141,7 +140,7 @@ const updateGroupMembers = async (req, res) => {
   const { add = [], remove = [] } = req.body;
 
   try {
-    // Verify conversation exists and is a group, and user is admin
+    // Verify conversation and admin status
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
@@ -164,7 +163,7 @@ const updateGroupMembers = async (req, res) => {
         .json({ error: "Only admins can modify group members" });
     }
 
-    // Verify users to add/remove exist
+    // Verify users to add/remove
     const usersToAdd = await prisma.user.findMany({
       where: { UserID: { in: add } },
       select: { UserID: true },
@@ -182,7 +181,7 @@ const updateGroupMembers = async (req, res) => {
       return res.status(400).json({ error: "Invalid user IDs" });
     }
 
-    // Update participants
+    // Update conversation participants
     await prisma.conversation.update({
       where: { id: conversationId },
       data: {
@@ -207,7 +206,7 @@ const updateGroupMembers = async (req, res) => {
       },
     });
 
-    // Invalidate caches
+    // Invalidate cache for participants
     const participantIds = [
       ...conversation.participants.map((p) => p.UserID),
       ...add,
@@ -218,15 +217,13 @@ const updateGroupMembers = async (req, res) => {
 
     res.json(updatedConversation);
   } catch (error) {
-    console.error("Error updating group members:", error);
     handleServerError(res, error, "Failed to update group members");
   }
 };
 
 /**
- * Gets a conversation with all messages and details
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Fetches conversation messages with details
+ * Returns 404 for unauthorized access
  */
 const getMessages = async (req, res) => {
   const { UserID } = req.user;
@@ -234,7 +231,7 @@ const getMessages = async (req, res) => {
   const { limit = 20, before } = req.query;
 
   try {
-    // Fetch conversation with all details
+    // Fetch conversation with messages and participants
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
@@ -296,7 +293,7 @@ const getMessages = async (req, res) => {
         .json({ error: "Conversation not found or access denied" });
     }
 
-    // Get total message count
+    // Count total messages for pagination
     const totalMessages = await prisma.message.count({
       where: {
         conversationId,
@@ -304,11 +301,7 @@ const getMessages = async (req, res) => {
       },
     });
 
-    // Get last message
-    const lastMessage =
-      conversation.messages.length > 0 ? conversation.messages[0] : null;
-
-    // Format response
+    // Format response with message details
     const response = {
       id: conversation.id,
       title: conversation.title,
@@ -318,20 +311,18 @@ const getMessages = async (req, res) => {
       updatedAt: conversation.updatedAt,
       participants: conversation.participants,
       messages: conversation.messages.reverse(),
-      lastMessage,
+      lastMessage: conversation.messages[0] || null,
     };
 
     res.json(response);
   } catch (error) {
-    console.error("Error fetching conversation:", error);
     handleServerError(res, error, "Failed to fetch conversation");
   }
 };
 
 /**
  * Sends a message in a conversation
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Supports attachments and replies
  */
 const sendMessage = async (req, res) => {
   const { UserID } = req.user;
@@ -339,7 +330,7 @@ const sendMessage = async (req, res) => {
   const { content, attachments, replyToId } = req.body;
 
   try {
-    // Verify user is part of conversation
+    // Verify conversation access
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { id: true, participants: { select: { UserID: true } } },
@@ -354,7 +345,7 @@ const sendMessage = async (req, res) => {
         .json({ error: "Conversation not found or access denied" });
     }
 
-    // Verify replyToId if provided
+    // Validate reply message if provided
     let replyTo = null;
     if (replyToId) {
       replyTo = await prisma.message.findUnique({
@@ -366,6 +357,7 @@ const sendMessage = async (req, res) => {
       }
     }
 
+    // Create message with attachments
     const message = await prisma.message.create({
       data: {
         content,
@@ -409,13 +401,13 @@ const sendMessage = async (req, res) => {
       },
     });
 
-    // Update conversation's updatedAt
+    // Update conversation timestamp
     await prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
 
-    // Invalidate cache
+    // Invalidate cache for participants
     const participantIds = conversation.participants.map((p) => p.UserID);
     for (const id of participantIds) {
       await redis.del(`conversations:${id}`);
@@ -423,15 +415,13 @@ const sendMessage = async (req, res) => {
 
     res.status(201).json(message);
   } catch (error) {
-    console.error("Error sending message:", error);
     handleServerError(res, error, "Failed to send message");
   }
 };
 
 /**
  * Adds a reaction to a message
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Prevents duplicate reactions
  */
 const addReaction = async (req, res) => {
   const { UserID } = req.user;
@@ -439,7 +429,7 @@ const addReaction = async (req, res) => {
   const { emoji } = req.body;
 
   try {
-    // Verify message exists and user is part of conversation
+    // Verify message and conversation access
     const message = await prisma.message.findUnique({
       where: { id: messageId },
       select: {
@@ -462,7 +452,7 @@ const addReaction = async (req, res) => {
         .json({ error: "Message not found or access denied" });
     }
 
-    // Check if reaction already exists
+    // Check for existing reaction
     const existingReaction = await prisma.reaction.findUnique({
       where: {
         messageId_userId: {
@@ -476,6 +466,7 @@ const addReaction = async (req, res) => {
       return res.status(400).json({ error: "Reaction already exists" });
     }
 
+    // Create reaction
     const reaction = await prisma.reaction.create({
       data: {
         emoji,
@@ -490,7 +481,7 @@ const addReaction = async (req, res) => {
       },
     });
 
-    // Invalidate cache
+    // Invalidate cache for participants
     const participantIds = message.conversation.participants.map(
       (p) => p.UserID
     );
@@ -500,22 +491,20 @@ const addReaction = async (req, res) => {
 
     res.status(201).json({ messageId, emoji: reaction.emoji });
   } catch (error) {
-    console.error("Error adding reaction:", error);
     handleServerError(res, error, "Failed to add reaction");
   }
 };
 
 /**
- * Marks messages as read by the authenticated user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Marks messages as read
+ * Updates read status for valid messages
  */
 const markAsRead = async (req, res) => {
   const { UserID } = req.user;
   const { messageIds } = req.body;
 
   try {
-    // Verify messages exist and user is part of the conversation
+    // Verify messages and conversation access
     const messages = await prisma.message.findMany({
       where: {
         id: { in: messageIds },
@@ -533,19 +522,18 @@ const markAsRead = async (req, res) => {
       },
     });
 
-    // Check if all provided messageIds are valid
     if (messages.length !== messageIds.length) {
       return res.status(400).json({ error: "Invalid message IDs" });
     }
 
-    // Filter messages not sent by the user and not already read
+    // Filter messages to update
     const messagesToUpdate = messages.filter(
       (msg) =>
         msg.senderId !== UserID &&
         !msg.readBy.some((reader) => reader.UserID === UserID)
     );
 
-    // Update readBy and readAt using a transaction
+    // Update read status in transaction
     if (messagesToUpdate.length > 0) {
       await prisma.$transaction(
         messagesToUpdate.map((msg) =>
@@ -574,25 +562,22 @@ const markAsRead = async (req, res) => {
       }
     }
 
-    // Return success response
     res.json({ success: true, updatedCount: messagesToUpdate.length });
   } catch (error) {
-    console.error("Error marking messages as read:", error);
     handleServerError(res, error, "Failed to mark messages as read");
   }
 };
 
 /**
- * Notifies typing status in a conversation (stores in Redis only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Updates typing status in Redis
+ * Stores status with 10-second expiry
  */
 const handleTyping = async (req, res) => {
   const { UserID } = req.user;
   const { conversationId, isTyping = true } = req.body;
 
   try {
-    // Verify user is part of conversation
+    // Verify conversation access
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: {
@@ -610,7 +595,7 @@ const handleTyping = async (req, res) => {
         .json({ error: "Conversation not found or access denied" });
     }
 
-    // Store typing status in Redis (expires after 10 seconds)
+    // Update typing status in Redis
     const cacheKey = `typing:${conversationId}:${UserID}`;
     if (isTyping) {
       await redis.set(cacheKey, "true", "EX", 10);
@@ -618,10 +603,8 @@ const handleTyping = async (req, res) => {
       await redis.del(cacheKey);
     }
 
-    // Respond to the HTTP request
     res.json({ success: true });
   } catch (error) {
-    console.error("Error handling typing status:", error);
     handleServerError(res, error, "Failed to handle typing status");
   }
 };

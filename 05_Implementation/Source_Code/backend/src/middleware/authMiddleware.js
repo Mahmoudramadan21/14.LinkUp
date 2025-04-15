@@ -1,4 +1,3 @@
-// authMiddleware.js
 const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prisma");
 
@@ -37,7 +36,10 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    req.user = { UserID: decoded.userId };
+    req.user = {
+      UserID: user.UserID,
+      Role: user.Role, // Include Role for authorize middleware
+    };
     console.log("req.user set to:", req.user);
     next();
   } catch (error) {
@@ -50,11 +52,14 @@ const authMiddleware = async (req, res, next) => {
 
 /**
  * Role-based authorization middleware
- * @param {string[]} allowedRoles - Roles that have access
+ * @param {string|string[]} allowedRoles - Roles that have access
  */
 const authorize = (allowedRoles) => {
+  // Normalize allowedRoles to array for consistency
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
   return (req, res, next) => {
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!req.user || !req.user.Role || !roles.includes(req.user.Role)) {
       return res.status(403).json({
         error: "Forbidden",
         message: "You do not have permission to access this resource",
