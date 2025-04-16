@@ -1,4 +1,3 @@
-// messagesRoutes.js
 const express = require("express");
 const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
@@ -6,7 +5,6 @@ const { authMiddleware } = require("../middleware/authMiddleware");
 const {
   getConversationsRules,
   createConversationRules,
-  updateGroupMembersRules,
   getMessagesRules,
   sendMessageRules,
   addReactionRules,
@@ -16,7 +14,6 @@ const {
 const {
   getConversations,
   createConversation,
-  updateGroupMembers,
   getMessages,
   sendMessage,
   addReaction,
@@ -31,7 +28,7 @@ router.use(authMiddleware);
  * @swagger
  * tags:
  *   name: Messages
- *   description: Real-time messaging and conversations
+ *   description: Real-time one-on-one messaging
  */
 
 /**
@@ -71,38 +68,9 @@ router.use(authMiddleware);
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
+ *                       conversationId:
  *                         type: string
  *                         example: "conv_123"
- *                       title:
- *                         type: string
- *                         nullable: true
- *                         example: "Group Chat"
- *                       isGroup:
- *                         type: boolean
- *                         example: false
- *                       adminId:
- *                         type: integer
- *                         nullable: true
- *                         example: 1
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *                       updatedAt:
- *                         type: string
- *                         format: date-time
- *                       participants:
- *                         type: array
- *                         items:
- *                           type: object
- *                           properties:
- *                             UserID:
- *                               type: integer
- *                             Username:
- *                               type: string
- *                             ProfilePicture:
- *                               type: string
- *                               nullable: true
  *                       lastMessage:
  *                         type: object
  *                         nullable: true
@@ -116,6 +84,19 @@ router.use(authMiddleware);
  *                             format: date-time
  *                           senderId:
  *                             type: integer
+ *                       unreadCount:
+ *                         type: integer
+ *                         example: 2
+ *                       otherParticipant:
+ *                         type: object
+ *                         properties:
+ *                           UserID:
+ *                             type: integer
+ *                           Username:
+ *                             type: string
+ *                           ProfilePicture:
+ *                             type: string
+ *                             nullable: true
  *                 total:
  *                   type: integer
  *                   example: 50
@@ -140,7 +121,7 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
  * @swagger
  * /messanger/conversations:
  *   post:
- *     summary: Create a new conversation
+ *     summary: Create a new one-on-one conversation
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -151,24 +132,12 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
  *           schema:
  *             type: object
  *             required:
- *               - participantIds
+ *               - participantId
  *             properties:
- *               participantIds:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 minItems: 1
- *                 maxItems: 20
- *                 example: [2, 3]
- *               isGroup:
- *                 type: boolean
- *                 default: false
- *                 example: false
- *               title:
- *                 type: string
- *                 maxLength: 50
- *                 example: "Friends Group"
- *                 description: Required if isGroup is true
+ *               participantId:
+ *                 type: integer
+ *                 example: 2
+ *                 description: ID of the other user to start a conversation with
  *     responses:
  *       201:
  *         description: Conversation created successfully
@@ -179,14 +148,6 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
  *               properties:
  *                 id:
  *                   type: string
- *                 title:
- *                   type: string
- *                   nullable: true
- *                 isGroup:
- *                   type: boolean
- *                 adminId:
- *                   type: integer
- *                   nullable: true
  *                 createdAt:
  *                   type: string
  *                   format: date-time
@@ -206,7 +167,7 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
  *                         type: string
  *                         nullable: true
  *       400:
- *         description: Invalid participant IDs or missing title for group chat
+ *         description: Invalid participant ID or conversation already exists
  *         content:
  *           application/json:
  *             schema:
@@ -225,110 +186,6 @@ router.post(
   createConversationRules,
   validate,
   createConversation
-);
-
-/**
- * @swagger
- * /messanger/conversations/{conversationId}/members:
- *   patch:
- *     summary: Update group conversation members
- *     tags: [Messages]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: conversationId
- *         required: true
- *         schema:
- *           type: string
- *         description: UUID of the conversation
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               add:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 example: [3, 4]
- *                 description: User IDs to add to the group
- *               remove:
- *                 type: array
- *                 items:
- *                   type: integer
- *                 example: [2]
- *                 description: User IDs to remove from the group
- *     responses:
- *       200:
- *         description: Group members updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 title:
- *                   type: string
- *                   nullable: true
- *                 isGroup:
- *                   type: boolean
- *                 adminId:
- *                   type: integer
- *                   nullable: true
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 updatedAt:
- *                   type: string
- *                   format: date-time
- *                 participants:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
- *                         type: string
- *                       ProfilePicture:
- *                         type: string
- *                         nullable: true
- *       400:
- *         description: Invalid user IDs or not a group conversation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not authorized to modify this group
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Conversation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.patch(
-  "/conversations/:conversationId/members",
-  updateGroupMembersRules,
-  validate,
-  updateGroupMembers
 );
 
 /**
@@ -370,32 +227,16 @@ router.patch(
  *               properties:
  *                 id:
  *                   type: string
- *                 title:
- *                   type: string
- *                   nullable: true
- *                 isGroup:
- *                   type: boolean
- *                 adminId:
- *                   type: integer
- *                   nullable: true
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 updatedAt:
- *                   type: string
- *                   format: date-time
- *                 participants:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
- *                         type: string
- *                       ProfilePicture:
- *                         type: string
- *                         nullable: true
+ *                 otherParticipant:
+ *                   type: object
+ *                   properties:
+ *                     UserID:
+ *                       type: integer
+ *                     Username:
+ *                       type: string
+ *                     ProfilePicture:
+ *                       type: string
+ *                       nullable: true
  *                 messages:
  *                   type: array
  *                   items:
@@ -484,6 +325,12 @@ router.patch(
  *                         ProfilePicture:
  *                           type: string
  *                           nullable: true
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *                 updatedAt:
+ *                   type: string
+ *                   format: date-time
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       404:

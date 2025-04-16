@@ -4,7 +4,7 @@ const { handleServerError } = require("../utils/errorHandler");
 
 /**
  * Fetches user conversations with pagination
- * Returns paginated list with last message
+ * Returns conversation IDs, last message, unread count, and other participant's profile picture
  */
 const getConversations = async (req, res) => {
   const { UserID } = req.user;
@@ -53,12 +53,42 @@ const getConversations = async (req, res) => {
       },
     });
 
-    // Format response with last message
+    // Format response with unread count and other participant's profile picture
+    const formattedConversations = await Promise.all(
+      conversations.map(async (conv) => {
+        // Get other participant's profile picture
+        const otherParticipant = conv.participants.find(
+          (p) => p.UserID !== UserID
+        );
+
+        // Count unread messages (not sent by user, not read by user)
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conv.id,
+            senderId: { not: UserID },
+            readBy: {
+              none: { UserID },
+            },
+          },
+        });
+
+        return {
+          conversationId: conv.id,
+          lastMessage: conv.messages[0] || null,
+          unreadCount,
+          otherParticipant: otherParticipant
+            ? {
+                UserID: otherParticipant.UserID,
+                Username: otherParticipant.Username,
+                ProfilePicture: otherParticipant.ProfilePicture,
+              }
+            : null,
+        };
+      })
+    );
+
     res.json({
-      conversations: conversations.map((conv) => ({
-        ...conv,
-        lastMessage: conv.messages[0] || null,
-      })),
+      conversations: formattedConversations,
       total,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -69,42 +99,53 @@ const getConversations = async (req, res) => {
 };
 
 /**
- * Creates a new conversation with participants
+ * Creates a new one-on-one conversation with one participant
  * Invalidates conversation cache
  */
 const createConversation = async (req, res) => {
   const { UserID } = req.user;
-  const { participantIds, isGroup, title } = req.body;
+  const { participantId } = req.body;
 
   try {
-    // Validate group chat title
-    if (isGroup && !title) {
+    // Validate single participant
+    if (!participantId || Array.isArray(participantId)) {
       return res
         .status(400)
-        .json({ error: "Title is required for group chats" });
+        .json({ error: "Exactly one participant ID is required" });
     }
 
-    // Verify participants exist
-    const users = await prisma.user.findMany({
-      where: { UserID: { in: participantIds } },
+    // Verify participant exists
+    const user = await prisma.user.findUnique({
+      where: { UserID: participantId },
       select: { UserID: true },
     });
 
-    if (users.length !== participantIds.length) {
-      return res.status(400).json({ error: "Invalid participant IDs" });
+    if (!user) {
+      return res.status(400).json({ error: "Invalid participant ID" });
     }
 
-    // Create conversation with participants
+    // Check if conversation already exists
+    const existingConversation = await prisma.conversation.findFirst({
+      where: {
+        AND: [
+          { participants: { some: { UserID } } },
+          { participants: { some: { UserID: participantId } } },
+        ],
+      },
+      include: { participants: { select: { UserID: true } } },
+    });
+
+    if (existingConversation) {
+      return res
+        .status(400)
+        .json({ error: "Conversation with this user already exists" });
+    }
+
+    // Create conversation with exactly two participants
     const conversation = await prisma.conversation.create({
       data: {
-        isGroup: isGroup || false,
-        title: isGroup ? title : null,
-        adminId: isGroup ? UserID : null,
         participants: {
-          connect: [
-            { UserID },
-            ...participantIds.map((id) => ({ UserID: id })),
-          ],
+          connect: [{ UserID }, { UserID: participantId }],
         },
       },
       include: {
@@ -120,104 +161,11 @@ const createConversation = async (req, res) => {
 
     // Invalidate conversation cache for participants
     await redis.del(`conversations:${UserID}`);
-    for (const id of participantIds) {
-      await redis.del(`conversations:${id}`);
-    }
+    await redis.del(`conversations:${participantId}`);
 
     res.status(201).json(conversation);
   } catch (error) {
     handleServerError(res, error, "Failed to create conversation");
-  }
-};
-
-/**
- * Updates group conversation members
- * Requires admin permissions
- */
-const updateGroupMembers = async (req, res) => {
-  const { UserID } = req.user;
-  const { conversationId } = req.params;
-  const { add = [], remove = [] } = req.body;
-
-  try {
-    // Verify conversation and admin status
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        participants: true,
-        admin: { select: { UserID: true } },
-      },
-    });
-
-    if (!conversation) {
-      return res.status(404).json({ error: "Conversation not found" });
-    }
-
-    if (!conversation.isGroup) {
-      return res.status(400).json({ error: "Not a group conversation" });
-    }
-
-    if (conversation.adminId !== UserID) {
-      return res
-        .status(403)
-        .json({ error: "Only admins can modify group members" });
-    }
-
-    // Verify users to add/remove
-    const usersToAdd = await prisma.user.findMany({
-      where: { UserID: { in: add } },
-      select: { UserID: true },
-    });
-
-    const usersToRemove = await prisma.user.findMany({
-      where: { UserID: { in: remove } },
-      select: { UserID: true },
-    });
-
-    if (
-      usersToAdd.length !== add.length ||
-      usersToRemove.length !== remove.length
-    ) {
-      return res.status(400).json({ error: "Invalid user IDs" });
-    }
-
-    // Update conversation participants
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: {
-        participants: {
-          connect: add.map((id) => ({ UserID: id })),
-          disconnect: remove.map((id) => ({ UserID: id })),
-        },
-      },
-    });
-
-    // Fetch updated conversation
-    const updatedConversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        participants: {
-          select: {
-            UserID: true,
-            Username: true,
-            ProfilePicture: true,
-          },
-        },
-      },
-    });
-
-    // Invalidate cache for participants
-    const participantIds = [
-      ...conversation.participants.map((p) => p.UserID),
-      ...add,
-    ];
-    for (const id of participantIds) {
-      await redis.del(`conversations:${id}`);
-    }
-
-    res.json(updatedConversation);
-  } catch (error) {
-    handleServerError(res, error, "Failed to update group members");
   }
 };
 
@@ -302,16 +250,23 @@ const getMessages = async (req, res) => {
     });
 
     // Format response with message details
+    const otherParticipant = conversation.participants.find(
+      (p) => p.UserID !== UserID
+    );
+
     const response = {
       id: conversation.id,
-      title: conversation.title,
-      isGroup: conversation.isGroup,
-      adminId: conversation.adminId,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-      participants: conversation.participants,
+      otherParticipant: otherParticipant
+        ? {
+            UserID: otherParticipant.UserID,
+            Username: otherParticipant.Username,
+            ProfilePicture: otherParticipant.ProfilePicture,
+          }
+        : null,
       messages: conversation.messages.reverse(),
       lastMessage: conversation.messages[0] || null,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
     };
 
     res.json(response);
@@ -612,7 +567,6 @@ const handleTyping = async (req, res) => {
 module.exports = {
   getConversations,
   createConversation,
-  updateGroupMembers,
   getMessages,
   sendMessage,
   addReaction,
