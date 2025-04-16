@@ -263,7 +263,7 @@ const updateUser = async (req, res) => {
       updateData.BanReason = isBanned ? reason || null : null;
     }
 
-    VAS; // Create audit log
+    // Create audit log
     const auditLog = await prisma.auditLog.create({
       data: {
         Action: "UPDATE_USER",
