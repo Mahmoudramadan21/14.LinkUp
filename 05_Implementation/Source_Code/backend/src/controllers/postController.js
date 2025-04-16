@@ -73,8 +73,8 @@ const createPost = async (req, res) => {
 };
 
 /**
- * Fetches posts from followed users
- * Returns recent posts in random order
+ * Fetches recent posts from followed users in random order
+ * Respects privacy settings for private accounts
  */
 const getPosts = async (req, res) => {
   try {
@@ -85,22 +85,36 @@ const getPosts = async (req, res) => {
     // Check cache
     const cacheKey = `posts:${userId}:${page}:${limit}`;
     const cachedPosts = await redis.get(cacheKey);
-    if (cachedPosts) return res.json(cachedPosts);
+    if (cachedPosts) {
+      console.log(`Cache hit for ${cacheKey}`);
+      return res.json(cachedPosts);
+    }
+    console.log(`Cache miss for ${cacheKey}`);
 
-    // Get followed users
-    const followingIds = (
-      await prisma.follower.findMany({
-        where: { FollowerUserID: userId, Status: "ACCEPTED" },
-        select: { UserID: true },
-      })
-    ).map((f) => f.UserID);
+    // Get followed users with accepted follow status
+    const following = await prisma.follower.findMany({
+      where: {
+        FollowerUserID: userId,
+        Status: "ACCEPTED",
+      },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+          },
+        },
+      },
+    });
+
+    const followingIds = following.map((f) => f.UserID);
 
     if (followingIds.length === 0) {
       await redis.set(cacheKey, [], POST_CACHE_TTL);
       return res.json([]);
     }
 
-    // Fetch recent posts (within last 7 days)
+    // Fetch recent posts (within last 7 days) from followed users
     const posts = await prisma.post.findMany({
       skip: offset,
       take: parseInt(limit) * 2, // Fetch extra to allow shuffling
@@ -137,8 +151,13 @@ const getPosts = async (req, res) => {
       },
     });
 
+    // Filter posts to respect private accounts (already ensured by followingIds)
+    const filteredPosts = posts.filter((post) => {
+      return !post.User.IsPrivate || followingIds.includes(post.User.UserID);
+    });
+
     // Shuffle posts randomly
-    const shuffledPosts = posts
+    const shuffledPosts = filteredPosts
       .map((post) => ({ post, sort: Math.random() }))
       .sort((a, b) => a.sort - b.sort)
       .map(({ post }) => post)
@@ -157,7 +176,16 @@ const getPosts = async (req, res) => {
     }));
 
     // Cache response
-    await redis.set(cacheKey, response, POST_CACHE_TTL);
+    try {
+      await redis.set(cacheKey, response, POST_CACHE_TTL);
+      console.log(`Cached posts for ${cacheKey}`);
+    } catch (cacheError) {
+      console.error(
+        `Failed to cache posts for ${cacheKey}:`,
+        cacheError.message
+      );
+    }
+
     res.json(response);
   } catch (error) {
     handleServerError(res, error, "Failed to fetch posts");
@@ -249,7 +277,7 @@ const getPostById = async (req, res) => {
 
 /**
  * Updates post content
- * Validates content safety
+ * Validates content safety and restricts for private accounts
  */
 const updatePost = async (req, res) => {
   try {
@@ -262,9 +290,49 @@ const updatePost = async (req, res) => {
       return res.status(400).json({ error: "Content violates guidelines" });
     }
 
+    // Verify post exists and get owner details
+    const post = await prisma.post.findUnique({
+      where: { PostID: parseInt(postId) },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+            Username: true,
+          },
+        },
+      },
+    });
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    // Check access for private accounts
+    if (post.User.IsPrivate && post.UserID !== userId) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      if (!isFollowing) {
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${post.User.Username} to update their posts`,
+        });
+      }
+    }
+
+    // Ensure only the post owner can update
+    if (post.UserID !== userId) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to update this post" });
+    }
+
     // Update post
     const updatedPost = await prisma.post.update({
-      where: { PostID: parseInt(postId), UserID: userId },
+      where: { PostID: parseInt(postId) },
       data: { Content: content },
       include: {
         User: {
@@ -285,74 +353,129 @@ const updatePost = async (req, res) => {
 
 /**
  * Deletes a post and related data
- * Supports admin override
+ * Only allows the post owner to delete
  */
 const deletePost = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.UserID;
-    const isAdmin = req.user.Role === "ADMIN";
 
-    // Validate post exists and user has permission
+    // Validate postId
+    if (!postId || isNaN(parseInt(postId))) {
+      console.log(`Invalid postId received: ${postId}`);
+      return res.status(400).json({ error: "Invalid post ID" });
+    }
+
+    const parsedPostId = parseInt(postId);
+    console.log(`Attempting to delete post ${parsedPostId} by user ${userId}`);
+
+    // Verify post exists and get owner details
     const post = await prisma.post.findUnique({
-      where: { PostID: parseInt(postId) },
-      select: { UserID: true },
+      where: { PostID: parsedPostId },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            Username: true,
+          },
+        },
+      },
     });
 
     if (!post) {
+      console.log(`Post ${parsedPostId} not found`);
       return res.status(404).json({ error: "Post not found" });
     }
 
-    if (!isAdmin && post.UserID !== userId) {
+    // Validate user is the post owner
+    if (post.UserID !== userId) {
+      console.log(
+        `User ${userId} is not authorized to delete post ${parsedPostId}`
+      );
       return res
         .status(403)
-        .json({ error: "Unauthorized to delete this post" });
+        .json({ error: "Only the post owner can delete this post" });
     }
 
     // Delete post and related data in a transaction
+    console.log(`Deleting post ${parsedPostId} and related data`);
     await prisma.$transaction([
-      prisma.comment.deleteMany({ where: { PostID: parseInt(postId) } }),
-      prisma.like.deleteMany({ where: { PostID: parseInt(postId) } }),
-      prisma.savedPost.deleteMany({ where: { PostID: parseInt(postId) } }),
-      prisma.report.deleteMany({ where: { PostID: parseInt(postId) } }),
+      prisma.comment.deleteMany({ where: { PostID: parsedPostId } }),
+      prisma.like.deleteMany({ where: { PostID: parsedPostId } }),
+      prisma.savedPost.deleteMany({ where: { PostID: parsedPostId } }),
+      prisma.report.deleteMany({ where: { PostID: parsedPostId } }),
       prisma.post.delete({
-        where: {
-          PostID: parseInt(postId),
-        },
+        where: { PostID: parsedPostId },
       }),
       prisma.auditLog.create({
         data: {
-          Action: "DELETE_POST", // Match schema field name (case-sensitive)
-          AdminID: userId, // Use AdminID as per schema
-          Details: JSON.stringify({ postId, deletedByAdmin: isAdmin }),
+          Action: "DELETE_POST",
+          UserID: userId,
+          Details: JSON.stringify({
+            postId: parsedPostId,
+            deletedBy: "owner",
+          }),
         },
       }),
     ]);
 
     // Clear cache
+    console.log(`Clearing cache for post ${parsedPostId}`);
     await redis.del("posts:*");
-    await redis.del(`post:${postId}`);
+    await redis.del(`post:${parsedPostId}`);
 
     res.json({ success: true });
   } catch (error) {
+    console.error(`Error deleting post ${postId || "unknown"}:`, error);
     handleServerError(res, error, "Failed to delete post");
   }
 };
 
 /**
  * Toggles like status on a post
- * Creates notifications
+ * Creates notifications, restricts for private accounts
  */
 const likePost = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.UserID;
 
-    // Verify post exists
-    const postExists = await prisma.post.count({
+    // Verify post exists and get owner details
+    const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+            Username: true,
+          },
+        },
+      },
     });
-    if (!postExists) return res.status(404).json({ error: "Post not found" });
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    // Check access for private accounts
+    console.log(
+      `Checking privacy for like on post ${postId} by user ${userId}`
+    );
+    if (post.User.IsPrivate && post.UserID !== userId) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      if (!isFollowing) {
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${post.User.Username} to like their posts`,
+        });
+      }
+    }
 
     // Toggle like
     const existingLike = await prisma.like.findFirst({
@@ -380,7 +503,7 @@ const likePost = async (req, res) => {
 
 /**
  * Adds a comment to a post
- * Notifies post owner
+ * Notifies post owner, restricts for private accounts
  */
 const addComment = async (req, res) => {
   try {
@@ -393,12 +516,42 @@ const addComment = async (req, res) => {
       return res.status(400).json({ error: "Comment violates guidelines" });
     }
 
-    // Verify post exists
+    // Verify post exists and get owner details
     const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
-      select: { UserID: true },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+            Username: true,
+          },
+        },
+      },
     });
+
     if (!post) return res.status(404).json({ error: "Post not found" });
+
+    // Check access for private accounts
+    console.log(
+      `Checking privacy for comment on post ${postId} by user ${userId}`
+    );
+    if (post.User.IsPrivate && post.UserID !== userId) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      if (!isFollowing) {
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${post.User.Username} to comment on their posts`,
+        });
+      }
+    }
 
     // Create comment
     const comment = await prisma.comment.create({
@@ -428,18 +581,49 @@ const addComment = async (req, res) => {
 
 /**
  * Toggles save status on a post
- * Returns save status
+ * Restricts for private accounts
  */
 const savePost = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.UserID;
 
-    // Verify post exists
-    const postExists = await prisma.post.count({
+    // Verify post exists and get owner details
+    const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
+      select: {
+        UserID: true,
+        User: {
+          select: {
+            IsPrivate: true,
+            Username: true,
+          },
+        },
+      },
     });
-    if (!postExists) return res.status(404).json({ error: "Post not found" });
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    // Check access for private accounts
+    console.log(
+      `Checking privacy for save on post ${postId} by user ${userId}`
+    );
+    if (post.User.IsPrivate && post.UserID !== userId) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      if (!isFollowing) {
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${post.User.Username} to save their posts`,
+        });
+      }
+    }
 
     // Toggle save
     const existingSave = await prisma.savedPost.findFirst({

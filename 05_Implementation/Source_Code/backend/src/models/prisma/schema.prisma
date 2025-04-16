@@ -46,12 +46,14 @@ enum ReportStatus {
 model AuditLog {
   AuditLogID  Int      @id @default(autoincrement())
   Action      String
-  Admin       User     @relation(fields: [AdminID], references: [UserID])
-  AdminID     Int
+  AdminID     Int?
+  UserID      Int?
   Details     String?
   createdAt   DateTime @default(now())
-
+  Admin       User?    @relation("AdminAudit", fields: [AdminID], references: [UserID])
+  User        User?    @relation("UserAudit", fields: [UserID], references: [UserID])
   @@index([AdminID])
+  @@index([UserID])
   @@index([createdAt])
 }
 
@@ -92,7 +94,8 @@ model User {
   BanReason          String?
   SavedPosts         SavedPost[]
   Highlights         Highlight[]
-  auditLogs          AuditLog[]
+  AdminAuditLogs     AuditLog[]       @relation("AdminAudit")
+  UserAuditLogs      AuditLog[]       @relation("UserAudit")
 }
 
 model Conversation {

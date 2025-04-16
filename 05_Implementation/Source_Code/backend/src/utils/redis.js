@@ -36,14 +36,19 @@ class RedisClient {
   }
 
   /**
-   * Retrieves a value from Redis by key, parsing JSON if present
+   * Retrieves a value from Redis by key and parses JSON if applicable
    * @param {string} key - Redis key to fetch
-   * @returns {Object|null} Parsed value or null if not found/error
+   * @returns {any|null} Parsed value or null if not found/error
    */
   async get(key) {
     try {
       const value = await this.client.get(key);
-      return value ? JSON.parse(value) : null;
+      if (!value) return null;
+      try {
+        return JSON.parse(value);
+      } catch (parseError) {
+        return value; // Return as-is if not JSON
+      }
     } catch (err) {
       logger.error(`Redis GET error: ${err}`);
       return null;
@@ -51,19 +56,26 @@ class RedisClient {
   }
 
   /**
-   * Stores a value in Redis with optional TTL
+   * Stores a value in Redis with optional TTL, stringifying JSON objects
    * @param {string} key - Redis key
-   * @param {Object} value - Value to store (serialized to JSON)
+   * @param {any} value - Value to store (stringified if object)
    * @param {number} [ttl=3600] - Time-to-live in seconds
    */
   async set(key, value, ttl = 3600) {
     try {
-      await this.client.set(key, JSON.stringify(value), { EX: ttl });
+      const stringValue =
+        typeof value === "string" ? value : JSON.stringify(value);
+      await this.client.set(key, stringValue, { EX: ttl });
     } catch (err) {
       logger.error(`Redis SET error: ${err}`);
+      throw err; // Rethrow to ensure errors are caught upstream
     }
   }
 
+  /**
+   * Deletes a key from Redis
+   * @param {string} key - Redis key to delete
+   */
   async del(key) {
     try {
       await this.client.del(key);
@@ -72,20 +84,26 @@ class RedisClient {
     }
   }
 
+  /**
+   * Creates a multi-command transaction
+   * @returns {Object} Redis multi-command object
+   */
   async multi() {
     return this.client.multi();
   }
 
   /**
    * Executes multiple Redis operations in a transaction
-   * @param {Array<{type: string, key: string, value?: Object, ttl?: number}>} operations - List of operations
+   * @param {Array<{type: string, key: string, value?: string, ttl?: number}>} operations - List of operations
    * @returns {Promise<Array>} Transaction results
    */
   async execMulti(operations) {
     const multi = this.client.multi();
     operations.forEach((op) => {
       if (op.type === "set") {
-        multi.set(op.key, JSON.stringify(op.value), { EX: op.ttl });
+        const stringValue =
+          typeof op.value === "string" ? op.value : JSON.stringify(op.value);
+        multi.set(op.key, stringValue, { EX: op.ttl });
       } else if (op.type === "del") {
         multi.del(op.key);
       }

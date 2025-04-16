@@ -75,13 +75,32 @@ const getMessagesRules = [
  * Validates content, attachments, and reply
  */
 const sendMessageRules = [
-  param("conversationId").isUUID().withMessage("Invalid conversation ID"),
+  param("conversationId")
+    .isUUID()
+    .withMessage("Invalid conversation ID")
+    .custom(async (value, { req }) => {
+      // Verify conversation exists and user is a participant
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: value },
+        select: { participants: { select: { UserID: true } } },
+      });
+
+      if (
+        !conversation ||
+        !conversation.participants.some((p) => p.UserID === req.user.UserID)
+      ) {
+        throw new Error("Unauthorized access to conversation");
+      }
+    }),
+
   body("content")
-    .notEmpty()
-    .withMessage("Content is required")
+    .optional()
+    .isString()
+    .withMessage("Content must be a string")
     .isLength({ max: 2000 })
     .withMessage("Message too long")
     .trim(),
+
   body("replyToId")
     .optional()
     .isUUID()
@@ -90,27 +109,29 @@ const sendMessageRules = [
       const message = await prisma.message.findUnique({
         where: { id: value },
       });
+
       if (!message || message.conversationId !== req.params.conversationId) {
         throw new Error("Invalid reply message");
       }
-      return true;
     }),
-  body("attachments")
-    .optional()
-    .isArray({ max: 10 })
-    .withMessage("Maximum 10 attachments")
-    .custom((attachments) => {
-      const validTypes = ["image", "video", "audio", "file"];
-      return attachments.every(
-        (att) =>
-          validTypes.includes(att.type) &&
-          typeof att.url === "string" &&
-          att.url.startsWith("https://") &&
-          (att.fileName === null || typeof att.fileName === "string") &&
-          (att.fileSize === null || typeof att.fileSize === "number")
-      );
-    })
-    .withMessage("Invalid attachment format"),
+
+  // Custom validation to ensure at least one of content or attachment is provided
+  body().customSanitizer((value, { req }) => {
+    // Ensure req.body.content is a string or undefined
+    req.body.content = req.body.content
+      ? String(req.body.content).trim()
+      : undefined;
+    return value;
+  }),
+  body().custom((value, { req }) => {
+    // Check if either content (non-empty) or attachment is provided
+    const hasContent = req.body.content && req.body.content.length > 0;
+    const hasAttachment = !!req.file;
+    if (!hasContent && !hasAttachment) {
+      throw new Error("Content or attachment required");
+    }
+    return true;
+  }),
 ];
 
 /**
@@ -133,41 +154,6 @@ const addReactionRules = [
 ];
 
 /**
- * Validation rules for marking messages as read
- * Validates message IDs and access
- */
-const markAsReadRules = [
-  body("messageIds")
-    .isArray({ min: 1 })
-    .withMessage("messageIds must be a non-empty array")
-    .custom(async (messageIds, { req }) => {
-      // Ensure no duplicate IDs
-      if (new Set(messageIds).size !== messageIds.length) {
-        throw new Error("Duplicate message IDs");
-      }
-
-      // Verify messages exist and user is a participant
-      const validMessages = await prisma.message.findMany({
-        where: {
-          id: { in: messageIds },
-          conversation: {
-            participants: {
-              some: { UserID: req.user.UserID },
-            },
-          },
-        },
-        select: { id: true },
-      });
-
-      if (validMessages.length !== messageIds.length) {
-        throw new Error("One or more message IDs are invalid or inaccessible");
-      }
-
-      return true;
-    }),
-];
-
-/**
  * Validation rules for typing indicators
  * Validates conversation ID and typing status
  */
@@ -182,6 +168,5 @@ module.exports = {
   getMessagesRules,
   sendMessageRules,
   addReactionRules,
-  markAsReadRules,
   handleTypingRules,
 };

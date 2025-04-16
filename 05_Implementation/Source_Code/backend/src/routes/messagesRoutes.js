@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
 const { authMiddleware } = require("../middleware/authMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 const {
   getConversationsRules,
   createConversationRules,
   getMessagesRules,
   sendMessageRules,
   addReactionRules,
-  markAsReadRules,
   handleTypingRules,
 } = require("../validators/messageValidators");
 const {
@@ -17,7 +17,6 @@ const {
   getMessages,
   sendMessage,
   addReaction,
-  markAsRead,
   handleTyping,
   getActiveFollowing,
   getSuggestedChatUsers,
@@ -375,7 +374,7 @@ router.get(
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -383,30 +382,11 @@ router.get(
  *                 type: string
  *                 maxLength: 2000
  *                 example: "Hello, how are you?"
- *                 description: Required if no attachments provided
- *               attachments:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     url:
- *                       type: string
- *                       format: uri
- *                       example: "https://res.cloudinary.com/duw4x8iqq/image.jpg"
- *                     type:
- *                       type: string
- *                       enum: [image, video, audio, file]
- *                       example: image
- *                     fileName:
- *                       type: string
- *                       nullable: true
- *                       example: "image.jpg"
- *                     fileSize:
- *                       type: integer
- *                       nullable: true
- *                       example: 102400
- *                 maxItems: 10
- *                 description: Optional attachments
+ *                 description: Message content, required if no attachment is provided
+ *               attachment:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional file attachment (image, video, audio, or other file)
  *               replyToId:
  *                 type: string
  *                 example: "msg_123"
@@ -464,7 +444,7 @@ router.get(
  *                     senderId:
  *                       type: integer
  *       400:
- *         description: Invalid message content, attachments, or replyToId
+ *         description: Invalid message content, attachment, or replyToId
  *         content:
  *           application/json:
  *             schema:
@@ -486,6 +466,7 @@ router.get(
  */
 router.post(
   "/conversations/:conversationId/messages",
+  upload.single("attachment"),
   sendMessageRules,
   validate,
   sendMessage
@@ -558,60 +539,6 @@ router.post(
   validate,
   addReaction
 );
-
-/**
- * @swagger
- * /messanger/messages/mark-read:
- *   post:
- *     summary: Mark messages as read
- *     tags: [Messages]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - messageIds
- *             properties:
- *               messageIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                 minItems: 1
- *                 example: ["msg_123", "msg_124"]
- *     responses:
- *       200:
- *         description: Messages marked as read
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 updatedCount:
- *                   type: integer
- *                   example: 2
- *       400:
- *         description: Invalid message IDs
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post("/messages/mark-read", markAsReadRules, validate, markAsRead);
 
 /**
  * @swagger

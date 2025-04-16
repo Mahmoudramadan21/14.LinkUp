@@ -1,75 +1,84 @@
 const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prisma");
+const redis = require("../utils/redis");
+const { handleUnauthorizedError } = require("../utils/errorHandler");
 
-// Middleware to authenticate requests using JWT
+/**
+ * Verifies JWT token and attaches user to request
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ * @async
+ */
 const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
-      return res.status(401).json({ error: "No token provided" });
+      return handleUnauthorizedError(res, "No token provided");
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded.userId) {
-      return res.status(401).json({ error: "Invalid token" });
-    }
-
-    // Find user in database
-    let user;
-    try {
-      user = await prisma.user.findUnique({
-        where: { UserID: decoded.userId },
-        select: { UserID: true, IsBanned: true },
-      });
-    } catch (dbError) {
-      console.error("Database connection error in authMiddleware:", dbError);
-      return res.status(503).json({
-        message: "Database connection failed",
-        error: dbError.message,
-        code: "DATABASE_UNAVAILABLE",
-      });
-    }
+    const user = await prisma.user.findUnique({
+      where: { UserID: decoded.userId },
+      select: {
+        UserID: true,
+        Username: true,
+        Role: true,
+        IsBanned: true,
+      },
+    });
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    if (user.IsBanned) {
-      return res.status(403).json({ error: "User is banned" });
+      return handleUnauthorizedError(res, "User not found");
     }
 
-    req.user = { UserID: user.UserID };
+    if (user.IsBanned) {
+      return handleUnauthorizedError(res, "User is banned");
+    }
+
+    req.user = user;
     next();
   } catch (error) {
-    console.error("authMiddleware error:", error);
-    res.status(401).json({ error: "Authentication failed" });
+    handleUnauthorizedError(res, "Authentication failed");
   }
 };
 
-// Middleware for role-based authorization
+/**
+ * Authorizes requests based on user role
+ * Caches role in Redis to reduce database queries
+ * @param {string[]} allowedRoles - Array of allowed roles
+ * @returns {Function} Express middleware
+ */
 const authorize = (allowedRoles) => {
-  return (req, res, next) => {
-    // Check if user and role exist
-    if (!req.user || !req.user.Role) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "No sufficient permissions",
-        code: "MISSING_USER_ROLE",
-      });
+  return async (req, res, next) => {
+    try {
+      const userId = req.user.UserID;
+      let role = await redis.get(`role:${userId}`);
+
+      // Fetch role from database if not cached
+      if (!role) {
+        const user = await prisma.user.findUnique({
+          where: { UserID: userId },
+          select: { Role: true },
+        });
+
+        if (!user) {
+          return handleUnauthorizedError(res, "User not found");
+        }
+
+        role = user.Role;
+        // Cache role for 1 hour
+        await redis.set(`role:${userId}`, role, 3600);
+      }
+
+      if (!allowedRoles.includes(role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      next();
+    } catch (error) {
+      handleUnauthorizedError(res, "Authorization failed");
     }
-
-    // Normalize roles to array
-    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-
-    // Check if user role is allowed
-    if (!roles.includes(req.user.Role)) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "Insufficient permissions to access this resource",
-        code: "INSUFFICIENT_PERMISSIONS",
-      });
-    }
-
-    next();
   };
 };
 

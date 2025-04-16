@@ -1,6 +1,7 @@
 const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { handleServerError } = require("../utils/errorHandler");
+const { uploadToCloud } = require("../services/cloudService");
 
 /**
  * Fetches user conversations with pagination
@@ -100,7 +101,7 @@ const getConversations = async (req, res) => {
 
 /**
  * Creates a new one-on-one conversation with one participant
- * Invalidates conversation cache
+ * Invalidates conversation cache and emits Socket.IO event
  */
 const createConversation = async (req, res) => {
   const { UserID } = req.user;
@@ -163,8 +164,21 @@ const createConversation = async (req, res) => {
     await redis.del(`conversations:${UserID}`);
     await redis.del(`conversations:${participantId}`);
 
+    // Emit Socket.IO event to participants
+    if (req.io) {
+      console.log(`Emitting newConversation to room: ${conversation.id}`);
+      req.io.to(conversation.id).emit("newConversation", {
+        conversationId: conversation.id,
+        participants: conversation.participants,
+        createdAt: conversation.createdAt,
+      });
+    } else {
+      console.warn("Socket.IO instance not available in req.io");
+    }
+
     res.status(201).json(conversation);
   } catch (error) {
+    console.error("createConversation error:", error);
     handleServerError(res, error, "Failed to create conversation");
   }
 };
@@ -273,132 +287,79 @@ const getMessages = async (req, res) => {
 /**
  * Sends a message in a conversation
  * Supports attachments and replies
+ * Emits Socket.IO event
  */
 const sendMessage = async (req, res) => {
-  const { UserID } = req.user;
-  const { conversationId } = req.params;
-  const { content, attachments, replyToId } = req.body;
-
   try {
-    console.log("sendMessage input:", {
-      UserID,
-      conversationId,
-      content,
-      attachments,
-      replyToId,
-    });
+    // Log incoming request data for debugging
+    console.log("sendMessage - req.body:", req.body);
+    console.log("sendMessage - req.file:", req.file);
 
-    // Verify user exists
-    const user = await prisma.user.findUnique({
-      where: { UserID },
-      select: { UserID: true, IsBanned: true },
-    });
-    if (!user) {
-      console.log("User not found:", UserID);
-      return res.status(404).json({ error: "User not found" });
-    }
-    if (user.IsBanned) {
-      console.log("User is banned:", UserID);
-      return res.status(403).json({ error: "User is banned" });
-    }
+    const { conversationId } = req.params;
+    const { content, replyToId } = req.body;
+    const userId = req.user.UserID;
 
-    // Verify conversation access
+    // Verify conversation exists and user is a participant
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      select: { id: true, participants: { select: { UserID: true } } },
+      select: { participants: { select: { UserID: true } } },
     });
 
-    if (!conversation) {
-      console.log("Conversation not found:", conversationId);
-      return res.status(404).json({ error: "Conversation not found" });
+    if (
+      !conversation ||
+      !conversation.participants.some((p) => p.UserID === userId)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Unauthorized access to conversation" });
     }
 
-    if (!conversation.participants.some((p) => p.UserID === UserID)) {
-      console.log("User not a participant:", UserID);
-      return res.status(403).json({ error: "Access denied" });
-    }
+    let attachment = null;
+    // Handle file upload if present
+    if (req.file) {
+      const result = await uploadToCloud(
+        req.file.buffer,
+        `messages/${conversationId}`,
+        req.file.mimetype.startsWith("video/") ? "video" : "image"
+      );
 
-    // Validate content
-    if (!content) {
-      console.log("Missing content");
-      return res.status(400).json({ error: "Content is required" });
-    }
-
-    // Validate reply message if provided
-    let replyTo = null;
-    if (replyToId) {
-      replyTo = await prisma.message.findUnique({
-        where: { id: replyToId },
-        select: { id: true, conversationId: true },
-      });
-      if (!replyTo || replyTo.conversationId !== conversationId) {
-        console.log("Invalid replyToId:", replyToId);
-        return res.status(400).json({ error: "Invalid replyTo message ID" });
-      }
-    }
-
-    // Create message with attachments
-    const messageData = {
-      content,
-      senderId: UserID,
-      conversationId,
-      replyToId: replyTo?.id,
-    };
-
-    if (attachments && Array.isArray(attachments)) {
-      messageData.attachments = {
-        create: attachments.map((att) => ({
-          url: att.url,
-          type: att.type,
-          fileName: att.fileName || null,
-          fileSize: att.fileSize || null,
-        })),
+      attachment = {
+        url: result.secure_url,
+        type: req.file.mimetype.startsWith("video/") ? "video" : "image",
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
       };
     }
 
-    console.log("Creating message with data:", messageData);
-
+    // Create message in database
     const message = await prisma.message.create({
-      data: messageData,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
+      data: {
+        content: content || null, // Allow null content if attachment exists
+        senderId: userId,
+        conversationId,
+        replyToId,
+        attachments: attachment ? { create: attachment } : undefined,
+      },
+      include: {
         sender: {
-          select: {
-            UserID: true,
-            Username: true,
-            ProfilePicture: true,
-          },
+          select: { UserID: true, Username: true, ProfilePicture: true },
         },
-        attachments: {
-          select: {
-            id: true,
-            url: true,
-            type: true,
-            fileName: true,
-            fileSize: true,
-          },
-        },
+        attachments: true,
         replyTo: {
           select: { id: true, content: true, senderId: true },
         },
       },
     });
 
-    // Update conversation timestamp
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
-    });
-
-    // Invalidate cache for participants
-    const participantIds = conversation.participants.map((p) => p.UserID);
-    for (const id of participantIds) {
-      await redis.del(`conversations:${id}`);
+    // Emit Socket.IO event to conversation room
+    if (req.io) {
+      console.log(`Emitting newMessage to room: ${conversationId}`);
+      req.io.to(conversationId).emit("newMessage", message);
+    } else {
+      console.warn("Socket.IO instance not available in req.io");
     }
 
-    res.status(201).json(message);
+    return res.status(201).json(message);
   } catch (error) {
     console.error("sendMessage error:", error);
     handleServerError(res, error, "Failed to send message");
@@ -408,6 +369,7 @@ const sendMessage = async (req, res) => {
 /**
  * Adds a reaction to a message
  * Prevents duplicate reactions
+ * Emits Socket.IO event
  */
 const addReaction = async (req, res) => {
   const { UserID } = req.user;
@@ -420,6 +382,7 @@ const addReaction = async (req, res) => {
       where: { id: messageId },
       select: {
         id: true,
+        conversationId: true,
         conversation: {
           select: {
             id: true,
@@ -475,88 +438,32 @@ const addReaction = async (req, res) => {
       await redis.del(`conversations:${id}`);
     }
 
+    // Emit Socket.IO event to conversation room
+    if (req.io) {
+      console.log(`Emitting reactionAdded to room: ${message.conversationId}`);
+      req.io.to(message.conversationId).emit("reactionAdded", {
+        messageId,
+        reaction: {
+          id: reaction.id,
+          emoji: reaction.emoji,
+          userId: reaction.userId,
+        },
+      });
+    } else {
+      console.warn("Socket.IO instance not available in req.io");
+    }
+
     res.status(201).json({ messageId, emoji: reaction.emoji });
   } catch (error) {
+    console.error("addReaction error:", error);
     handleServerError(res, error, "Failed to add reaction");
-  }
-};
-
-/**
- * Marks messages as read
- * Updates read status for valid messages
- */
-const markAsRead = async (req, res) => {
-  const { UserID } = req.user;
-  const { messageIds } = req.body;
-
-  try {
-    // Verify messages and conversation access
-    const messages = await prisma.message.findMany({
-      where: {
-        id: { in: messageIds },
-        conversation: {
-          participants: {
-            some: { UserID },
-          },
-        },
-      },
-      select: {
-        id: true,
-        conversationId: true,
-        senderId: true,
-        readBy: { select: { UserID: true } },
-      },
-    });
-
-    if (messages.length !== messageIds.length) {
-      return res.status(400).json({ error: "Invalid message IDs" });
-    }
-
-    // Filter messages to update
-    const messagesToUpdate = messages.filter(
-      (msg) =>
-        msg.senderId !== UserID &&
-        !msg.readBy.some((reader) => reader.UserID === UserID)
-    );
-
-    // Update read status in transaction
-    if (messagesToUpdate.length > 0) {
-      await prisma.$transaction(
-        messagesToUpdate.map((msg) =>
-          prisma.message.update({
-            where: { id: msg.id },
-            data: {
-              readBy: {
-                connect: { UserID },
-              },
-              readAt: new Date(),
-            },
-          })
-        )
-      );
-    }
-
-    // Invalidate cache for affected conversations
-    const conversationIds = [...new Set(messages.map((m) => m.conversationId))];
-    for (const convId of conversationIds) {
-      const participants = await prisma.conversation.findUnique({
-        where: { id: convId },
-        select: { participants: { select: { UserID: true } } },
-      });
-      for (const { UserID: id } of participants.participants) {
-        await redis.del(`conversations:${id}`);
-      }
-    }
-
-    res.json({ success: true, updatedCount: messagesToUpdate.length });
-  } catch (error) {
-    handleServerError(res, error, "Failed to mark messages as read");
   }
 };
 
 /**
  * Updates typing status in Redis
  * Stores status with 10-second expiry
+ * Emits Socket.IO event
  */
 const handleTyping = async (req, res) => {
   const { UserID } = req.user;
@@ -589,8 +496,21 @@ const handleTyping = async (req, res) => {
       await redis.del(cacheKey);
     }
 
+    // Emit Socket.IO event to conversation room
+    if (req.io) {
+      console.log(`Emitting typing to room: ${conversationId}`);
+      req.io.to(conversationId).emit("typing", {
+        conversationId,
+        userId: UserID,
+        isTyping,
+      });
+    } else {
+      console.warn("Socket.IO instance not available in req.io");
+    }
+
     res.json({ success: true });
   } catch (error) {
+    console.error("handleTyping error:", error);
     handleServerError(res, error, "Failed to handle typing status");
   }
 };
@@ -722,7 +642,6 @@ module.exports = {
   getMessages,
   sendMessage,
   addReaction,
-  markAsRead,
   handleTyping,
   getActiveFollowing,
   getSuggestedChatUsers,
