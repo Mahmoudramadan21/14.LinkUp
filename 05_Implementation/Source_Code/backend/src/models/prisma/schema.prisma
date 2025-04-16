@@ -81,16 +81,15 @@ model User {
   lastActive         DateTime?        @updatedAt
   conversations      Conversation[]   @relation("ParticipantConversations")
   sentMessages       Message[]        @relation("MessageSender")
-  adminConversations Conversation[]   @relation("GroupAdmin")
   readMessages       Message[]        @relation("MessageReadBy")
   reactions          Reaction[]
   Followers          Follower[]       @relation("Followers")
   Following          Follower[]       @relation("Following")
   Notifications      Notification[]
-  Reports            Report[]         @relation("Reporter") // Link to Reporter relation
+  Reports            Report[]         @relation("Reporter")
   SupportRequests    SupportRequest[]
-  IsBanned       Boolean      @default(false)
-  BanReason      String?
+  IsBanned           Boolean          @default(false)
+  BanReason          String?
   SavedPosts         SavedPost[]
   Highlights         Highlight[]
   auditLogs          AuditLog[]
@@ -100,10 +99,6 @@ model Conversation {
   id           String       @id @default(uuid())
   participants User[]       @relation("ParticipantConversations")
   messages     Message[]
-  title        String?
-  isGroup      Boolean      @default(false)
-  admin        User?        @relation("GroupAdmin", fields: [adminId], references: [UserID])
-  adminId      Int?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   @@index([updatedAt])
@@ -291,7 +286,6 @@ model Report {
   Status      ReportStatus @default(PENDING)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-
   @@index([PostID])
   @@index([ReporterID])
   @@index([Status])

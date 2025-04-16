@@ -19,6 +19,8 @@ const {
   addReaction,
   markAsRead,
   handleTyping,
+  getActiveFollowing,
+  getSuggestedChatUsers,
 } = require("../controllers/messagesController");
 
 // Apply authentication middleware to all routes
@@ -331,6 +333,8 @@ router.post(
  *                 updatedAt:
  *                   type: string
  *                   format: date-time
+ *                 totalMessages:
+ *                   type: integer
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       404:
@@ -667,5 +671,94 @@ router.post("/messages/mark-read", markAsReadRules, validate, markAsRead);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/conversations/typing", handleTypingRules, validate, handleTyping);
+
+/**
+ * @swagger
+ * /messanger/active-following:
+ *   get:
+ *     summary: Get active users the current user follows
+ *     tags: [Messages]
+ *     description: Returns users followed by the current user who were active in the last 5 minutes
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active followed users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activeFollowing:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       UserID:
+ *                         type: integer
+ *                       Username:
+ *                         type: string
+ *                       ProfilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                       lastActive:
+ *                         type: string
+ *                         format: date-time
+ *                 count:
+ *                   type: integer
+ *                   example: 2
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/active-following", validate, getActiveFollowing);
+
+/**
+ * @swagger
+ * /messanger/suggested-chat-users:
+ *   get:
+ *     summary: Get suggested users to start a chat with
+ *     tags: [Messages]
+ *     description: Returns users followed by the current user with no existing conversations
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of suggested users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 suggestedUsers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       UserID:
+ *                         type: integer
+ *                       Username:
+ *                         type: string
+ *                       ProfilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/suggested-chat-users", validate, getSuggestedChatUsers);
 
 module.exports = router;

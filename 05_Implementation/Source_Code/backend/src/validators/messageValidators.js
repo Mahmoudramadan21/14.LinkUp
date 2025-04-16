@@ -17,50 +17,44 @@ const getConversationsRules = [
 ];
 
 /**
- * Validation rules for creating a conversation
- * Validates participants, group settings and title
+ * Validation rules for creating a one-on-one conversation
+ * Validates single participant ID
  */
 const createConversationRules = [
-  body("participantIds")
-    .isArray({ min: 1, max: 20 })
-    .withMessage("Must include 1-20 participants")
-    .custom(async (participantIds, { req }) => {
-      if (new Set(participantIds).size !== participantIds.length) {
-        throw new Error("Duplicate participant IDs");
-      }
-
-      const usersCount = await prisma.user.count({
-        where: { UserID: { in: participantIds } },
+  body("participantId")
+    .isInt({ min: 1 })
+    .withMessage("participantId must be a positive integer")
+    .custom(async (participantId, { req }) => {
+      // Verify participant exists
+      const user = await prisma.user.findUnique({
+        where: { UserID: participantId },
       });
 
-      if (usersCount !== participantIds.length) {
-        throw new Error("One or more participants not found");
+      if (!user) {
+        throw new Error("Participant not found");
       }
+
+      // Prevent self-conversation
+      if (participantId === req.user.UserID) {
+        throw new Error("Cannot create conversation with yourself");
+      }
+
+      // Check for existing conversation
+      const existingConversation = await prisma.conversation.findFirst({
+        where: {
+          AND: [
+            { participants: { some: { UserID: req.user.UserID } } },
+            { participants: { some: { UserID: participantId } } },
+          ],
+        },
+      });
+
+      if (existingConversation) {
+        throw new Error("Conversation with this user already exists");
+      }
+
       return true;
     }),
-  body("isGroup").isBoolean().withMessage("Must be boolean"),
-  body("title")
-    .if(body("isGroup").equals(true))
-    .notEmpty()
-    .withMessage("Group title is required")
-    .isLength({ max: 50 })
-    .withMessage("Title too long"),
-];
-
-/**
- * Validation rules for updating group members
- * Validates conversation ID and member changes
- */
-const updateGroupMembersRules = [
-  param("conversationId").isUUID().withMessage("Invalid conversation ID"),
-  body("userIdsToAdd").optional().isArray(),
-  body("userIdsToRemove").optional().isArray(),
-  body().custom((_, { req }) => {
-    if (!req.body.userIdsToAdd && !req.body.userIdsToRemove) {
-      throw new Error("Must provide userIdsToAdd or userIdsToRemove");
-    }
-    return true;
-  }),
 ];
 
 /**
@@ -69,34 +63,37 @@ const updateGroupMembersRules = [
  */
 const getMessagesRules = [
   param("conversationId").isUUID().withMessage("Invalid conversation ID"),
-  query("limit").optional().isInt({ min: 1, max: 100 }),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage("Limit must be between 1-100"),
   query("before").optional().isISO8601().withMessage("Invalid timestamp"),
 ];
 
 /**
  * Validation rules for sending a message
- * Validates content, attachments and reply
+ * Validates content, attachments, and reply
  */
 const sendMessageRules = [
   param("conversationId").isUUID().withMessage("Invalid conversation ID"),
   body("content")
-    .if(body("attachments").not().exists())
     .notEmpty()
-    .withMessage("Content or attachments required")
+    .withMessage("Content is required")
     .isLength({ max: 2000 })
-    .withMessage("Message too long"),
+    .withMessage("Message too long")
+    .trim(),
   body("replyToId")
     .optional()
     .isUUID()
     .withMessage("Invalid message ID")
     .custom(async (value, { req }) => {
       const message = await prisma.message.findUnique({
-        where: { MessageID: value },
+        where: { id: value },
       });
-
       if (!message || message.conversationId !== req.params.conversationId) {
         throw new Error("Invalid reply message");
       }
+      return true;
     }),
   body("attachments")
     .optional()
@@ -108,9 +105,12 @@ const sendMessageRules = [
         (att) =>
           validTypes.includes(att.type) &&
           typeof att.url === "string" &&
-          att.url.startsWith("https://")
+          att.url.startsWith("https://") &&
+          (att.fileName === null || typeof att.fileName === "string") &&
+          (att.fileSize === null || typeof att.fileSize === "number")
       );
-    }),
+    })
+    .withMessage("Invalid attachment format"),
 ];
 
 /**
@@ -128,7 +128,8 @@ const addReactionRules = [
       const emojiRegex =
         /^(\p{Emoji}|\p{Emoji_Modifier}|\p{Emoji_Component}|[\u2000-\u3300]|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDDFF])+$/u;
       return emojiRegex.test(emoji);
-    }),
+    })
+    .withMessage("Invalid emoji format"),
 ];
 
 /**
@@ -148,24 +149,16 @@ const markAsReadRules = [
       // Verify messages exist and user is a participant
       const validMessages = await prisma.message.findMany({
         where: {
-          id: {
-            // Changed from MessageID to id
-            in: messageIds,
-          },
+          id: { in: messageIds },
           conversation: {
             participants: {
-              some: {
-                UserID: req.user.UserID,
-              },
+              some: { UserID: req.user.UserID },
             },
           },
         },
-        select: {
-          id: true, // Changed from MessageID to id
-        },
+        select: { id: true },
       });
 
-      // Check if all provided messageIds are valid
       if (validMessages.length !== messageIds.length) {
         throw new Error("One or more message IDs are invalid or inaccessible");
       }
@@ -186,7 +179,6 @@ const handleTypingRules = [
 module.exports = {
   getConversationsRules,
   createConversationRules,
-  updateGroupMembersRules,
   getMessagesRules,
   sendMessageRules,
   addReactionRules,

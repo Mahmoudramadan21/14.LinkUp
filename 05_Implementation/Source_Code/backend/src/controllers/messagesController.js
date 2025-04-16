@@ -171,107 +171,102 @@ const createConversation = async (req, res) => {
 
 /**
  * Fetches conversation messages with details
+ * Marks unread messages as read
  * Returns 404 for unauthorized access
  */
 const getMessages = async (req, res) => {
-  const { UserID } = req.user;
-  const { conversationId } = req.params;
-  const { limit = 20, before } = req.query;
-
   try {
-    // Fetch conversation with messages and participants
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        participants: {
-          select: {
-            UserID: true,
-            Username: true,
-            ProfilePicture: true,
-          },
-        },
-        messages: {
-          where: before ? { createdAt: { lt: new Date(before) } } : undefined,
-          take: parseInt(limit),
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            content: true,
-            createdAt: true,
-            sender: {
-              select: {
-                UserID: true,
-                Username: true,
-                ProfilePicture: true,
-              },
-            },
-            attachments: {
-              select: {
-                id: true,
-                url: true,
-                type: true,
-                fileName: true,
-                fileSize: true,
-              },
-            },
-            reactions: {
-              select: {
-                id: true,
-                emoji: true,
-                userId: true,
-              },
-            },
-            readBy: {
-              select: { UserID: true },
-            },
-            replyTo: {
-              select: { id: true, content: true, senderId: true },
-            },
-          },
-        },
-      },
-    });
+    const { conversationId } = req.params;
+    const { limit = 20 } = req.query;
+    const userId = req.user.UserID;
 
-    if (
-      !conversation ||
-      !conversation.participants.some((p) => p.UserID === UserID)
-    ) {
-      return res
-        .status(404)
-        .json({ error: "Conversation not found or access denied" });
+    // Validate conversation ID
+    if (!conversationId) {
+      return res.status(400).json({ error: "Conversation ID is required" });
     }
 
-    // Count total messages for pagination
-    const totalMessages = await prisma.message.count({
-      where: {
-        conversationId,
-        ...(before ? { createdAt: { lt: new Date(before) } } : {}),
-      },
-    });
+    // Start a transaction to fetch and update atomically
+    const [conversation] = await prisma.$transaction([
+      prisma.conversation.findUnique({
+        where: {
+          id: conversationId,
+        },
+        include: {
+          participants: {
+            select: {
+              UserID: true,
+              Username: true,
+              ProfilePicture: true,
+            },
+          },
+          messages: {
+            take: parseInt(limit),
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              sender: {
+                select: {
+                  UserID: true,
+                  Username: true,
+                  ProfilePicture: true,
+                },
+              },
+              attachments: {
+                select: {
+                  id: true,
+                  url: true,
+                  type: true,
+                  fileName: true,
+                  fileSize: true,
+                },
+              },
+              reactions: {
+                select: {
+                  id: true,
+                  emoji: true,
+                  userId: true,
+                },
+              },
+              readBy: {
+                select: {
+                  UserID: true,
+                },
+              },
+              replyTo: {
+                select: {
+                  id: true,
+                  content: true,
+                  senderId: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
 
-    // Format response with message details
-    const otherParticipant = conversation.participants.find(
-      (p) => p.UserID !== UserID
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    // Verify user is a participant
+    const isParticipant = conversation.participants.some(
+      (p) => p.UserID === userId
     );
+    if (!isParticipant) {
+      return res
+        .status(403)
+        .json({ error: "User is not a participant in this conversation" });
+    }
 
-    const response = {
-      id: conversation.id,
-      otherParticipant: otherParticipant
-        ? {
-            UserID: otherParticipant.UserID,
-            Username: otherParticipant.Username,
-            ProfilePicture: otherParticipant.ProfilePicture,
-          }
-        : null,
-      messages: conversation.messages.reverse(),
-      lastMessage: conversation.messages[0] || null,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-    };
-
-    res.json(response);
+    res.json({
+      success: true,
+      data: conversation.messages,
+      participants: conversation.participants,
+    });
   } catch (error) {
-    handleServerError(res, error, "Failed to fetch conversation");
+    handleServerError(res, error, "Failed to fetch conversation messages");
   }
 };
 
@@ -285,51 +280,86 @@ const sendMessage = async (req, res) => {
   const { content, attachments, replyToId } = req.body;
 
   try {
+    console.log("sendMessage input:", {
+      UserID,
+      conversationId,
+      content,
+      attachments,
+      replyToId,
+    });
+
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { UserID },
+      select: { UserID: true, IsBanned: true },
+    });
+    if (!user) {
+      console.log("User not found:", UserID);
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (user.IsBanned) {
+      console.log("User is banned:", UserID);
+      return res.status(403).json({ error: "User is banned" });
+    }
+
     // Verify conversation access
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { id: true, participants: { select: { UserID: true } } },
     });
 
-    if (
-      !conversation ||
-      !conversation.participants.some((p) => p.UserID === UserID)
-    ) {
-      return res
-        .status(404)
-        .json({ error: "Conversation not found or access denied" });
+    if (!conversation) {
+      console.log("Conversation not found:", conversationId);
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    if (!conversation.participants.some((p) => p.UserID === UserID)) {
+      console.log("User not a participant:", UserID);
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Validate content
+    if (!content) {
+      console.log("Missing content");
+      return res.status(400).json({ error: "Content is required" });
     }
 
     // Validate reply message if provided
     let replyTo = null;
     if (replyToId) {
       replyTo = await prisma.message.findUnique({
-        where: { id: replyToId, conversationId },
-        select: { id: true },
+        where: { id: replyToId },
+        select: { id: true, conversationId: true },
       });
-      if (!replyTo) {
+      if (!replyTo || replyTo.conversationId !== conversationId) {
+        console.log("Invalid replyToId:", replyToId);
         return res.status(400).json({ error: "Invalid replyTo message ID" });
       }
     }
 
     // Create message with attachments
+    const messageData = {
+      content,
+      senderId: UserID,
+      conversationId,
+      replyToId: replyTo?.id,
+    };
+
+    if (attachments && Array.isArray(attachments)) {
+      messageData.attachments = {
+        create: attachments.map((att) => ({
+          url: att.url,
+          type: att.type,
+          fileName: att.fileName || null,
+          fileSize: att.fileSize || null,
+        })),
+      };
+    }
+
+    console.log("Creating message with data:", messageData);
+
     const message = await prisma.message.create({
-      data: {
-        content,
-        senderId: UserID,
-        conversationId,
-        replyToId: replyTo?.id,
-        attachments: attachments
-          ? {
-              create: attachments.map((att) => ({
-                url: att.url,
-                type: att.type,
-                fileName: att.fileName,
-                fileSize: att.fileSize,
-              })),
-            }
-          : undefined,
-      },
+      data: messageData,
       select: {
         id: true,
         content: true,
@@ -370,6 +400,7 @@ const sendMessage = async (req, res) => {
 
     res.status(201).json(message);
   } catch (error) {
+    console.error("sendMessage error:", error);
     handleServerError(res, error, "Failed to send message");
   }
 };
@@ -564,6 +595,127 @@ const handleTyping = async (req, res) => {
   }
 };
 
+/**
+ * Fetches active users the current user follows
+ * Active users have lastActive within the last 5 minutes
+ */
+const getActiveFollowing = async (req, res) => {
+  const { UserID } = req.user;
+
+  try {
+    // Define active as last 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    // Fetch users followed by the current user who are active
+    const activeFollowing = await prisma.user.findMany({
+      where: {
+        Following: {
+          some: {
+            FollowerUserID: UserID,
+            Status: "ACCEPTED",
+          },
+        },
+        lastActive: {
+          gte: fiveMinutesAgo,
+        },
+        IsBanned: false,
+      },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+        lastActive: true,
+      },
+      orderBy: { lastActive: "desc" },
+    });
+
+    res.json({
+      activeFollowing,
+      count: activeFollowing.length,
+    });
+  } catch (error) {
+    console.error("getActiveFollowing error:", error);
+    handleServerError(res, error, "Failed to fetch active following");
+  }
+};
+
+/**
+ * Fetches users the current user follows but has no conversations with
+ * For suggesting users to start a chat
+ */
+const getSuggestedChatUsers = async (req, res) => {
+  const { UserID } = req.user;
+
+  try {
+    // Debug: Log the current user ID
+    console.log("getSuggestedChatUsers: UserID =", UserID);
+
+    // Fetch followed users with accepted status
+    const followedUsers = await prisma.follower.findMany({
+      where: {
+        FollowerUserID: UserID,
+        Status: "ACCEPTED",
+      },
+      select: {
+        User: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+            IsBanned: true,
+          },
+        },
+      },
+    });
+
+    // Debug: Log followed users count
+    console.log(
+      "getSuggestedChatUsers: Followed users =",
+      followedUsers.length
+    );
+
+    // Filter users who are not banned and have no conversations with the current user
+    const suggestedUsers = await Promise.all(
+      followedUsers.map(async ({ User }) => {
+        if (User.IsBanned) return null;
+
+        // Check for existing conversation
+        const conversationExists = await prisma.conversation.findFirst({
+          where: {
+            AND: [
+              { participants: { some: { UserID } } },
+              { participants: { some: { UserID: User.UserID } } },
+            ],
+          },
+        });
+
+        if (conversationExists) return null;
+
+        return {
+          UserID: User.UserID,
+          Username: User.Username,
+          ProfilePicture: User.ProfilePicture,
+        };
+      })
+    );
+
+    // Remove null entries and log final count
+    const filteredUsers = suggestedUsers.filter((user) => user !== null);
+    console.log(
+      "getSuggestedChatUsers: Suggested users =",
+      filteredUsers.length
+    );
+
+    res.json({
+      suggestedUsers: filteredUsers,
+      count: filteredUsers.length,
+    });
+  } catch (error) {
+    console.error("getSuggestedChatUsers error:", error);
+    handleServerError(res, error, "Failed to fetch suggested chat users");
+  }
+};
+
 module.exports = {
   getConversations,
   createConversation,
@@ -572,4 +724,6 @@ module.exports = {
   addReaction,
   markAsRead,
   handleTyping,
+  getActiveFollowing,
+  getSuggestedChatUsers,
 };
