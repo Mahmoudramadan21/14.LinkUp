@@ -11,6 +11,7 @@ const {
   signupValidationRules,
   loginValidationRules,
   forgotPasswordValidationRules,
+  verifyCodeValidationRules,
   resetPasswordValidationRules,
 } = require("../validators/authValidators");
 const { validate } = require("../middleware/validationMiddleware");
@@ -61,10 +62,9 @@ const loginLimiter = rateLimit({
  *           description: Valid email address
  *         password:
  *           type: string
- *           format: password
  *           minLength: 8
  *           example: P@ssw0rd123
- *           description: Password with minimum 8 characters
+ *           description: Password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
  *     LoginCredentials:
  *       type: object
  *       required:
@@ -77,7 +77,7 @@ const loginLimiter = rateLimit({
  *           description: Username or email address
  *         password:
  *           type: string
- *           format: password
+ *           minLength: 8
  *           example: P@ssw0rd123
  *           description: User password
  *     RefreshTokenRequest:
@@ -127,10 +127,9 @@ const loginLimiter = rateLimit({
  *           description: Temporary token received after code verification
  *         newPassword:
  *           type: string
- *           format: password
  *           minLength: 8
  *           example: NewP@ssw0rd123
- *           description: New password with minimum 8 characters
+ *           description: New password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
  *     SuccessResponse:
  *       type: object
  *       properties:
@@ -155,6 +154,9 @@ const loginLimiter = rateLimit({
  *         message:
  *           type: string
  *           description: Error message
+ *         error:
+ *           type: string
+ *           description: Detailed error description (optional, development only)
  *         errors:
  *           type: array
  *           items:
@@ -181,7 +183,7 @@ const loginLimiter = rateLimit({
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/UserAuth'
  *     responses:
@@ -200,16 +202,24 @@ const loginLimiter = rateLimit({
  *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
- *         description: Validation error or user already exists
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Username, email, and password are required
+ *               errors:
+ *                 - field: username
+ *                   error: Username is required
+ *       409:
+ *         description: Email or username already exists
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Email or username already exists
- *               errors:
- *                 - field: email
- *                   error: Email is already registered
  *       500:
  *         description: Internal server error
  *         content:
@@ -217,7 +227,7 @@ const loginLimiter = rateLimit({
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Internal server error
+ *               message: Error registering user
  */
 router.post("/signup", signupValidationRules, validate, signup);
 
@@ -230,7 +240,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/LoginCredentials'
  *     responses:
@@ -254,7 +264,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Validation failed
+ *               message: Username or email is required
  *               errors:
  *                 - field: usernameOrEmail
  *                   error: Username or email is required
@@ -281,7 +291,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Internal server error
+ *               message: Authentication failed
  */
 router.post("/login", loginLimiter, loginValidationRules, validate, login);
 
@@ -294,7 +304,7 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/RefreshTokenRequest'
  *     responses:
@@ -325,6 +335,22 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Invalid or expired refresh token
+ *       403:
+ *         description: User is banned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: User is banned
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: User not found
  *       503:
  *         description: Service unavailable (Redis or database)
  *         content:
@@ -345,7 +371,7 @@ router.post("/refresh", controllerRefreshToken);
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/PasswordResetRequest'
  *     responses:
@@ -358,7 +384,6 @@ router.post("/refresh", controllerRefreshToken);
  *             example:
  *               message: If the email exists, a verification code has been sent
  *               codeSent: true
- *               data: {}
  *       400:
  *         description: Validation error
  *         content:
@@ -366,10 +391,10 @@ router.post("/refresh", controllerRefreshToken);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Validation failed
+ *               message: Email is required
  *               errors:
  *                 - field: email
- *                   error: Invalid email format
+ *                   error: Email is required
  *       500:
  *         description: Internal server error
  *         content:
@@ -377,7 +402,7 @@ router.post("/refresh", controllerRefreshToken);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Internal server error
+ *               message: Error processing request
  */
 router.post(
   "/forgot-password",
@@ -395,7 +420,7 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/VerifyCodeRequest'
  *     responses:
@@ -408,7 +433,6 @@ router.post(
  *             example:
  *               message: Code verified successfully
  *               resetToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *               data: {}
  *       400:
  *         description: Invalid or expired verification code
  *         content:
@@ -417,7 +441,6 @@ router.post(
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Invalid or expired verification code
- *               errors: []
  *       500:
  *         description: Internal server error
  *         content:
@@ -425,14 +448,9 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Internal server error
+ *               message: Error verifying code
  */
-router.post(
-  "/verify-code",
-  forgotPasswordValidationRules,
-  validate,
-  verifyCode
-);
+router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
 
 /**
  * @swagger
@@ -443,7 +461,7 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/x-www-form-urlencoded:
+ *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/PasswordResetWithToken'
  *     responses:
@@ -455,7 +473,6 @@ router.post(
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
  *               message: Password updated successfully
- *               data: {}
  *       400:
  *         description: Validation error
  *         content:
@@ -464,7 +481,6 @@ router.post(
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: New password must be at least 8 characters long
- *               errors: []
  *       401:
  *         description: Invalid or expired reset token
  *         content:
@@ -480,7 +496,7 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Internal server error
+ *               message: Error updating password
  */
 router.post(
   "/reset-password",

@@ -54,7 +54,7 @@ const signup = async (req, res) => {
     // Check for existing user
     console.log("Checking for existing user:", { email, username });
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ Email: email }, { Username: username }] },
+      where: { OR: [{ Email: email.toLowerCase() }, { Username: username }] },
     });
 
     if (existingUser) {
@@ -72,36 +72,36 @@ const signup = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     console.log("Password hashed successfully");
 
-    // Create user and welcome notification in a transaction
+    // Create user and welcome notification
     console.log("Creating new user...");
-    const [newUser] = await prisma.$transaction([
-      prisma.user.create({
-        data: {
-          Username: username,
-          Email: email,
-          Password: hashedPassword,
-          Role: "USER", // Default role
-          CreatedAt: new Date(),
-          UpdatedAt: new Date(),
-        },
-        select: {
-          UserID: true,
-          Username: true,
-          Email: true,
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          UserID: prisma.user.create({}).UserID, // Reference the created user's ID
-          Type: "WELCOME",
-          Content: `Welcome to LinkUp, ${username}! Start exploring and connecting!`,
-          Metadata: { signupDate: new Date().toISOString() },
-        },
-      }),
-    ]);
+    const newUser = await prisma.user.create({
+      data: {
+        Username: username,
+        Email: email.toLowerCase(), // Store email in lowercase
+        Password: hashedPassword,
+        Role: "USER",
+        CreatedAt: new Date(),
+        UpdatedAt: new Date(),
+      },
+      select: {
+        UserID: true,
+        Username: true,
+        Email: true,
+      },
+    });
+
+    // Create welcome notification
+    await prisma.notification.create({
+      data: {
+        UserID: newUser.UserID,
+        Type: "ADMIN_WARNING", // Replace with "WELCOME" if enum is updated
+        Content: `Welcome to LinkUp, ${username}! Start exploring and connecting!`,
+        Metadata: { signupDate: new Date().toISOString() },
+      },
+    });
     console.log("User created:", newUser);
 
-    // Generate tokens (to match login behavior)
+    // Generate tokens
     const accessToken = jwt.sign(
       { userId: newUser.UserID },
       process.env.JWT_SECRET,

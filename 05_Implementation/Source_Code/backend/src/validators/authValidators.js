@@ -50,7 +50,9 @@ const loginValidationRules = [
     .withMessage("Password is required")
     .custom((value) => {
       if (!validatePassword(value)) {
-        return true; // Note: This seems incorrect; should likely throw an error if invalid
+        throw new Error(
+          "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character."
+        );
       }
       return true;
     }),

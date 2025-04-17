@@ -58,31 +58,45 @@ const register = async ({ username, email, password }) => {
  * @returns {Object} Object containing user and tokens
  */
 const login = async (usernameOrEmail, password) => {
-  try {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ Username: usernameOrEmail }, { Email: usernameOrEmail }],
-      },
-    });
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { Username: usernameOrEmail },
+        { Email: { equals: usernameOrEmail, mode: "insensitive" } }, // Case-insensitive email match
+      ],
+    },
+  });
 
-    if (!user || !(await bcrypt.compare(password, user.Password))) {
-      throw new Error("Invalid credentials");
-    }
-
-    const tokens = generateTokens(user);
-    console.log("Generated refreshToken:", tokens.refreshToken);
-    await redis.set(
-      `refresh_token:${user.UserID}`,
-      tokens.refreshToken,
-      7 * 24 * 60 * 60
-    );
-    console.log(`Stored refresh_token:${user.UserID} in Redis`);
-
-    return { user, tokens };
-  } catch (error) {
-    console.error("Login error:", error.message);
-    throw new Error(`Login failed: ${error.message}`);
+  if (!user) {
+    throw new Error("Invalid credentials");
   }
+
+  const isPasswordValid = await bcrypt.compare(password, user.Password);
+  if (!isPasswordValid) {
+    throw new Error("Invalid credentials");
+  }
+
+  const accessToken = jwt.sign(
+    { userId: user.UserID },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m", issuer: "linkup-api" }
+  );
+  const refreshToken = jwt.sign(
+    { userId: user.UserID },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "7d", issuer: "linkup-api" }
+  );
+
+  await redis.set(
+    `refresh_token:${user.UserID}`,
+    refreshToken,
+    7 * 24 * 60 * 60
+  );
+
+  return {
+    user: { UserID: user.UserID, Username: user.Username },
+    tokens: { accessToken, refreshToken },
+  };
 };
 
 /**
