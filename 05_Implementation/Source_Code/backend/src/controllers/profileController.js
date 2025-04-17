@@ -32,10 +32,10 @@ const getProfile = async (req, res) => {
         UpdatedAt: true,
         _count: {
           select: {
-            Posts: true, // Count of user's posts
-            Likes: true, // Count of likes given by user
-            Followers: { where: { Status: "ACCEPTED" } }, // Count of accepted followers
-            Following: { where: { Status: "ACCEPTED" } }, // Count of users followed
+            Posts: true,
+            Likes: true,
+            Followers: { where: { Status: "ACCEPTED" } },
+            Following: { where: { Status: "ACCEPTED" } },
           },
         },
       },
@@ -315,7 +315,7 @@ const deleteProfile = async (req, res) => {
     res.status(200).json({ message: "Profile deleted successfully" });
   } catch (error) {
     res
-      .storyId(500)
+      .status(500)
       .json({ message: "Error deleting profile", error: error.message });
   }
 };
@@ -567,7 +567,11 @@ const followUser = async (req, res) => {
 
     const targetUser = await prisma.user.findUnique({
       where: { UserID: parseInt(userId) },
-      select: { IsPrivate: true, Username: true },
+      select: {
+        IsPrivate: true,
+        Username: true,
+        NotificationPreferences: true,
+      },
     });
 
     if (!targetUser) {
@@ -602,35 +606,51 @@ const followUser = async (req, res) => {
       },
     });
 
-    if (targetUser.IsPrivate) {
+    const shouldNotify =
+      !targetUser.NotificationPreferences ||
+      !targetUser.NotificationPreferences.NotificationTypes ||
+      (targetUser.IsPrivate
+        ? targetUser.NotificationPreferences.NotificationTypes.includes(
+            "FOLLOW_REQUEST"
+          )
+        : targetUser.NotificationPreferences.NotificationTypes.includes(
+            "FOLLOW"
+          ));
+
+    if (shouldNotify) {
+      if (targetUser.IsPrivate) {
+        await prisma.notification.create({
+          data: {
+            UserID: parseInt(userId),
+            SenderID: followerId,
+            Type: "FOLLOW_REQUEST",
+            Content: `${req.user.Username} wants to follow you`,
+            Metadata: {
+              requestId: follow.FollowerID,
+              requesterId: followerId,
+              requesterUsername: req.user.Username,
+            },
+          },
+        });
+        return res.status(201).json({
+          message: "Follow request sent",
+          status: "PENDING",
+        });
+      }
+
       await prisma.notification.create({
         data: {
           UserID: parseInt(userId),
-          Type: "FOLLOW_REQUEST",
-          Content: `${req.user.Username} wants to follow you`,
+          SenderID: followerId,
+          Type: "FOLLOW",
+          Content: `${req.user.Username} started following you`,
           Metadata: {
-            requestId: follow.FollowerID,
-            requesterId: followerId,
-            requesterUsername: req.user.Username,
+            followerId: followerId,
+            followerUsername: req.user.Username,
           },
         },
       });
-      return res.status(201).json({
-        message: "Follow request sent",
-        status: "PENDING",
-      });
     }
-
-    await prisma.notification.create({
-      data: {
-        UserID: parseInt(userId),
-        Type: "FOLLOW",
-        Content: `${req.user.Username} started following you`,
-        Metadata: {
-          followerId: followerId,
-        },
-      },
-    });
 
     res.status(201).json({
       message: "Successfully followed user",

@@ -5,11 +5,13 @@ const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { sendResetEmail } = require("../services/emailService");
 const { register, login: serviceLogin } = require("../services/authService");
+
+const SALT_ROUNDS = 10; // Define salt rounds
+
 /**
  * Handles user registration with email/username availability check
  * and password hashing
  */
-const SALT_ROUNDS = 10; // Define salt rounds
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body); // Log incoming request
 
@@ -70,23 +72,33 @@ const signup = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     console.log("Password hashed successfully");
 
-    // Create user
+    // Create user and welcome notification in a transaction
     console.log("Creating new user...");
-    const newUser = await prisma.user.create({
-      data: {
-        Username: username,
-        Email: email,
-        Password: hashedPassword,
-        Role: "USER", // Default role
-        CreatedAt: new Date(),
-        UpdatedAt: new Date(),
-      },
-      select: {
-        UserID: true,
-        Username: true,
-        Email: true,
-      },
-    });
+    const [newUser] = await prisma.$transaction([
+      prisma.user.create({
+        data: {
+          Username: username,
+          Email: email,
+          Password: hashedPassword,
+          Role: "USER", // Default role
+          CreatedAt: new Date(),
+          UpdatedAt: new Date(),
+        },
+        select: {
+          UserID: true,
+          Username: true,
+          Email: true,
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          UserID: prisma.user.create({}).UserID, // Reference the created user's ID
+          Type: "WELCOME",
+          Content: `Welcome to LinkUp, ${username}! Start exploring and connecting!`,
+          Metadata: { signupDate: new Date().toISOString() },
+        },
+      }),
+    ]);
     console.log("User created:", newUser);
 
     // Generate tokens (to match login behavior)
@@ -129,6 +141,7 @@ const signup = async (req, res) => {
     });
   }
 };
+
 /**
  * Authenticates user and returns JWT token
  * Uses constant-time comparison to prevent timing attacks
@@ -272,33 +285,37 @@ const refreshToken = async (req, res) => {
 };
 
 /**
- * Initiates password reset flow
- * Uses time-based token with expiry for security
+ * Initiates password reset flow by sending a 4-digit verification code
  */
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
     const user = await prisma.user.findUnique({ where: { Email: email } });
+    let codeSent = false;
 
     if (user) {
-      // Generate cryptographically secure token
-      const resetToken = crypto.randomBytes(20).toString("hex");
-      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour expiry
+      // Generate a 4-digit verification code
+      const verificationCode = Math.floor(
+        1000 + Math.random() * 9000
+      ).toString();
+      const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
 
+      // Store the code in resetToken field
       await prisma.user.update({
         where: { UserID: user.UserID },
-        data: { resetToken, resetTokenExpiry },
+        data: { resetToken: verificationCode, resetTokenExpiry },
       });
 
-      // In production, use frontend URL from config
-      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-      await sendResetEmail(email, resetLink);
+      // Send the verification code via email
+      await sendResetEmail(email, verificationCode, true); // true indicates it's a code, not a link
+      codeSent = true;
     }
 
-    // Generic response to prevent email enumeration
+    // Generic response to prevent email enumeration, but include codeSent for UI
     res.status(200).json({
-      message: "If the email exists, a reset link has been sent",
+      message: "If the email exists, a verification code has been sent",
+      codeSent,
     });
   } catch (error) {
     console.error("Password reset error:", error);
@@ -307,36 +324,103 @@ const forgotPassword = async (req, res) => {
 };
 
 /**
- * Completes password reset flow
- * Validates token and updates credentials
+ * Verifies the 4-digit verification code and returns a temporary token
  */
-const resetPassword = async (req, res) => {
-  const { token, newPassword } = req.body;
+const verifyCode = async (req, res) => {
+  const { code, email } = req.body;
 
   try {
-    // Find valid, non-expired token
+    // Find user with valid, non-expired verification code
     const user = await prisma.user.findFirst({
       where: {
-        resetToken: token,
+        Email: email,
+        resetToken: code,
         resetTokenExpiry: { gt: new Date() },
       },
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid or expired token" });
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification code" });
+    }
+
+    // Generate a temporary token for password reset (valid for 5 minutes)
+    const resetToken = jwt.sign(
+      { userId: user.UserID },
+      process.env.JWT_SECRET,
+      { expiresIn: "5m", issuer: "linkup-api" }
+    );
+
+    // Store the temporary token in Redis
+    await redis.set(
+      `reset_token:${user.UserID}`,
+      resetToken,
+      5 * 60 // 5 minutes expiry
+    );
+
+    // Clear the verification code
+    await prisma.user.update({
+      where: { UserID: user.UserID },
+      data: { resetToken: null, resetTokenExpiry: null },
+    });
+
+    res.status(200).json({
+      message: "Code verified successfully",
+      resetToken,
+    });
+  } catch (error) {
+    console.error("Code verification error:", error);
+    res.status(500).json({ message: "Error verifying code" });
+  }
+};
+
+/**
+ * Completes password reset flow using a temporary token
+ */
+const resetPassword = async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+
+  try {
+    // Verify the temporary token
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      console.error("JWT verification error:", jwtError.message);
+      return res
+        .status(401)
+        .json({ message: "Invalid or expired reset token" });
+    }
+
+    const userId = decoded.userId;
+    const storedToken = await redis.get(`reset_token:${userId}`);
+
+    if (!storedToken || storedToken !== resetToken) {
+      return res
+        .status(401)
+        .json({ message: "Invalid or expired reset token" });
+    }
+
+    // Validate new password
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 8 characters long" });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    // Clear reset token after use (one-time use)
+    // Update password
     await prisma.user.update({
-      where: { UserID: user.UserID },
+      where: { UserID: userId },
       data: {
         Password: hashedPassword,
-        resetToken: null,
-        resetTokenExpiry: null,
       },
     });
+
+    // Clear the temporary token from Redis
+    await redis.del(`reset_token:${userId}`);
 
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
@@ -345,4 +429,11 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, forgotPassword, refreshToken, resetPassword };
+module.exports = {
+  signup,
+  login,
+  forgotPassword,
+  refreshToken,
+  verifyCode,
+  resetPassword,
+};

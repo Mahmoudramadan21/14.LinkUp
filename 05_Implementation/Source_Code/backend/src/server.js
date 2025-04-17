@@ -1,33 +1,25 @@
 const { Server } = require("socket.io");
 const prisma = require("./utils/prisma");
 const authMiddleware = require("./middleware/authMiddleware");
-const { uploadToCloudinary } = require("./services/uploadService");
 
-/**
- * Configures Socket.IO for real-time communication
- * @param {Object} server - HTTP server instance
- * @returns {Object} Configured Socket.IO instance
- */
 const configureSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: "http://localhost:3001",
+      origin: process.env.FRONTEND_URL || "http://localhost:3001",
       methods: ["GET", "POST"],
       credentials: true,
     },
     connectionStateRecovery: {
       maxDisconnectionDuration: 2 * 60 * 1000,
-      skipMiddlewares: true,
+      skipMiddlewares: false,
     },
   });
 
-  // Authentication middleware for Socket.IO
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      if (!token) {
+      if (!token)
         return next(new Error("Authentication error: No token provided"));
-      }
 
       const decoded = authMiddleware.verifyToken(token);
       const user = await prisma.user.findUnique({
@@ -40,9 +32,7 @@ const configureSocket = (server) => {
         },
       });
 
-      if (!user) {
-        return next(new Error("Authentication error: User not found"));
-      }
+      if (!user) return next(new Error("Authentication error: User not found"));
 
       socket.user = user;
       next();
@@ -56,16 +46,13 @@ const configureSocket = (server) => {
     const userId = socket.user.UserID;
     console.log(`User connected: ${socket.user.Username} (ID: ${userId})`);
 
-    // Join user-specific room
     socket.join(`user_${userId}`);
 
-    // Update user's online status
     await prisma.user.update({
       where: { UserID: userId },
       data: { lastActive: new Date() },
     });
 
-    // Notify others about online status
     socket.broadcast.emit("userStatus", {
       userId,
       status: "online",
@@ -73,12 +60,9 @@ const configureSocket = (server) => {
       lastActive: new Date(),
     });
 
-    // Join all conversation rooms
     try {
       const conversations = await prisma.conversation.findMany({
-        where: {
-          participants: { some: { UserID: userId } },
-        },
+        where: { participants: { some: { UserID: userId } } },
         select: { id: true },
       });
 
@@ -90,71 +74,6 @@ const configureSocket = (server) => {
       console.error("Error joining conversations:", error);
     }
 
-    // Handle sending a new message
-    socket.on(
-      "sendMessage",
-      async ({ conversationId, content, replyToId, attachment }, callback) => {
-        try {
-          // Verify conversation access
-          const conversation = await prisma.conversation.findUnique({
-            where: { id: conversationId },
-            select: { participants: { select: { UserID: true } } },
-          });
-
-          if (
-            !conversation ||
-            !conversation.participants.some((p) => p.UserID === userId)
-          ) {
-            return callback({ error: "Unauthorized access to conversation" });
-          }
-
-          let attachmentData = null;
-          // Handle attachment if provided
-          if (attachment && attachment.buffer) {
-            const result = await uploadToCloudinary(
-              Buffer.from(attachment.buffer),
-              `messages/${conversationId}`,
-              attachment.type.startsWith("video/") ? "video" : "image"
-            );
-
-            attachmentData = {
-              url: result.secure_url,
-              type: attachment.type.startsWith("video/") ? "video" : "image",
-              publicId: result.public_id,
-            };
-          }
-
-          // Create message in database
-          const message = await prisma.message.create({
-            data: {
-              content,
-              senderId: userId,
-              conversationId,
-              replyToId,
-              attachments: attachmentData
-                ? { create: attachmentData }
-                : undefined,
-            },
-            include: {
-              sender: {
-                select: { UserID: true, Username: true, ProfilePicture: true },
-              },
-              attachments: true,
-            },
-          });
-
-          // Emit message to conversation room
-          io.to(conversationId).emit("newMessage", message);
-
-          callback({ success: true, message });
-        } catch (error) {
-          console.error("Error sending message:", error);
-          callback({ error: "Failed to send message" });
-        }
-      }
-    );
-
-    // Typing indicator
     socket.on("typing", async ({ conversationId, isTyping }) => {
       try {
         const conversation = await prisma.conversation.findUnique({
@@ -166,6 +85,9 @@ const configureSocket = (server) => {
           !conversation ||
           !conversation.participants.some((p) => p.UserID === userId)
         ) {
+          console.warn(
+            `User ${userId} attempted to send typing event to unauthorized conversation ${conversationId}`
+          );
           return;
         }
 
@@ -180,7 +102,6 @@ const configureSocket = (server) => {
       }
     });
 
-    // Message read receipt
     socket.on("markRead", async ({ messageIds }) => {
       try {
         await prisma.message.updateMany({
@@ -208,7 +129,6 @@ const configureSocket = (server) => {
       }
     });
 
-    // Disconnect handler
     socket.on("disconnect", async () => {
       console.log(`User disconnected: ${socket.user.Username} (ID: ${userId})`);
       try {

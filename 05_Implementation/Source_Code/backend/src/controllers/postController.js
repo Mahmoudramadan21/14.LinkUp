@@ -488,7 +488,7 @@ const likePost = async (req, res) => {
       await prisma.like.create({
         data: { PostID: parseInt(postId), UserID: userId },
       });
-      createLikeNotification(postId, userId).catch(console.error);
+      await createLikeNotification(postId, userId, req.user.Username);
     }
 
     // Clear cache
@@ -565,8 +565,11 @@ const addComment = async (req, res) => {
 
     // Notify post owner
     if (post.UserID !== userId) {
-      createCommentNotification(postId, userId, post.UserID).catch(
-        console.error
+      await createCommentNotification(
+        postId,
+        userId,
+        post.UserID,
+        req.user.Username
       );
     }
 
@@ -732,6 +735,14 @@ const reportPost = async (req, res) => {
       },
     });
 
+    // Notify admins
+    await notifyAdminsAboutReport(
+      parsedPostId,
+      userId,
+      reason.trim(),
+      req.user.Username
+    );
+
     res.status(201).json({
       message: "Post reported successfully",
       reportId: report.ReportID,
@@ -744,19 +755,37 @@ const reportPost = async (req, res) => {
 /**
  * Creates notification for post like
  */
-async function createLikeNotification(postId, likerId) {
+async function createLikeNotification(postId, likerId, likerUsername) {
   const post = await prisma.post.findUnique({
     where: { PostID: parseInt(postId) },
     select: { UserID: true },
   });
 
-  // Notify post owner
-  if (post && post.UserID !== likerId) {
+  if (!post || post.UserID === likerId) return;
+
+  // Check recipient's notification preferences
+  const recipient = await prisma.user.findUnique({
+    where: { UserID: post.UserID },
+    select: { NotificationPreferences: true },
+  });
+
+  const shouldNotify =
+    !recipient.NotificationPreferences ||
+    !recipient.NotificationPreferences.NotificationTypes ||
+    recipient.NotificationPreferences.NotificationTypes.includes("LIKE");
+
+  if (shouldNotify) {
     await prisma.notification.create({
       data: {
         UserID: post.UserID,
+        SenderID: likerId,
         Type: "LIKE",
-        Content: JSON.stringify({ postId, userId: likerId }),
+        Content: `${likerUsername} liked your post`,
+        Metadata: {
+          postId: parseInt(postId),
+          likerId,
+          likerUsername,
+        },
       },
     });
   }
@@ -765,35 +794,78 @@ async function createLikeNotification(postId, likerId) {
 /**
  * Creates notification for post comment
  */
-async function createCommentNotification(postId, commenterId, postOwnerId) {
-  await prisma.notification.create({
-    data: {
-      UserID: postOwnerId,
-      Type: "COMMENT",
-      Content: JSON.stringify({ postId, userId: commenterId }),
-    },
+async function createCommentNotification(
+  postId,
+  commenterId,
+  postOwnerId,
+  commenterUsername
+) {
+  // Check recipient's notification preferences
+  const recipient = await prisma.user.findUnique({
+    where: { UserID: postOwnerId },
+    select: { NotificationPreferences: true },
   });
+
+  const shouldNotify =
+    !recipient.NotificationPreferences ||
+    !recipient.NotificationPreferences.NotificationTypes ||
+    recipient.NotificationPreferences.NotificationTypes.includes("COMMENT");
+
+  if (shouldNotify) {
+    await prisma.notification.create({
+      data: {
+        UserID: postOwnerId,
+        SenderID: commenterId,
+        Type: "COMMENT",
+        Content: `${commenterUsername} commented on your post`,
+        Metadata: {
+          postId: parseInt(postId),
+          commenterId,
+          commenterUsername,
+        },
+      },
+    });
+  }
 }
 
 /**
  * Notifies admins about reported post
  */
-async function notifyAdminsAboutReport(postId, reporterId, reason) {
+async function notifyAdminsAboutReport(
+  postId,
+  reporterId,
+  reason,
+  reporterUsername
+) {
   const admins = await prisma.user.findMany({
     where: { Role: "ADMIN" },
-    select: { UserID: true },
+    select: { UserID: true, NotificationPreferences: true },
   });
 
   await Promise.all(
-    admins.map((admin) =>
-      prisma.notification.create({
-        data: {
-          UserID: admin.UserID,
-          Type: "REPORT",
-          Content: JSON.stringify({ postId, reporterId, reason }),
-        },
-      })
-    )
+    admins.map((admin) => {
+      const shouldNotify =
+        !admin.NotificationPreferences ||
+        !admin.NotificationPreferences.NotificationTypes ||
+        admin.NotificationPreferences.NotificationTypes.includes("REPORT");
+
+      if (shouldNotify) {
+        return prisma.notification.create({
+          data: {
+            UserID: admin.UserID,
+            SenderID: reporterId,
+            Type: "REPORT",
+            Content: `${reporterUsername} reported a post: ${reason}`,
+            Metadata: {
+              postId,
+              reporterId,
+              reason,
+              reporterUsername,
+            },
+          },
+        });
+      }
+    })
   );
 }
 

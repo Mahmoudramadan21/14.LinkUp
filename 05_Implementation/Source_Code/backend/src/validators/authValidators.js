@@ -56,7 +56,10 @@ const loginValidationRules = [
     }),
 ];
 
-// Forgot password validation rules
+/**
+ * Validation rules for forgot password
+ * Ensures email is provided and valid
+ */
 const forgotPasswordValidationRules = [
   body("email")
     .notEmpty()
@@ -65,15 +68,38 @@ const forgotPasswordValidationRules = [
     .withMessage("Please provide a valid email address"),
 ];
 
-// Reset password validation rules
-const resetPasswordValidationRules = [
-  body("token").notEmpty().withMessage("Token is required"),
-  body("newPassword")
+/**
+ * Validation rules for verifying the 4-digit code
+ * Ensures email and code are provided and valid
+ */
+const verifyCodeValidationRules = [
+  body("email")
     .notEmpty()
-    .withMessage("New password is required")
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please provide a valid email address"),
+  body("code")
+    .isString()
+    .matches(/^[0-9]{4}$/)
+    .withMessage("Verification code must be a 4-digit number"),
+];
+
+/**
+ * Validation rules for resetting password with a temporary token
+ * Ensures resetToken and newPassword are provided and valid
+ */
+const resetPasswordValidationRules = [
+  body("resetToken")
+    .isString()
+    .notEmpty()
+    .withMessage("Reset token is required"),
+  body("newPassword")
+    .isString()
+    .isLength({ min: 8 })
+    .withMessage("New password must be at least 8 characters long")
     .custom(validatePassword)
     .withMessage(
-      "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character."
+      "New password must include at least one uppercase letter, one lowercase letter, one number, and one special character."
     ),
 ];
 
@@ -81,5 +107,6 @@ module.exports = {
   signupValidationRules,
   loginValidationRules,
   forgotPasswordValidationRules,
+  verifyCodeValidationRules,
   resetPasswordValidationRules,
 };

@@ -1,23 +1,21 @@
 const express = require("express");
 const router = express.Router();
-
-// Import all route files
 const authRoutes = require("./authRoutes");
 const profileRoutes = require("./profileRoutes");
-const highlightRoutes = require("./highlightRoutes");
-const postsRoutes = require("./postRoutes");
+const postRoutes = require("./postRoutes");
 const storyRoutes = require("./storyRoutes");
-const messangerRoutes = require("./messagesRoutes");
+const messagesRoutes = require("./messagesRoutes");
+const highlightRoutes = require("./highlightRoutes");
 const adminRoutes = require("./adminRoutes");
+const notificationRoutes = require("./notificationRoutes");
 
-// Use the routes
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
-router.use("/highlights", highlightRoutes);
-router.use("/posts", postsRoutes);
+router.use("/posts", postRoutes);
 router.use("/stories", storyRoutes);
-router.use("/messanger", messangerRoutes);
+router.use("/messanger", messagesRoutes);
+router.use("/highlights", highlightRoutes);
 router.use("/admin", adminRoutes);
+router.use("/notifications", notificationRoutes);
 
-// Export the router
 module.exports = router;

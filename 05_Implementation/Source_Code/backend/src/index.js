@@ -5,47 +5,48 @@ const { createServer } = require("http");
 const configureSocket = require("./server.js");
 const routes = require("./routes/index.js");
 const setupSwagger = require("./docs/swagger.js");
-const bodyParser = require("body-parser");
+const {
+  handleServerError,
+  handleValidationError,
+} = require("./utils/errorHandler");
 
 const app = express();
 const httpServer = createServer(app);
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
+// Middleware
 app.use(
   cors({
-    origin: "http://localhost:3001",
+    origin: process.env.FRONTEND_URL || "http://localhost:3001",
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   })
 );
+app.use(express.json());
 
+// Setup Swagger UI and JSON endpoints
 setupSwagger(app);
+
+// Routes
 app.use("/api", routes);
 
+// Default route
 app.get("/", (req, res) => {
   res.json({ status: "OK", message: "LinkUp Server is Running!" });
 });
 
+// Error handling middleware
 app.use((err, req, res, next) => {
-  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
-    console.error(
-      "JSON parsing error:",
-      err.message,
-      "Body:",
-      req.body,
-      "Raw:",
-      req.rawBody
-    );
-    return res.status(400).json({ error: "Invalid JSON format" });
+  if (err.name === "ValidationError") {
+    return handleValidationError(err, res);
   }
-  console.error("Error stack:", err.stack);
-  res.status(500).json({ error: "Internal Server Error" });
+  handleServerError(err, res);
 });
 
+// Configure Socket.IO
 const io = configureSocket(httpServer);
+app.set("io", io); // Make io accessible to controllers
 
+// Start server
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

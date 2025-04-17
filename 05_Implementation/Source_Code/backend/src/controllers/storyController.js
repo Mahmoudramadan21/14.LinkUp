@@ -349,6 +349,45 @@ const getStoryById = async (req, res) => {
 };
 
 /**
+ * Creates notification for story like
+ */
+async function createStoryLikeNotification(storyId, likerId, likerUsername) {
+  const story = await prisma.story.findUnique({
+    where: { StoryID: parseInt(storyId) },
+    select: { UserID: true },
+  });
+
+  if (!story || story.UserID === likerId) return;
+
+  // Check recipient's notification preferences
+  const recipient = await prisma.user.findUnique({
+    where: { UserID: story.UserID },
+    select: { NotificationPreferences: true },
+  });
+
+  const shouldNotify =
+    !recipient.NotificationPreferences ||
+    !recipient.NotificationPreferences.NotificationTypes ||
+    recipient.NotificationPreferences.NotificationTypes.includes("STORY_LIKE");
+
+  if (shouldNotify) {
+    await prisma.notification.create({
+      data: {
+        UserID: story.UserID,
+        SenderID: likerId,
+        Type: "STORY_LIKE",
+        Content: `${likerUsername} liked your story`,
+        Metadata: {
+          storyId: parseInt(storyId),
+          likerId,
+          likerUsername,
+        },
+      },
+    });
+  }
+}
+
+/**
  * Toggles like status on a story
  * Creates notifications
  */
@@ -418,17 +457,7 @@ const toggleStoryLike = async (req, res) => {
 
       // Notify owner
       if (story.UserID !== UserID) {
-        await prisma.notification.create({
-          data: {
-            UserID: story.UserID,
-            Type: "STORY_LIKE",
-            Content: `User ${req.user.Username} liked your story`,
-            Metadata: {
-              storyId: parseInt(storyId),
-              likerId: UserID,
-            },
-          },
-        });
+        await createStoryLikeNotification(storyId, UserID, req.user.Username);
       }
       action = "liked";
     }

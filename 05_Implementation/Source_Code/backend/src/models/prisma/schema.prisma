@@ -87,7 +87,9 @@ model User {
   reactions          Reaction[]
   Followers          Follower[]       @relation("Followers")
   Following          Follower[]       @relation("Following")
-  Notifications      Notification[]
+  Notifications      Notification[]   @relation("NotificationUser") // ربط مع User في Notification
+  SentNotifications  Notification[]   @relation("NotificationSender") // ربط مع Sender في Notification
+  NotificationPreferences Json?
   Reports            Report[]         @relation("Reporter")
   SupportRequests    SupportRequest[]
   IsBanned           Boolean          @default(false)
@@ -96,6 +98,23 @@ model User {
   Highlights         Highlight[]
   AdminAuditLogs     AuditLog[]       @relation("AdminAudit")
   UserAuditLogs      AuditLog[]       @relation("UserAudit")
+  @@index([Username])
+  @@index([Email])
+}
+
+model Notification {
+  NotificationID Int            @id @default(autoincrement())
+  UserID        Int
+  User          User           @relation(fields: [UserID], references: [UserID], name: "NotificationUser")
+  SenderID      Int?
+  Sender        User?          @relation(fields: [SenderID], references: [UserID], name: "NotificationSender")
+  Type          NotificationType 
+  Content       String
+  IsRead        Boolean        @default(false)
+  CreatedAt     DateTime       @default(now())
+  Metadata      Json?
+  @@index([CreatedAt])
+  @@index([UserID, CreatedAt])
 }
 
 model Conversation {
@@ -268,16 +287,6 @@ model Follower {
   @@index([FollowerUserID])
 }
 
-model Notification {
-  NotificationID Int              @id @default(autoincrement())
-  UserID         Int
-  User           User             @relation(fields: [UserID], references: [UserID])
-  Type           NotificationType
-  Content        String
-  IsRead         Boolean          @default(false)
-  Metadata       Json?
-  CreatedAt      DateTime         @default(now())
-}
 
 model Report {
   ReportID    Int          @id @default(autoincrement())

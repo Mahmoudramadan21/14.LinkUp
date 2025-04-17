@@ -118,7 +118,7 @@ const createConversation = async (req, res) => {
     // Verify participant exists
     const user = await prisma.user.findUnique({
       where: { UserID: participantId },
-      select: { UserID: true },
+      select: { UserID: true, Username: true },
     });
 
     if (!user) {
@@ -142,23 +142,36 @@ const createConversation = async (req, res) => {
         .json({ error: "Conversation with this user already exists" });
     }
 
-    // Create conversation with exactly two participants
-    const conversation = await prisma.conversation.create({
-      data: {
-        participants: {
-          connect: [{ UserID }, { UserID: participantId }],
-        },
-      },
-      include: {
-        participants: {
-          select: {
-            UserID: true,
-            Username: true,
-            ProfilePicture: true,
+    // Create conversation and notify participant
+    const [conversation] = await prisma.$transaction([
+      prisma.conversation.create({
+        data: {
+          participants: {
+            connect: [{ UserID }, { UserID: participantId }],
           },
         },
-      },
-    });
+        include: {
+          participants: {
+            select: {
+              UserID: true,
+              Username: true,
+              ProfilePicture: true,
+            },
+          },
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          UserID: participantId,
+          Type: "NEW_CONVERSATION",
+          Content: `${req.user.Username} started a conversation with you`,
+          Metadata: {
+            conversationId: prisma.conversation.create({}).id,
+            initiatorId: UserID,
+          },
+        },
+      }),
+    ]);
 
     // Invalidate conversation cache for participants
     await redis.del(`conversations:${UserID}`);
@@ -302,7 +315,10 @@ const sendMessage = async (req, res) => {
     // Verify conversation exists and user is a participant
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      select: { participants: { select: { UserID: true } } },
+      select: {
+        participants: { select: { UserID: true, Username: true } },
+        messages: { take: 1, select: { id: true } },
+      },
     });
 
     if (
@@ -331,25 +347,46 @@ const sendMessage = async (req, res) => {
       };
     }
 
-    // Create message in database
-    const message = await prisma.message.create({
-      data: {
-        content: content || null, // Allow null content if attachment exists
-        senderId: userId,
-        conversationId,
-        replyToId,
-        attachments: attachment ? { create: attachment } : undefined,
-      },
-      include: {
-        sender: {
-          select: { UserID: true, Username: true, ProfilePicture: true },
+    // Create message and notify other participant
+    const otherParticipant = conversation.participants.find(
+      (p) => p.UserID !== userId
+    );
+    const isFirstMessage = conversation.messages.length === 0;
+    const [message] = await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          content: content || null, // Allow null content if attachment exists
+          senderId: userId,
+          conversationId,
+          replyToId,
+          attachments: attachment ? { create: attachment } : undefined,
         },
-        attachments: true,
-        replyTo: {
-          select: { id: true, content: true, senderId: true },
+        include: {
+          sender: {
+            select: { UserID: true, Username: true, ProfilePicture: true },
+          },
+          attachments: true,
+          replyTo: {
+            select: { id: true, content: true, senderId: true },
+          },
         },
-      },
-    });
+      }),
+      // Notify other participant
+      prisma.notification.create({
+        data: {
+          UserID: otherParticipant.UserID,
+          Type: "NEW_MESSAGE",
+          Content: isFirstMessage
+            ? `${req.user.Username} sent you a new message`
+            : `${req.user.Username} replied in your conversation`,
+          Metadata: {
+            conversationId,
+            messageId: prisma.message.create({}).id,
+            senderId: userId,
+          },
+        },
+      }),
+    ]);
 
     // Emit Socket.IO event to conversation room
     if (req.io) {
