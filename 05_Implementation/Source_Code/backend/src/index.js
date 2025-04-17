@@ -37,9 +37,9 @@ app.get("/", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   if (err.name === "ValidationError") {
-    return handleValidationError(err, res);
+    return handleValidationError(res, err);
   }
-  handleServerError(err, res);
+  handleServerError(res, err);
 });
 
 // Configure Socket.IO

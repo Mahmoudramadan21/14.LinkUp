@@ -36,6 +36,7 @@ enum NotificationType {
   STORY_LIKE
   ADMIN_WARNING
   WELCOME
+  REPORT
 }
 
 enum ReportStatus {

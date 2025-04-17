@@ -79,12 +79,10 @@ const sendMessageRules = [
     .isUUID()
     .withMessage("Invalid conversation ID")
     .custom(async (value, { req }) => {
-      // Verify conversation exists and user is a participant
       const conversation = await prisma.conversation.findUnique({
         where: { id: value },
         select: { participants: { select: { UserID: true } } },
       });
-
       if (
         !conversation ||
         !conversation.participants.some((p) => p.UserID === req.user.UserID)
@@ -99,7 +97,8 @@ const sendMessageRules = [
     .withMessage("Content must be a string")
     .isLength({ max: 2000 })
     .withMessage("Message too long")
-    .trim(),
+    .trim()
+    .escape(),
 
   body("replyToId")
     .optional()
@@ -109,22 +108,25 @@ const sendMessageRules = [
       const message = await prisma.message.findUnique({
         where: { id: value },
       });
-
       if (!message || message.conversationId !== req.params.conversationId) {
         throw new Error("Invalid reply message");
       }
     }),
 
-  // Custom validation to ensure at least one of content or attachment is provided
-  body().customSanitizer((value, { req }) => {
-    // Ensure req.body.content is a string or undefined
-    req.body.content = req.body.content
-      ? String(req.body.content).trim()
-      : undefined;
-    return value;
+  body("attachment").custom((_, { req }) => {
+    if (!req.file) return true; // Attachment is optional
+    const allowedTypes = ["image/jpeg", "image/png", "video/mp4"];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      throw new Error("Invalid media type. Only JPEG, PNG, and MP4 allowed");
+    }
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (req.file.size > maxSize) {
+      throw new Error("Media file too large. Maximum size is 50MB");
+    }
+    return true;
   }),
+
   body().custom((value, { req }) => {
-    // Check if either content (non-empty) or attachment is provided
     const hasContent = req.body.content && req.body.content.length > 0;
     const hasAttachment = !!req.file;
     if (!hasContent && !hasAttachment) {

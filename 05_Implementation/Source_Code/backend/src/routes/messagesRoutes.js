@@ -2,14 +2,13 @@ const express = require("express");
 const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
 const { authMiddleware } = require("../middleware/authMiddleware");
+const { moderateContent } = require("../middleware/moderationMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const {
   getConversationsRules,
   createConversationRules,
   getMessagesRules,
   sendMessageRules,
-  addReactionRules,
-  handleTypingRules,
 } = require("../validators/messageValidators");
 const {
   getConversations,
@@ -469,6 +468,7 @@ router.post(
   upload.single("attachment"),
   sendMessageRules,
   validate,
+  moderateContent,
   sendMessage
 );
 
@@ -533,12 +533,7 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post(
-  "/messages/:messageId/reactions",
-  addReactionRules,
-  validate,
-  addReaction
-);
+router.post("/messages/:messageId/reactions", validate, addReaction);
 
 /**
  * @swagger
@@ -597,7 +592,7 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/conversations/typing", handleTypingRules, validate, handleTyping);
+router.post("/conversations/typing", validate, handleTyping);
 
 /**
  * @swagger

@@ -21,6 +21,7 @@ const { authMiddleware } = require("../middleware/authMiddleware");
 const checkPostOwnership = require("../middleware/postOwnershipMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const rateLimit = require("express-rate-limit");
+const { moderateContent } = require("../middleware/moderationMiddleware");
 
 // Rate limiting configuration
 const postLimiter = rateLimit({
@@ -74,6 +75,7 @@ router.post(
   upload.single("media"),
   postCreationRules,
   validate,
+  moderateContent,
   createPost
 );
 
@@ -171,6 +173,7 @@ router.put(
   checkPostOwnership,
   postUpdateRules,
   validate,
+  moderateContent,
   updatePost
 );
 
@@ -260,6 +263,7 @@ router.post(
   postLimiter,
   postCreationRules,
   validate,
+  moderateContent,
   addComment
 );
 

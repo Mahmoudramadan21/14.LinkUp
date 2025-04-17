@@ -1,9 +1,9 @@
 const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { v4: uuidv4 } = require("uuid");
-const LocalModeration = require("../services/localModeration");
 const { uploadToCloud } = require("../services/cloudService");
 const { handleServerError } = require("../utils/errorHandler");
+const logger = require("../utils/logger");
 
 // Constants for configuration
 const POST_CACHE_TTL = 300; // 5 minutes cache duration
@@ -22,14 +22,12 @@ const createPost = async (req, res) => {
 
     // Validate content or media presence
     if (!content && !mediaFile) {
+      logger.info(
+        `Post creation failed for user ${userId}: No content or media provided`
+      );
       return res
         .status(400)
         .json({ error: "Either content or media is required" });
-    }
-
-    // Check content safety
-    if (content && !(await LocalModeration.checkText(content))) {
-      return res.status(400).json({ error: "Content violates guidelines" });
     }
 
     let mediaUrl = null,
@@ -66,8 +64,12 @@ const createPost = async (req, res) => {
       include: { User: { select: { UserID: true, Username: true } } },
     });
 
+    logger.info(
+      `Post created successfully for user ${userId}: PostID ${post.PostID}`
+    );
     res.status(201).json({ success: true, post });
   } catch (error) {
+    logger.error(`Error creating post for user ${userId}: ${error.message}`);
     handleServerError(res, error, "Failed to create post");
   }
 };
@@ -86,10 +88,10 @@ const getPosts = async (req, res) => {
     const cacheKey = `posts:${userId}:${page}:${limit}`;
     const cachedPosts = await redis.get(cacheKey);
     if (cachedPosts) {
-      console.log(`Cache hit for ${cacheKey}`);
-      return res.json(cachedPosts);
+      logger.info(`Cache hit for posts: ${cacheKey}`);
+      return res.json(cachedPosts); // Already parsed by redis.get
     }
-    console.log(`Cache miss for ${cacheKey}`);
+    logger.info(`Cache miss for posts: ${cacheKey}`);
 
     // Get followed users with accepted follow status
     const following = await prisma.follower.findMany({
@@ -111,6 +113,9 @@ const getPosts = async (req, res) => {
 
     if (followingIds.length === 0) {
       await redis.set(cacheKey, [], POST_CACHE_TTL);
+      logger.info(
+        `No followed users for user ${userId}, returning empty posts`
+      );
       return res.json([]);
     }
 
@@ -151,17 +156,17 @@ const getPosts = async (req, res) => {
       },
     });
 
-    // Filter posts to respect private accounts (already ensured by followingIds)
-    const filteredPosts = posts.filter((post) => {
-      return !post.User.IsPrivate || followingIds.includes(post.User.UserID);
-    });
+    // Filter posts to respect private accounts
+    const filteredPosts = posts.filter(
+      (post) => !post.User.IsPrivate || followingIds.includes(post.User.UserID)
+    );
 
     // Shuffle posts randomly
     const shuffledPosts = filteredPosts
       .map((post) => ({ post, sort: Math.random() }))
       .sort((a, b) => a.sort - b.sort)
       .map(({ post }) => post)
-      .slice(0, parseInt(limit)); // Take only requested limit
+      .slice(0, parseInt(limit));
 
     // Format response
     const response = shuffledPosts.map((post) => ({
@@ -176,18 +181,14 @@ const getPosts = async (req, res) => {
     }));
 
     // Cache response
-    try {
-      await redis.set(cacheKey, response, POST_CACHE_TTL);
-      console.log(`Cached posts for ${cacheKey}`);
-    } catch (cacheError) {
-      console.error(
-        `Failed to cache posts for ${cacheKey}:`,
-        cacheError.message
-      );
-    }
+    await redis.set(cacheKey, response, POST_CACHE_TTL);
+    logger.info(`Cached posts for ${cacheKey}`);
 
     res.json(response);
   } catch (error) {
+    logger.error(
+      `Error fetching posts for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to fetch posts");
   }
 };
@@ -233,7 +234,10 @@ const getPostById = async (req, res) => {
       },
     });
 
-    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (!post) {
+      logger.info(`Post ${postId} not found for user ${userId}`);
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     // Verify privacy for private accounts
     if (post.User.IsPrivate && post.User.UserID !== userId) {
@@ -244,8 +248,10 @@ const getPostById = async (req, res) => {
           Status: "ACCEPTED",
         },
       });
-      if (!isFollowing)
+      if (!isFollowing) {
+        logger.info(`User ${userId} denied access to private post ${postId}`);
         return res.status(403).json({ error: "Private account" });
+      }
     }
 
     // Format response
@@ -271,24 +277,21 @@ const getPostById = async (req, res) => {
 
     res.json(response);
   } catch (error) {
+    logger.error(`Error fetching post ${req.params.postId}: ${error.message}`);
     handleServerError(res, error, "Failed to fetch post");
   }
 };
 
 /**
  * Updates post content
- * Validates content safety and restricts for private accounts
+ * Validates content safety via middleware
+ * Restricts for private accounts
  */
 const updatePost = async (req, res) => {
   try {
     const { postId } = req.params;
     const { content } = req.body;
     const userId = req.user.UserID;
-
-    // Check content safety
-    if (content && !(await LocalModeration.checkText(content))) {
-      return res.status(400).json({ error: "Content violates guidelines" });
-    }
 
     // Verify post exists and get owner details
     const post = await prisma.post.findUnique({
@@ -304,7 +307,10 @@ const updatePost = async (req, res) => {
       },
     });
 
-    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (!post) {
+      logger.info(`Post ${postId} not found for update by user ${userId}`);
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     // Check access for private accounts
     if (post.User.IsPrivate && post.UserID !== userId) {
@@ -316,6 +322,9 @@ const updatePost = async (req, res) => {
         },
       });
       if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to update private post ${postId}`
+        );
         return res.status(403).json({
           error: "Private account",
           message: `You must follow @${post.User.Username} to update their posts`,
@@ -325,6 +334,7 @@ const updatePost = async (req, res) => {
 
     // Ensure only the post owner can update
     if (post.UserID !== userId) {
+      logger.info(`User ${userId} unauthorized to update post ${postId}`);
       return res
         .status(403)
         .json({ error: "Unauthorized to update this post" });
@@ -333,7 +343,7 @@ const updatePost = async (req, res) => {
     // Update post
     const updatedPost = await prisma.post.update({
       where: { PostID: parseInt(postId) },
-      data: { Content: content },
+      data: { Content: content || null },
       include: {
         User: {
           select: { UserID: true, Username: true, ProfilePicture: true },
@@ -344,9 +354,11 @@ const updatePost = async (req, res) => {
     // Clear cache
     await redis.del("posts:*");
     await redis.del(`post:${postId}`);
+    logger.info(`Post ${postId} updated successfully by user ${userId}`);
 
     res.json(updatedPost);
   } catch (error) {
+    logger.error(`Error updating post ${req.params.postId}: ${error.message}`);
     handleServerError(res, error, "Failed to update post");
   }
 };
@@ -362,12 +374,12 @@ const deletePost = async (req, res) => {
 
     // Validate postId
     if (!postId || isNaN(parseInt(postId))) {
-      console.log(`Invalid postId received: ${postId}`);
+      logger.info(`Invalid postId received: ${postId} by user ${userId}`);
       return res.status(400).json({ error: "Invalid post ID" });
     }
 
     const parsedPostId = parseInt(postId);
-    console.log(`Attempting to delete post ${parsedPostId} by user ${userId}`);
+    logger.info(`Attempting to delete post ${parsedPostId} by user ${userId}`);
 
     // Verify post exists and get owner details
     const post = await prisma.post.findUnique({
@@ -383,22 +395,22 @@ const deletePost = async (req, res) => {
     });
 
     if (!post) {
-      console.log(`Post ${parsedPostId} not found`);
+      logger.info(
+        `Post ${parsedPostId} not found for deletion by user ${userId}`
+      );
       return res.status(404).json({ error: "Post not found" });
     }
 
     // Validate user is the post owner
     if (post.UserID !== userId) {
-      console.log(
-        `User ${userId} is not authorized to delete post ${parsedPostId}`
-      );
+      logger.info(`User ${userId} unauthorized to delete post ${parsedPostId}`);
       return res
         .status(403)
         .json({ error: "Only the post owner can delete this post" });
     }
 
     // Delete post and related data in a transaction
-    console.log(`Deleting post ${parsedPostId} and related data`);
+    logger.info(`Deleting post ${parsedPostId} and related data`);
     await prisma.$transaction([
       prisma.comment.deleteMany({ where: { PostID: parsedPostId } }),
       prisma.like.deleteMany({ where: { PostID: parsedPostId } }),
@@ -420,13 +432,15 @@ const deletePost = async (req, res) => {
     ]);
 
     // Clear cache
-    console.log(`Clearing cache for post ${parsedPostId}`);
+    logger.info(`Clearing cache for post ${parsedPostId}`);
     await redis.del("posts:*");
     await redis.del(`post:${parsedPostId}`);
 
     res.json({ success: true });
   } catch (error) {
-    console.error(`Error deleting post ${postId || "unknown"}:`, error);
+    logger.error(
+      `Error deleting post ${req.params.postId || "unknown"}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to delete post");
   }
 };
@@ -454,10 +468,13 @@ const likePost = async (req, res) => {
       },
     });
 
-    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (!post) {
+      logger.info(`Post ${postId} not found for like by user ${userId}`);
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     // Check access for private accounts
-    console.log(
+    logger.info(
       `Checking privacy for like on post ${postId} by user ${userId}`
     );
     if (post.User.IsPrivate && post.UserID !== userId) {
@@ -468,8 +485,11 @@ const likePost = async (req, res) => {
           Status: "ACCEPTED",
         },
       });
-      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      logger.info(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
       if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to like private post ${postId}`
+        );
         return res.status(403).json({
           error: "Private account",
           message: `You must follow @${post.User.Username} to like their posts`,
@@ -484,11 +504,13 @@ const likePost = async (req, res) => {
 
     if (existingLike) {
       await prisma.like.delete({ where: { LikeID: existingLike.LikeID } });
+      logger.info(`User ${userId} unliked post ${postId}`);
     } else {
       await prisma.like.create({
         data: { PostID: parseInt(postId), UserID: userId },
       });
       await createLikeNotification(postId, userId, req.user.Username);
+      logger.info(`User ${userId} liked post ${postId}`);
     }
 
     // Clear cache
@@ -497,6 +519,9 @@ const likePost = async (req, res) => {
 
     res.json({ success: true, action: existingLike ? "unliked" : "liked" });
   } catch (error) {
+    logger.error(
+      `Error toggling like for post ${req.params.postId}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to toggle like");
   }
 };
@@ -510,11 +535,6 @@ const addComment = async (req, res) => {
     const { postId } = req.params;
     const { content } = req.body;
     const userId = req.user.UserID;
-
-    // Check comment safety
-    if (!(await LocalModeration.checkText(content))) {
-      return res.status(400).json({ error: "Comment violates guidelines" });
-    }
 
     // Verify post exists and get owner details
     const post = await prisma.post.findUnique({
@@ -530,10 +550,13 @@ const addComment = async (req, res) => {
       },
     });
 
-    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (!post) {
+      logger.info(`Post ${postId} not found for comment by user ${userId}`);
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     // Check access for private accounts
-    console.log(
+    logger.info(
       `Checking privacy for comment on post ${postId} by user ${userId}`
     );
     if (post.User.IsPrivate && post.UserID !== userId) {
@@ -544,8 +567,11 @@ const addComment = async (req, res) => {
           Status: "ACCEPTED",
         },
       });
-      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      logger.info(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
       if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to comment on private post ${postId}`
+        );
         return res.status(403).json({
           error: "Private account",
           message: `You must follow @${post.User.Username} to comment on their posts`,
@@ -555,7 +581,11 @@ const addComment = async (req, res) => {
 
     // Create comment
     const comment = await prisma.comment.create({
-      data: { PostID: parseInt(postId), UserID: userId, Content: content },
+      data: {
+        PostID: parseInt(postId),
+        UserID: userId,
+        Content: content || null,
+      },
       include: {
         User: {
           select: { UserID: true, Username: true, ProfilePicture: true },
@@ -571,13 +601,22 @@ const addComment = async (req, res) => {
         post.UserID,
         req.user.Username
       );
+      logger.info(
+        `Notification sent for comment on post ${postId} by user ${userId}`
+      );
     }
 
     // Clear cache
     await redis.del(`post:${postId}`);
+    logger.info(
+      `Comment added successfully to post ${postId} by user ${userId}`
+    );
 
     res.status(201).json(comment);
   } catch (error) {
+    logger.error(
+      `Error adding comment to post ${req.params.postId}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to add comment");
   }
 };
@@ -605,10 +644,13 @@ const savePost = async (req, res) => {
       },
     });
 
-    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (!post) {
+      logger.info(`Post ${postId} not found for save by user ${userId}`);
+      return res.status(404).json({ error: "Post not found" });
+    }
 
     // Check access for private accounts
-    console.log(
+    logger.info(
       `Checking privacy for save on post ${postId} by user ${userId}`
     );
     if (post.User.IsPrivate && post.UserID !== userId) {
@@ -619,8 +661,11 @@ const savePost = async (req, res) => {
           Status: "ACCEPTED",
         },
       });
-      console.log(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
+      logger.info(`Is user ${userId} following ${post.UserID}? ${isFollowing}`);
       if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to save private post ${postId}`
+        );
         return res.status(403).json({
           error: "Private account",
           message: `You must follow @${post.User.Username} to save their posts`,
@@ -637,14 +682,19 @@ const savePost = async (req, res) => {
       await prisma.savedPost.delete({
         where: { SavedPostID: existingSave.SavedPostID },
       });
+      logger.info(`User ${userId} unsaved post ${postId}`);
     } else {
       await prisma.savedPost.create({
         data: { PostID: parseInt(postId), UserID: userId },
       });
+      logger.info(`User ${userId} saved post ${postId}`);
     }
 
     res.json({ success: true, action: existingSave ? "unsaved" : "saved" });
   } catch (error) {
+    logger.error(
+      `Error toggling save for post ${req.params.postId}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to toggle save");
   }
 };
@@ -662,6 +712,7 @@ const reportPost = async (req, res) => {
     // Validate post ID
     const parsedPostId = parseInt(postId);
     if (isNaN(parsedPostId)) {
+      logger.info(`Invalid postId ${postId} for report by user ${userId}`);
       return res.status(400).json({ error: "Invalid post ID" });
     }
 
@@ -681,6 +732,9 @@ const reportPost = async (req, res) => {
     });
 
     if (!post) {
+      logger.info(
+        `Post ${parsedPostId} not found for report by user ${userId}`
+      );
       return res.status(404).json({ error: "Post not found" });
     }
 
@@ -700,6 +754,9 @@ const reportPost = async (req, res) => {
     }
 
     if (!hasAccess) {
+      logger.info(
+        `User ${userId} denied access to report private post ${parsedPostId}`
+      );
       return res.status(403).json({
         error: "Private account",
         message: `You must follow @${post.User.Username} to report their posts`,
@@ -715,6 +772,7 @@ const reportPost = async (req, res) => {
     });
 
     if (existingReport) {
+      logger.info(`User ${userId} already reported post ${parsedPostId}`);
       return res
         .status(400)
         .json({ error: "You have already reported this post" });
@@ -722,6 +780,9 @@ const reportPost = async (req, res) => {
 
     // Validate reason
     if (!reason || typeof reason !== "string" || reason.trim() === "") {
+      logger.info(
+        `Invalid reason for report on post ${parsedPostId} by user ${userId}`
+      );
       return res.status(400).json({ error: "Reason is required" });
     }
 
@@ -742,12 +803,14 @@ const reportPost = async (req, res) => {
       reason.trim(),
       req.user.Username
     );
+    logger.info(`Post ${parsedPostId} reported successfully by user ${userId}`);
 
     res.status(201).json({
       message: "Post reported successfully",
       reportId: report.ReportID,
     });
   } catch (error) {
+    logger.error(`Error reporting post ${req.params.postId}: ${error.message}`);
     handleServerError(res, error, "Failed to report post");
   }
 };
@@ -788,6 +851,9 @@ async function createLikeNotification(postId, likerId, likerUsername) {
         },
       },
     });
+    logger.info(
+      `Like notification created for post ${postId} by user ${likerId}`
+    );
   }
 }
 
@@ -825,6 +891,9 @@ async function createCommentNotification(
         },
       },
     });
+    logger.info(
+      `Comment notification created for post ${postId} by user ${commenterId}`
+    );
   }
 }
 
@@ -866,6 +935,9 @@ async function notifyAdminsAboutReport(
         });
       }
     })
+  );
+  logger.info(
+    `Admins notified about report on post ${postId} by user ${reporterId}`
   );
 }
 

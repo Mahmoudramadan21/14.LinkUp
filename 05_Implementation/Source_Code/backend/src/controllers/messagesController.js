@@ -62,14 +62,12 @@ const getConversations = async (req, res) => {
           (p) => p.UserID !== UserID
         );
 
-        // Count unread messages (not sent by user, not read by user)
+        // Count unread messages (not sent by user, not read)
         const unreadCount = await prisma.message.count({
           where: {
             conversationId: conv.id,
             senderId: { not: UserID },
-            readBy: {
-              none: { UserID },
-            },
+            readAt: null,
           },
         });
 
@@ -143,8 +141,8 @@ const createConversation = async (req, res) => {
     }
 
     // Create conversation and notify participant
-    const [conversation] = await prisma.$transaction([
-      prisma.conversation.create({
+    const conversation = await prisma.$transaction(async (tx) => {
+      const newConversation = await tx.conversation.create({
         data: {
           participants: {
             connect: [{ UserID }, { UserID: participantId }],
@@ -159,19 +157,22 @@ const createConversation = async (req, res) => {
             },
           },
         },
-      }),
-      prisma.notification.create({
+      });
+
+      await tx.notification.create({
         data: {
           UserID: participantId,
-          Type: "NEW_CONVERSATION",
+          Type: "MESSAGE",
           Content: `${req.user.Username} started a conversation with you`,
           Metadata: {
-            conversationId: prisma.conversation.create({}).id,
+            conversationId: newConversation.id,
             initiatorId: UserID,
           },
         },
-      }),
-    ]);
+      });
+
+      return newConversation;
+    });
 
     // Invalidate conversation cache for participants
     await redis.del(`conversations:${UserID}`);
@@ -179,19 +180,15 @@ const createConversation = async (req, res) => {
 
     // Emit Socket.IO event to participants
     if (req.io) {
-      console.log(`Emitting newConversation to room: ${conversation.id}`);
       req.io.to(conversation.id).emit("newConversation", {
         conversationId: conversation.id,
         participants: conversation.participants,
         createdAt: conversation.createdAt,
       });
-    } else {
-      console.warn("Socket.IO instance not available in req.io");
     }
 
     res.status(201).json(conversation);
   } catch (error) {
-    console.error("createConversation error:", error);
     handleServerError(res, error, "Failed to create conversation");
   }
 };
@@ -213,11 +210,9 @@ const getMessages = async (req, res) => {
     }
 
     // Start a transaction to fetch and update atomically
-    const [conversation] = await prisma.$transaction([
-      prisma.conversation.findUnique({
-        where: {
-          id: conversationId,
-        },
+    const conversation = await prisma.$transaction(async (tx) => {
+      const conv = await tx.conversation.findUnique({
+        where: { id: conversationId },
         include: {
           participants: {
             select: {
@@ -228,9 +223,7 @@ const getMessages = async (req, res) => {
           },
           messages: {
             take: parseInt(limit),
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: { createdAt: "desc" },
             include: {
               sender: {
                 select: {
@@ -256,9 +249,7 @@ const getMessages = async (req, res) => {
                 },
               },
               readBy: {
-                select: {
-                  UserID: true,
-                },
+                select: { UserID: true },
               },
               replyTo: {
                 select: {
@@ -270,8 +261,24 @@ const getMessages = async (req, res) => {
             },
           },
         },
-      }),
-    ]);
+      });
+
+      // Mark unread messages as read
+      if (conv) {
+        await tx.message.updateMany({
+          where: {
+            conversationId,
+            senderId: { not: userId },
+            readAt: null,
+          },
+          data: {
+            readAt: new Date(),
+          },
+        });
+      }
+
+      return conv;
+    });
 
     if (!conversation) {
       return res.status(404).json({ error: "Conversation not found" });
@@ -304,101 +311,93 @@ const getMessages = async (req, res) => {
  */
 const sendMessage = async (req, res) => {
   try {
-    // Log incoming request data for debugging
-    console.log("sendMessage - req.body:", req.body);
-    console.log("sendMessage - req.file:", req.file);
-
     const { conversationId } = req.params;
     const { content, replyToId } = req.body;
     const userId = req.user.UserID;
+    let attachmentData = null;
 
     // Verify conversation exists and user is a participant
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: {
-        participants: { select: { UserID: true, Username: true } },
-        messages: { take: 1, select: { id: true } },
+        id: true,
+        participants: { select: { UserID: true } },
       },
     });
 
-    if (
-      !conversation ||
-      !conversation.participants.some((p) => p.UserID === userId)
-    ) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized access to conversation" });
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found" });
     }
 
-    let attachment = null;
-    // Handle file upload if present
-    if (req.file) {
-      const result = await uploadToCloud(
-        req.file.buffer,
-        `messages/${conversationId}`,
-        req.file.mimetype.startsWith("video/") ? "video" : "image"
-      );
+    const isParticipant = conversation.participants.some(
+      (p) => p.UserID === userId
+    );
+    if (!isParticipant) {
+      return res
+        .status(403)
+        .json({ error: "User is not a participant in this conversation" });
+    }
 
-      attachment = {
-        url: result.secure_url,
-        type: req.file.mimetype.startsWith("video/") ? "video" : "image",
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
+    // Create message data object
+    const messageData = {
+      content: content || null,
+      senderId: userId,
+      conversationId,
+    };
+
+    // Add replyToId if provided
+    if (replyToId) {
+      messageData.replyToId = replyToId;
+    }
+
+    // Handle attachment upload if provided
+    if (req.file) {
+      const result = await uploadToCloud(req.file.buffer, {
+        folder: `messages/${userId}`,
+        resource_type: "auto",
+      });
+
+      // Add attachment relation
+      messageData.attachments = {
+        create: {
+          url: result.secure_url,
+          type: req.file.mimetype,
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+        },
       };
     }
 
-    // Create message and notify other participant
-    const otherParticipant = conversation.participants.find(
-      (p) => p.UserID !== userId
-    );
-    const isFirstMessage = conversation.messages.length === 0;
-    const [message] = await prisma.$transaction([
-      prisma.message.create({
-        data: {
-          content: content || null, // Allow null content if attachment exists
-          senderId: userId,
-          conversationId,
-          replyToId,
-          attachments: attachment ? { create: attachment } : undefined,
-        },
-        include: {
-          sender: {
-            select: { UserID: true, Username: true, ProfilePicture: true },
-          },
-          attachments: true,
-          replyTo: {
-            select: { id: true, content: true, senderId: true },
-          },
-        },
-      }),
-      // Notify other participant
-      prisma.notification.create({
-        data: {
-          UserID: otherParticipant.UserID,
-          Type: "NEW_MESSAGE",
-          Content: isFirstMessage
-            ? `${req.user.Username} sent you a new message`
-            : `${req.user.Username} replied in your conversation`,
-          Metadata: {
-            conversationId,
-            messageId: prisma.message.create({}).id,
-            senderId: userId,
-          },
-        },
-      }),
-    ]);
+    // Create message in database
+    const message = await prisma.message.create({
+      data: messageData,
+      include: {
+        sender: { select: { UserID: true, Username: true } },
+        attachments: true,
+      },
+    });
 
-    // Emit Socket.IO event to conversation room
-    if (req.io) {
-      console.log(`Emitting newMessage to room: ${conversationId}`);
-      req.io.to(conversationId).emit("newMessage", message);
-    } else {
-      console.warn("Socket.IO instance not available in req.io");
+    // Update conversation's updatedAt
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Invalidate conversation cache for participants
+    for (const participant of conversation.participants) {
+      await redis.del(`conversations:${participant.UserID}`);
     }
 
-    return res.status(201).json(message);
+    // Emit message via Socket.IO
+    const io = req.app.get("io");
+    io.to(conversationId).emit("newMessage", {
+      ...message,
+      conversationId,
+      timestamp: new Date(),
+    });
+
+    res.status(201).json(message);
   } catch (error) {
-    console.error("sendMessage error:", error);
     handleServerError(res, error, "Failed to send message");
   }
 };
@@ -477,7 +476,6 @@ const addReaction = async (req, res) => {
 
     // Emit Socket.IO event to conversation room
     if (req.io) {
-      console.log(`Emitting reactionAdded to room: ${message.conversationId}`);
       req.io.to(message.conversationId).emit("reactionAdded", {
         messageId,
         reaction: {
@@ -486,13 +484,10 @@ const addReaction = async (req, res) => {
           userId: reaction.userId,
         },
       });
-    } else {
-      console.warn("Socket.IO instance not available in req.io");
     }
 
     res.status(201).json({ messageId, emoji: reaction.emoji });
   } catch (error) {
-    console.error("addReaction error:", error);
     handleServerError(res, error, "Failed to add reaction");
   }
 };
@@ -528,26 +523,22 @@ const handleTyping = async (req, res) => {
     // Update typing status in Redis
     const cacheKey = `typing:${conversationId}:${UserID}`;
     if (isTyping) {
-      await redis.set(cacheKey, "true", "EX", 10);
+      await redis.setEx(cacheKey, 10, "true");
     } else {
       await redis.del(cacheKey);
     }
 
     // Emit Socket.IO event to conversation room
     if (req.io) {
-      console.log(`Emitting typing to room: ${conversationId}`);
       req.io.to(conversationId).emit("typing", {
         conversationId,
         userId: UserID,
         isTyping,
       });
-    } else {
-      console.warn("Socket.IO instance not available in req.io");
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error("handleTyping error:", error);
     handleServerError(res, error, "Failed to handle typing status");
   }
 };
@@ -591,7 +582,6 @@ const getActiveFollowing = async (req, res) => {
       count: activeFollowing.length,
     });
   } catch (error) {
-    console.error("getActiveFollowing error:", error);
     handleServerError(res, error, "Failed to fetch active following");
   }
 };
@@ -604,9 +594,6 @@ const getSuggestedChatUsers = async (req, res) => {
   const { UserID } = req.user;
 
   try {
-    // Debug: Log the current user ID
-    console.log("getSuggestedChatUsers: UserID =", UserID);
-
     // Fetch followed users with accepted status
     const followedUsers = await prisma.follower.findMany({
       where: {
@@ -624,12 +611,6 @@ const getSuggestedChatUsers = async (req, res) => {
         },
       },
     });
-
-    // Debug: Log followed users count
-    console.log(
-      "getSuggestedChatUsers: Followed users =",
-      followedUsers.length
-    );
 
     // Filter users who are not banned and have no conversations with the current user
     const suggestedUsers = await Promise.all(
@@ -656,19 +637,14 @@ const getSuggestedChatUsers = async (req, res) => {
       })
     );
 
-    // Remove null entries and log final count
+    // Remove null entries
     const filteredUsers = suggestedUsers.filter((user) => user !== null);
-    console.log(
-      "getSuggestedChatUsers: Suggested users =",
-      filteredUsers.length
-    );
 
     res.json({
       suggestedUsers: filteredUsers,
       count: filteredUsers.length,
     });
   } catch (error) {
-    console.error("getSuggestedChatUsers error:", error);
     handleServerError(res, error, "Failed to fetch suggested chat users");
   }
 };
