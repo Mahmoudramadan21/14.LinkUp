@@ -1,22 +1,15 @@
 const express = require("express");
 const router = express.Router();
+const { authMiddleware } = require("../middleware/authMiddleware");
 const {
   getNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  updateNotificationPreferences,
+  markAsRead,
   deleteNotification,
 } = require("../controllers/notificationController");
-const { authMiddleware } = require("../middleware/authMiddleware");
 const { validate } = require("../middleware/validationMiddleware");
-const {
-  getNotificationsValidator,
-  markNotificationAsReadValidator,
-  updateNotificationPreferencesValidator,
-  deleteNotificationValidator,
-} = require("../validators/notificationValidator");
+const { notificationRules } = require("../validators/notificationValidators");
 
-// Apply auth middleware to all routes
+// Apply authentication middleware to all routes
 router.use(authMiddleware);
 
 /**
@@ -28,11 +21,10 @@ router.use(authMiddleware);
 
 /**
  * @swagger
- * /notifications:
+ * /api/notifications:
  *   get:
- *     summary: Fetch user notifications
+ *     summary: Get user notifications
  *     tags: [Notifications]
- *     description: Retrieves notifications for the authenticated user with pagination and optional read status filtering
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -40,24 +32,27 @@ router.use(authMiddleware);
  *         name: page
  *         schema:
  *           type: integer
+ *           minimum: 1
  *           default: 1
  *         description: Page number for pagination
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 20
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
  *         description: Number of notifications per page
  *       - in: query
- *         name: readStatus
+ *         name: type
  *         schema:
  *           type: string
- *           enum: [ALL, READ, UNREAD]
- *           default: ALL
- *         description: Filter notifications by read status
+ *           enum: [all, unread, read, follow, post, story, message]
+ *           default: all
+ *         description: Filter notifications by type
  *     responses:
  *       200:
- *         description: Notifications retrieved successfully
+ *         description: List of user notifications
  *         content:
  *           application/json:
  *             schema:
@@ -68,10 +63,11 @@ router.use(authMiddleware);
  *                   items:
  *                     type: object
  *                     properties:
- *                       notificationId:
+ *                       id:
  *                         type: integer
  *                       type:
  *                         type: string
+ *                         enum: [FOLLOW, POST, STORY, MESSAGE]
  *                       content:
  *                         type: string
  *                       isRead:
@@ -79,47 +75,63 @@ router.use(authMiddleware);
  *                       createdAt:
  *                         type: string
  *                         format: date-time
- *                       sender:
+ *                       actor:
+ *                         type: object
+ *                         properties:
+ *                           UserID:
+ *                             type: integer
+ *                           Username:
+ *                             type: string
+ *                           ProfilePicture:
+ *                             type: string
+ *                             nullable: true
+ *                       reference:
  *                         type: object
  *                         nullable: true
  *                         properties:
- *                           userId:
+ *                           id:
  *                             type: integer
- *                           username:
+ *                           type:
  *                             type: string
- *                           profilePicture:
- *                             type: string
- *                       metadata:
- *                         type: object
- *                 totalCount:
+ *                             enum: [POST, STORY, CONVERSATION]
+ *                 total:
  *                   type: integer
  *                 page:
  *                   type: integer
- *                 totalPages:
+ *                 limit:
  *                   type: integer
  *       400:
- *         $ref: '#/components/responses/ErrorResponse'
+ *         description: Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/", getNotificationsValidator, validate, getNotifications);
+router.get("/", notificationRules, validate, getNotifications);
 
 /**
  * @swagger
- * /notifications/{notificationId}/read:
- *   put:
+ * /api/notifications/{id}/read:
+ *   patch:
  *     summary: Mark a notification as read
  *     tags: [Notifications]
- *     description: Marks a specific notification as read for the authenticated user
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: notificationId
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the notification
+ *         description: ID of the notification to mark as read
  *     responses:
  *       200:
  *         description: Notification marked as read
@@ -132,129 +144,52 @@ router.get("/", getNotificationsValidator, validate, getNotifications);
  *                   type: boolean
  *                 message:
  *                   type: string
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
+ *                 notificationId:
+ *                   type: integer
+ *       400:
+ *         description: Invalid notification ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       400:
- *         $ref: '#/components/responses/ErrorResponse'
- */
-router.put(
-  "/:notificationId/read",
-  markNotificationAsReadValidator,
-  validate,
-  markNotificationAsRead
-);
-
-/**
- * @swagger
- * /notifications/read:
- *   put:
- *     summary: Mark all notifications as read
- *     tags: [Notifications]
- *     description: Marks all notifications as read for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: All notifications marked as read
+ *         description: Not the notification owner
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Notification not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
- *         $ref: '#/components/responses/ErrorResponse'
- */
-router.put("/read", markAllNotificationsAsRead);
-
-/**
- * @swagger
- * /notifications/preferences:
- *   put:
- *     summary: Update notification preferences
- *     tags: [Notifications]
- *     description: Updates the notification preferences for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               emailNotifications:
- *                 type: boolean
- *                 description: Enable or disable email notifications
- *               pushNotifications:
- *                 type: boolean
- *                 description: Enable or disable push notifications
- *               notificationTypes:
- *                 type: array
- *                 items:
- *                   type: string
- *                   enum: [LIKE, COMMENT, FOLLOW, FOLLOW_REQUEST, REPORT, STORY_LIKE]
- *                 description: List of allowed notification types
- *           example:
- *             emailNotifications: true
- *             pushNotifications: false
- *             notificationTypes: ["LIKE", "COMMENT", "STORY_LIKE"]
- *     responses:
- *       200:
- *         description: Notification preferences updated successfully
+ *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 preferences:
- *                   type: object
- *                   properties:
- *                     EmailNotifications:
- *                       type: boolean
- *                     PushNotifications:
- *                       type: boolean
- *                     NotificationTypes:
- *                       type: array
- *                       items:
- *                         type: string
- *       400:
- *         $ref: '#/components/responses/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.put(
-  "/preferences",
-  updateNotificationPreferencesValidator,
-  validate,
-  updateNotificationPreferences
-);
+router.patch("/:id/read", validate, markAsRead);
 
 /**
  * @swagger
- * /notifications/{notificationId}:
+ * /api/notifications/{id}:
  *   delete:
  *     summary: Delete a notification
  *     tags: [Notifications]
- *     description: Deletes a specific notification for the authenticated user
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: notificationId
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the notification
+ *         description: ID of the notification to delete
  *     responses:
  *       200:
  *         description: Notification deleted successfully
@@ -267,18 +202,35 @@ router.put(
  *                   type: boolean
  *                 message:
  *                   type: string
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
- *       403:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *                 notificationId:
+ *                   type: integer
  *       400:
- *         $ref: '#/components/responses/ErrorResponse'
+ *         description: Invalid notification ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Not the notification owner
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Notification not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete(
-  "/:notificationId",
-  deleteNotificationValidator,
-  validate,
-  deleteNotification
-);
+router.delete("/:id", validate, deleteNotification);
 
 module.exports = router;

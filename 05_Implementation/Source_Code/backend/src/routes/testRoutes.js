@@ -1,17 +1,22 @@
-// Import express
 const express = require("express");
 const router = express.Router();
 
 /**
  * @swagger
+ * tags:
+ *   name: Test
+ *   description: Test endpoints
+ */
+
+/**
+ * @swagger
  * /api/test:
  *   get:
- *     summary: Test API endpoint
+ *     summary: Test the API
  *     tags: [Test]
- *     description: Returns a test message
  *     responses:
  *       200:
- *         description: Success
+ *         description: API is working
  *         content:
  *           application/json:
  *             schema:
@@ -19,11 +24,10 @@ const router = express.Router();
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Test endpoint working!
+ *                   example: API is working!
  */
-router.get("/test", (req, res) => {
-  res.json({ message: "Test endpoint working!" });
+router.get("/", (req, res) => {
+  res.json({ message: "API is working!" });
 });
 
-// Export the router
 module.exports = router;

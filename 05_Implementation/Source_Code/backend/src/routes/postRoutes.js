@@ -1,46 +1,41 @@
 const express = require("express");
 const router = express.Router();
+const { authMiddleware } = require("../middleware/authMiddleware");
+const { moderateContent } = require("../middleware/moderationMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 const {
   createPost,
-  getPosts,
-  getPostById,
+  getPost,
   updatePost,
   deletePost,
+  getUserPosts,
+  getPosts,
   likePost,
-  addComment,
-  savePost,
-  reportPost,
+  unlikePost,
 } = require("../controllers/postController");
+const { validate } = require("../middleware/validationMiddleware");
+const rateLimit = require("express-rate-limit");
 const {
   postCreationRules,
   postUpdateRules,
-  reportPostRules,
 } = require("../validators/postValidators");
-const { validate } = require("../middleware/validationMiddleware");
-const { authMiddleware } = require("../middleware/authMiddleware");
-const checkPostOwnership = require("../middleware/postOwnershipMiddleware");
-const upload = require("../middleware/uploadMiddleware");
-const rateLimit = require("express-rate-limit");
-const { moderateContent } = require("../middleware/moderationMiddleware");
 
-// Rate limiting configuration
 const postLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per window
-  message: "Too many requests from this IP, please try again later",
-  skip: (req) => req.user?.Role === "ADMIN", // Skip rate limiting for admins
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit to 10 posts per hour per user
+  message: "Too many posts created, please try again later",
 });
 
 /**
  * @swagger
  * tags:
  *   name: Posts
- *   description: Post management endpoints
+ *   description: User posts management
  */
 
 /**
  * @swagger
- * /posts:
+ * /api/posts:
  *   post:
  *     summary: Create a new post
  *     tags: [Posts]
@@ -63,10 +58,28 @@ const postLimiter = rateLimit({
  *     responses:
  *       201:
  *         description: Post created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Post'
  *       400:
  *         description: Invalid input or content violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       429:
+ *         description: Too many posts created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post(
   "/",
@@ -81,9 +94,9 @@ router.post(
 
 /**
  * @swagger
- * /posts:
+ * /api/posts:
  *   get:
- *     summary: Get all public posts (paginated)
+ *     summary: Get posts feed
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -99,20 +112,30 @@ router.post(
  *         schema:
  *           type: integer
  *           default: 10
- *         description: Number of items per page
+ *         description: Number of posts per page
  *     responses:
  *       200:
  *         description: List of posts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Post'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/", authMiddleware, getPosts);
 
 /**
  * @swagger
- * /posts/{postId}:
+ * /api/posts/{postId}:
  *   get:
- *     summary: Get a specific post by ID
+ *     summary: Get a specific post
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -122,20 +145,32 @@ router.get("/", authMiddleware, getPosts);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to retrieve
+ *         description: ID of the post
  *     responses:
  *       200:
  *         description: Post details
- *       403:
- *         description: Access to private post denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Post'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Post not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/:postId", authMiddleware, getPostById);
+router.get("/:postId", authMiddleware, getPost);
 
 /**
  * @swagger
- * /posts/{postId}:
+ * /api/posts/{postId}:
  *   put:
  *     summary: Update a post
  *     tags: [Posts]
@@ -147,39 +182,65 @@ router.get("/:postId", authMiddleware, getPostById);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to update
+ *         description: ID of the post
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               content:
  *                 type: string
+ *                 description: Updated post content
+ *               media:
+ *                 type: string
+ *                 format: binary
+ *                 description: Updated image or video file
  *     responses:
  *       200:
  *         description: Post updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Post'
  *       400:
  *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Not authorized to update this post
+ *         description: Not the post owner
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Post not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put(
   "/:postId",
   authMiddleware,
-  checkPostOwnership,
+  upload.single("media"),
   postUpdateRules,
   validate,
-  moderateContent,
   updatePost
 );
 
 /**
  * @swagger
- * /posts/{postId}:
+ * /api/posts/{postId}:
  *   delete:
  *     summary: Delete a post
  *     tags: [Posts]
@@ -191,45 +252,87 @@ router.put(
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to delete
+ *         description: ID of the post
  *     responses:
- *       200:
+ *       204:
  *         description: Post deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Not authorized to delete this post
+ *         description: Not the post owner
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Post not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete("/:postId", authMiddleware, checkPostOwnership, deletePost);
+router.delete("/:postId", authMiddleware, deletePost);
 
 /**
  * @swagger
- * /posts/{postId}/like:
- *   post:
- *     summary: Like or unlike a post
+ * /api/posts/user/{userId}:
+ *   get:
+ *     summary: Get posts by a specific user
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: postId
+ *         name: userId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to like/unlike
+ *         description: ID of the user
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of posts per page
  *     responses:
  *       200:
- *         description: Like status toggled successfully
+ *         description: List of user posts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Post'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Post not found
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/:postId/like", authMiddleware, postLimiter, likePost);
+router.get("/user/:userId", authMiddleware, getUserPosts);
 
 /**
  * @swagger
- * /posts/{postId}/comment:
+ * /api/posts/{postId}/like:
  *   post:
- *     summary: Add a comment to a post
+ *     summary: Like a post
  *     tags: [Posts]
  *     security:
  *       - bearerAuth: []
@@ -239,84 +342,10 @@ router.post("/:postId/like", authMiddleware, postLimiter, likePost);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the post to comment on
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               content:
- *                 type: string
- *     responses:
- *       201:
- *         description: Comment added successfully
- *       400:
- *         description: Invalid input or content violation
- *       404:
- *         description: Post not found
- */
-router.post(
-  "/:postId/comment",
-  authMiddleware,
-  postLimiter,
-  postCreationRules,
-  validate,
-  moderateContent,
-  addComment
-);
-
-/**
- * @swagger
- * /posts/{postId}/save:
- *   post:
- *     summary: Save or unsave a post
- *     tags: [Posts]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: postId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the post to save/unsave
+ *         description: ID of the post
  *     responses:
  *       200:
- *         description: Save status toggled successfully
- *       404:
- *         description: Post not found
- */
-router.post("/:postId/save", authMiddleware, savePost);
-
-/**
- * @swagger
- * /posts/{postId}/report:
- *   post:
- *     summary: Report a post
- *     tags: [Posts]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: postId
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               reason:
- *                 type: string
- *                 example: SPAM
- *     responses:
- *       201:
- *         description: Post reported successfully
+ *         description: Post liked successfully
  *         content:
  *           application/json:
  *             schema:
@@ -324,21 +353,73 @@ router.post("/:postId/save", authMiddleware, savePost);
  *               properties:
  *                 message:
  *                   type: string
- *                 reportId:
- *                   type: integer
+ *                   example: Post liked
  *       400:
- *         description: Invalid input or duplicate report
- *       403:
- *         description: No access to private account
+ *         description: Already liked or invalid post
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Post not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post(
-  "/:postId/report",
-  authMiddleware,
-  reportPostRules,
-  validate,
-  reportPost
-);
+router.post("/:postId/like", authMiddleware, likePost);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/unlike:
+ *   post:
+ *     summary: Unlike a post
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the post
+ *     responses:
+ *       200:
+ *         description: Post unliked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Post unliked
+ *       400:
+ *         description: Not liked or invalid post
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Post not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post("/:postId/unlike", authMiddleware, unlikePost);
 
 module.exports = router;

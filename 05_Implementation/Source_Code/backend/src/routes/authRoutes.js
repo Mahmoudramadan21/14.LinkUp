@@ -34,149 +34,7 @@ const loginLimiter = rateLimit({
 
 /**
  * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- *   schemas:
- *     UserAuth:
- *       type: object
- *       required:
- *         - username
- *         - email
- *         - password
- *       properties:
- *         username:
- *           type: string
- *           minLength: 3
- *           maxLength: 30
- *           pattern: '^[a-zA-Z0-9_]+$'
- *           example: john_doe
- *           description: Unique username (alphanumeric and underscores only)
- *         email:
- *           type: string
- *           format: email
- *           example: john@example.com
- *           description: Valid email address
- *         password:
- *           type: string
- *           minLength: 8
- *           example: P@ssw0rd123
- *           description: Password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
- *     LoginCredentials:
- *       type: object
- *       required:
- *         - usernameOrEmail
- *         - password
- *       properties:
- *         usernameOrEmail:
- *           type: string
- *           example: john_doe
- *           description: Username or email address
- *         password:
- *           type: string
- *           minLength: 8
- *           example: P@ssw0rd123
- *           description: User password
- *     RefreshTokenRequest:
- *       type: object
- *       required:
- *         - refreshToken
- *       properties:
- *         refreshToken:
- *           type: string
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *           description: Valid refresh token
- *     PasswordResetRequest:
- *       type: object
- *       required:
- *         - email
- *       properties:
- *         email:
- *           type: string
- *           format: email
- *           example: john@example.com
- *           description: Email address associated with the account
- *     VerifyCodeRequest:
- *       type: object
- *       required:
- *         - email
- *         - code
- *       properties:
- *         email:
- *           type: string
- *           format: email
- *           example: john@example.com
- *           description: Email address associated with the account
- *         code:
- *           type: string
- *           pattern: '^[0-9]{4}$'
- *           example: "1234"
- *           description: 4-digit verification code received via email
- *     PasswordResetWithToken:
- *       type: object
- *       required:
- *         - resetToken
- *         - newPassword
- *       properties:
- *         resetToken:
- *           type: string
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *           description: Temporary token received after code verification
- *         newPassword:
- *           type: string
- *           minLength: 8
- *           example: NewP@ssw0rd123
- *           description: New password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
- *     SuccessResponse:
- *       type: object
- *       properties:
- *         message:
- *           type: string
- *           description: Success message
- *         codeSent:
- *           type: boolean
- *           description: Indicates if a code was sent (optional)
- *         resetToken:
- *           type: string
- *           description: Temporary token for password reset (optional)
- *         data:
- *           type: object
- *           description: Additional data (optional)
- *       example:
- *         message: Operation successful
- *         data: {}
- *     ErrorResponse:
- *       type: object
- *       properties:
- *         message:
- *           type: string
- *           description: Error message
- *         error:
- *           type: string
- *           description: Detailed error description (optional, development only)
- *         errors:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               field:
- *                 type: string
- *               error:
- *                 type: string
- *           description: Validation errors (optional)
- *       example:
- *         message: Validation failed
- *         errors:
- *           - field: email
- *             error: Invalid email format
- */
-
-/**
- * @swagger
- * /auth/signup:
+ * /api/auth/signup:
  *   post:
  *     summary: Register a new user account
  *     tags: [Authentication]
@@ -233,7 +91,7 @@ router.post("/signup", signupValidationRules, validate, signup);
 
 /**
  * @swagger
- * /auth/login:
+ * /api/auth/login:
  *   post:
  *     summary: Authenticate user and get access token
  *     tags: [Authentication]
@@ -297,7 +155,7 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
 
 /**
  * @swagger
- * /auth/refresh:
+ * /api/auth/refresh:
  *   post:
  *     summary: Refresh access token
  *     tags: [Authentication]
@@ -364,7 +222,7 @@ router.post("/refresh", controllerRefreshToken);
 
 /**
  * @swagger
- * /auth/forgot-password:
+ * /api/auth/forgot-password:
  *   post:
  *     summary: Request a password reset verification code
  *     tags: [Authentication]
@@ -413,7 +271,7 @@ router.post(
 
 /**
  * @swagger
- * /auth/verify-code:
+ * /api/auth/verify-code:
  *   post:
  *     summary: Verify the 4-digit verification code
  *     tags: [Authentication]
@@ -454,7 +312,7 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
 
 /**
  * @swagger
- * /auth/reset-password:
+ * /api/auth/reset-password:
  *   post:
  *     summary: Reset user password using a temporary token
  *     tags: [Authentication]

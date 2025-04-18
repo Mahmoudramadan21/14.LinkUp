@@ -1,33 +1,27 @@
 const express = require("express");
+const router = express.Router();
 const {
   getProfile,
   updateProfile,
-  changePassword,
-  updatePrivacySettings,
-  deleteProfile,
-  getSavedPosts,
-  followUser,
-  unfollowUser,
   getFollowers,
   getFollowing,
+  followUser,
+  unfollowUser,
+  getFollowRequests,
   acceptFollowRequest,
   rejectFollowRequest,
-  getPendingFollowRequests,
-  getUserPosts,
-  getUserStories,
 } = require("../controllers/profileController");
-const { validate } = require("../middleware/validationMiddleware");
-const {
-  updateProfileValidationRules,
-  changePasswordValidationRules,
-  updatePrivacySettingsValidationRules,
-  userIdParamValidator,
-  followActionValidator,
-} = require("../validators/profileValidators");
 const { authMiddleware } = require("../middleware/authMiddleware");
-const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage() });
-const router = express.Router();
+const { validate } = require("../middleware/validationMiddleware");
+const upload = require("../middleware/uploadMiddleware");
+const {
+  profileUpdateRules,
+  followRules,
+  followRequestRules,
+} = require("../validators/profileValidators");
+
+// Apply authentication middleware to all routes
+router.use(authMiddleware);
 
 /**
  * @swagger
@@ -38,94 +32,37 @@ const router = express.Router();
 
 /**
  * @swagger
- * components:
- *   schemas:
- *     User:
- *       type: object
- *       properties:
- *         userId:
- *           type: integer
- *         username:
- *           type: string
- *         email:
- *           type: string
- *         profilePicture:
- *           type: string
- *           nullable: true
- *         coverPicture:
- *           type: string
- *           nullable: true
- *         bio:
- *           type: string
- *           nullable: true
- *         address:
- *           type: string
- *           nullable: true
- *         jobTitle:
- *           type: string
- *           nullable: true
- *         dateOfBirth:
- *           type: string
- *           format: date-time
- *           nullable: true
- *         isPrivate:
- *           type: boolean
- *         role:
- *           type: string
- *           enum: [USER, ADMIN]
- *         createdAt:
- *           type: string
- *           format: date-time
- *         updatedAt:
- *           type: string
- *           format: date-time
- *         postCount:
- *           type: integer
- *         followerCount:
- *           type: integer
- *         followingCount:
- *           type: integer
- *         likeCount:
- *           type: integer
- */
-
-/**
- * @swagger
- * /profile:
+ * /api/profile:
  *   get:
+ *     summary: Get current user's profile
  *     tags: [Profile]
- *     summary: Get user profile
- *     description: Retrieve the user's profile information, including counts for posts, followers, following, and likes.
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Profile retrieved successfully
+ *         description: User profile details
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 profile:
- *                   $ref: '#/components/schemas/User'
- *       404:
- *         description: User not found
+ *               $ref: '#/components/schemas/User'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/", authMiddleware, getProfile);
+router.get("/", getProfile);
 
 /**
  * @swagger
- * /profile/edit:
+ * /api/profile/edit:
  *   put:
+ *     summary: Update current user's profile
  *     tags: [Profile]
- *     summary: Update user profile
- *     description: Update the user's profile information (username, email, bio, address, job title, date of birth, profile picture, cover picture) using form data.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
- *       required: false
  *       content:
  *         multipart/form-data:
  *           schema:
@@ -133,293 +70,125 @@ router.get("/", authMiddleware, getProfile);
  *             properties:
  *               username:
  *                 type: string
- *                 description: Unique username
- *               email:
- *                 type: string
- *                 description: Unique email address
  *               bio:
  *                 type: string
- *                 description: User biography
- *               address:
- *                 type: string
- *                 description: User's address
- *               jobTitle:
- *                 type: string
- *                 description: User's job title
- *               dateOfBirth:
- *                 type: string
- *                 description: User's date of birth (e.g., YYYY-MM-DD)
  *               profilePicture:
  *                 type: string
  *                 format: binary
- *                 description: Profile picture file to upload
- *               coverPicture:
- *                 type: string
- *                 format: binary
- *                 description: Cover picture file to upload
+ *               isPrivate:
+ *                 type: boolean
  *     responses:
  *       200:
  *         description: Profile updated successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 profile:
- *                   $ref: '#/components/schemas/User'
+ *               $ref: '#/components/schemas/User'
  *       400:
- *         description: Invalid input or duplicate username/email
+ *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized
- *       500:
- *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put(
   "/edit",
-  authMiddleware,
-  upload.fields([
-    { name: "profilePicture", maxCount: 1 },
-    { name: "coverPicture", maxCount: 1 },
-  ]),
-  updateProfileValidationRules,
+  upload.single("profilePicture"),
+  profileUpdateRules,
   validate,
   updateProfile
 );
 
 /**
  * @swagger
- * /profile/change-password:
- *   put:
- *     tags: [Profile]
- *     summary: Change user password
- *     description: Change the user's password by verifying the old password using form data.
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               oldPassword:
- *                 type: string
- *                 description: Current password
- *               newPassword:
- *                 type: string
- *                 description: New password
- *             required:
- *               - oldPassword
- *               - newPassword
- *     responses:
- *       200:
- *         description: Password changed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       400:
- *         description: Invalid input or old password is incorrect
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: User not found
- */
-router.put(
-  "/change-password",
-  authMiddleware,
-  upload.none(),
-  changePasswordValidationRules,
-  validate,
-  changePassword
-);
-
-/**
- * @swagger
- * /profile/privacy:
- *   put:
- *     tags: [Profile]
- *     summary: Update privacy settings
- *     description: Update the user's privacy settings (e.g., make account private or public) using form data.
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               isPrivate:
- *                 type: boolean
- *                 description: Whether the account is private
- *             required:
- *               - isPrivate
- *     responses:
- *       200:
- *         description: Privacy settings updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 profile:
- *                   $ref: '#/components/schemas/User'
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.put(
-  "/privacy",
-  authMiddleware,
-  upload.none(),
-  updatePrivacySettingsValidationRules,
-  validate,
-  updatePrivacySettings
-);
-
-/**
- * @swagger
- * /profile:
- *   delete:
- *     tags: [Profile]
- *     summary: Delete user profile
- *     description: Delete the user's profile and all associated data.
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Profile deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: User not found
- *       401:
- *         description: Unauthorized
- */
-router.delete("/", authMiddleware, deleteProfile);
-
-/**
- * @swagger
- * /profile/posts/{userId}:
+ * /api/profile/followers:
  *   get:
- *     summary: Get all posts by a specific user
+ *     summary: Get current user's followers
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
+ *       - in: query
+ *         name: page
  *         schema:
  *           type: integer
- *         description: ID of the user whose posts to retrieve
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of followers per page
  *     responses:
  *       200:
- *         description: List of user posts
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 count:
- *                   type: integer
- *                 posts:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Post'
- *       400:
- *         description: Invalid user ID format
- *       403:
- *         description: Private account
- *       404:
- *         description: User not found
- *       500:
- *         description: Server error
- */
-router.get("/posts/:userId", authMiddleware, getUserPosts);
-
-/**
- * @swagger
- * /profile/stories:
- *   get:
- *     tags: [Profile]
- *     summary: Get all stories for the user
- *     description: Retrieve a list of all stories (expired and active) belonging to the authenticated user, including StoryID, MediaURL, and CreatedAt.
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of stories retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 count:
- *                   type: integer
- *                 stories:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       storyId:
- *                         type: integer
- *                       mediaUrl:
- *                         type: string
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.get("/stories", authMiddleware, getUserStories);
-
-/**
- * @swagger
- * /profile/saved-posts:
- *   get:
- *     tags: [Profile]
- *     summary: Get saved posts
- *     description: Retrieve the posts saved by the user.
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Saved posts retrieved successfully
+ *         description: List of followers
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/Post'
+ *                 $ref: '#/components/schemas/Follower'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/saved-posts", authMiddleware, getSavedPosts);
+router.get("/followers", getFollowers);
 
 /**
  * @swagger
- * /profile/follow/{userId}:
- *   post:
+ * /api/profile/following:
+ *   get:
+ *     summary: Get users the current user is following
  *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of followed users per page
+ *     responses:
+ *       200:
+ *         description: List of followed users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Follower'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/following", getFollowing);
+
+/**
+ * @swagger
+ * /api/profile/follow/{userId}:
+ *   post:
  *     summary: Follow a user
- *     description: Follow another user using form data. If the target account is private, this will send a follow request. For public accounts, the follow will be immediate.
+ *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -429,19 +198,9 @@ router.get("/saved-posts", authMiddleware, getSavedPosts);
  *         schema:
  *           type: integer
  *         description: ID of the user to follow
- *     requestBody:
- *       required: false
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               userId:
- *                 type: integer
- *                 description: ID of the user to follow (optional, overrides path param)
  *     responses:
- *       201:
- *         description: Followed successfully or request sent
+ *       200:
+ *         description: Follow request sent or user followed
  *         content:
  *           application/json:
  *             schema:
@@ -449,158 +208,34 @@ router.get("/saved-posts", authMiddleware, getSavedPosts);
  *               properties:
  *                 message:
  *                   type: string
- *                 status:
- *                   type: string
- *                   enum: [PENDING, ACCEPTED]
+ *                   example: Follow request sent
  *       400:
- *         description: Validation error or cannot follow yourself
+ *         description: Invalid user ID or already following
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
- *       409:
- *         description: Already following or request pending
- *       429:
- *         description: Too many requests
- */
-router.post(
-  "/follow/:userId",
-  authMiddleware,
-  upload.none(),
-  userIdParamValidator,
-  followActionValidator,
-  validate,
-  followUser
-);
-
-/**
- * @swagger
- * /profile/follow-requests/pending:
- *   get:
- *     tags: [Profile]
- *     summary: Get pending follow requests
- *     description: Retrieve a list of pending follow requests for private accounts.
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of pending follow requests
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 count:
- *                   type: integer
- *                 pendingRequests:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/FollowRequest'
- *       401:
- *         description: Unauthorized
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get(
-  "/follow-requests/pending",
-  authMiddleware,
-  getPendingFollowRequests
-);
+router.post("/follow/:userId", followRules, validate, followUser);
 
 /**
  * @swagger
- * /profile/follow-requests/{requestId}/accept:
- *   put:
- *     tags: [Profile]
- *     summary: Accept follow request
- *     description: Accept a pending follow request for a private account using form data.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: requestId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the follow request to accept
- *     requestBody:
- *       required: false
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               requestId:
- *                 type: integer
- *                 description: ID of the follow request (optional, overrides path param)
- *     responses:
- *       200:
- *         description: Follow request accepted
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 acceptedFollowers:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/User'
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Follow request not found or already processed
- */
-router.put(
-  "/follow-requests/:requestId/accept",
-  authMiddleware,
-  upload.none(),
-  acceptFollowRequest
-);
-
-/**
- * @swagger
- * /profile/follow-requests/{requestId}/reject:
+ * /api/profile/unfollow/{userId}:
  *   delete:
- *     tags: [Profile]
- *     summary: Reject follow request
- *     description: Reject a pending follow request for a private account.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: requestId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the follow request to reject
- *     responses:
- *       200:
- *         description: Follow request rejected
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Follow request not found or already processed
- */
-router.delete(
-  "/follow-requests/:requestId/reject",
-  authMiddleware,
-  rejectFollowRequest
-);
-
-/**
- * @swagger
- * /profile/unfollow/{userId}:
- *   delete:
- *     tags: [Profile]
  *     summary: Unfollow a user
- *     description: Stop following another user.
+ *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -612,7 +247,7 @@ router.delete(
  *         description: ID of the user to unfollow
  *     responses:
  *       200:
- *         description: Unfollowed successfully
+ *         description: User unfollowed successfully
  *         content:
  *           application/json:
  *             schema:
@@ -620,139 +255,181 @@ router.delete(
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: User unfollowed
  *       400:
- *         description: Cannot unfollow yourself
+ *         description: Invalid user ID or not following
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Follow relationship not found
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete(
-  "/unfollow/:userId",
-  authMiddleware,
-  userIdParamValidator,
-  validate,
-  unfollowUser
-);
+router.delete("/unfollow/:userId", followRules, validate, unfollowUser);
 
 /**
  * @swagger
- * /profile/followers/{userId}:
+ * /api/profile/follow-requests:
  *   get:
+ *     summary: Get pending follow requests
  *     tags: [Profile]
- *     summary: Get user's followers
- *     description: Retrieve a list of users who follow the specified user.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of requests per page
+ *     responses:
+ *       200:
+ *         description: List of pending follow requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/FollowRequest'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/follow-requests", getFollowRequests);
+
+/**
+ * @swagger
+ * /api/profile/follow-requests/{requestId}/accept:
+ *   post:
+ *     summary: Accept a follow request
+ *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: userId
+ *         name: requestId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the user whose followers to retrieve
+ *         description: ID of the follow request
  *     responses:
  *       200:
- *         description: List of followers
+ *         description: Follow request accepted
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 count:
- *                   type: integer
- *                 followers:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/User'
+ *                 message:
+ *                   type: string
+ *                   example: Follow request accepted
+ *       400:
+ *         description: Invalid request ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Private account - cannot view followers
+ *         description: Not authorized to accept this request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: User not found
+ *         description: Request not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get(
-  "/followers/:userId",
-  authMiddleware,
-  userIdParamValidator,
+router.post(
+  "/follow-requests/:requestId/accept",
+  followRequestRules,
   validate,
-  getFollowers
+  acceptFollowRequest
 );
 
 /**
  * @swagger
- * /profile/following/{userId}:
- *   get:
+ * /api/profile/follow-requests/{requestId}/reject:
+ *   post:
+ *     summary: Reject a follow request
  *     tags: [Profile]
- *     summary: Get users followed by a user
- *     description: Retrieve a list of users that the specified user is following.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: userId
+ *         name: requestId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the user whose following list to retrieve
+ *         description: ID of the follow request
  *     responses:
  *       200:
- *         description: List of followed users
+ *         description: Follow request rejected
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 following:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/User'
- *       403:
- *         description: Private account - cannot view following list
- *       404:
- *         description: User not found
- */
-router.get(
-  "/following/:userId",
-  authMiddleware,
-  userIdParamValidator,
-  validate,
-  getFollowing
-);
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     Post:
- *       type: object
- *       properties:
- *         postId:
- *           type: integer
+ *                 message:
+ *                   type: string
+ *                   example: Follow request rejected
+ *       400:
+ *         description: Invalid request ID
  *         content:
- *           type: string
- *         imageUrl:
- *           type: string
- *         videoUrl:
- *           type: string
- *         createdAt:
- *           type: string
- *           format: date-time
- *         updatedAt:
- *           type: string
- *           format: date-time
- *         user:
- *           type: object
- *           properties:
- *             UserID:
- *               type: integer
- *             Username:
- *               type: string
- *             ProfilePicture:
- *               type: string
- *         likeCount:
- *           type: integer
- *         commentCount:
- *           type: integer
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Not authorized to reject this request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Request not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
+router.post(
+  "/follow-requests/:requestId/reject",
+  followRequestRules,
+  validate,
+  rejectFollowRequest
+);
 
 module.exports = router;

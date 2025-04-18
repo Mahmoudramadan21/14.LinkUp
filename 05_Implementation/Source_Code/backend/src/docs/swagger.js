@@ -412,8 +412,8 @@ const swaggerOptions = {
           description: "ID of the highlight",
         },
         postIdParam: {
-          in: "path",
           name: "postId",
+          in: "path",
           required: true,
           schema: { type: "integer" },
           description: "ID of the post",
