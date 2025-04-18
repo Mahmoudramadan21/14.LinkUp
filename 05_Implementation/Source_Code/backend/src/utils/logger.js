@@ -1,21 +1,24 @@
-const { createLogger, format, transports } = require("winston");
-
+const winston = require("winston");
 /**
  * Configures Winston logger for application-wide logging
  * Logs to both console and file with timestamped messages
  */
-const logger = createLogger({
+const logger = winston.createLogger({
   level: "info",
-  format: format.combine(
-    format.timestamp(), // Adds timestamp to each log entry
-    format.printf(({ timestamp, level, message }) => {
-      return `${timestamp} [${level}]: ${message}`;
-    })
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
   ),
-  transports: [
-    new transports.Console(), // Logs to console for real-time debugging
-    new transports.File({ filename: "logs/combined.log" }), // Persists logs to file
-  ],
+  transports: [],
 });
+
+if (!process.env.VERCEL_ENV) {
+  logger.add(
+    new winston.transports.File({ filename: "logs/error.log", level: "error" })
+  );
+  logger.add(new winston.transports.File({ filename: "logs/combined.log" }));
+}
+
+logger.add(new winston.transports.Console());
 
 module.exports = logger;
