@@ -21,6 +21,13 @@ router.use(authMiddleware);
 
 /**
  * @swagger
+ * tags:
+ *   name: Notifications
+ *   description: Notification management endpoints
+ */
+
+/**
+ * @swagger
  * /notifications:
  *   get:
  *     summary: Fetch user notifications

@@ -7,17 +7,29 @@ class RedisClient {
    */
   constructor() {
     this.client = createClient({
-      url: process.env.REDIS_URL || "redis://localhost:6379",
+      url: process.env.REDIS_URL,
       socket: {
         reconnectStrategy: (retries) => {
-          if (retries > 5) return new Error("Max retries reached");
-          return Math.min(retries * 100, 5000); // Exponential backoff with cap
+          if (retries > 5) {
+            logger.error("Max Redis retries reached");
+            return new Error("Max retries reached");
+          }
+          return Math.min(retries * 200, 10000); // Adjusted backoff for Upstash
         },
+        tls: true, // Enable TLS for Upstash
       },
     });
 
     this.client.on("error", (err) => {
       logger.error(`Redis Client Error: ${err}`);
+    });
+
+    this.client.on("ready", () => {
+      logger.info("Redis client ready");
+    });
+
+    this.client.on("reconnecting", () => {
+      logger.info("Redis client reconnecting...");
     });
 
     this.connect();
@@ -29,9 +41,22 @@ class RedisClient {
   async connect() {
     try {
       await this.client.connect();
-      logger.info("Connected to Redis successfully");
+      logger.info("Connected to Upstash Redis successfully");
     } catch (err) {
-      logger.error("Redis connection failed:", err);
+      logger.error("Upstash Redis connection failed:", err);
+      throw err; // Ensure connection errors are propagated
+    }
+  }
+
+  /**
+   * Safely disconnects the Redis client
+   */
+  async disconnect() {
+    try {
+      await this.client.quit();
+      logger.info("Disconnected from Upstash Redis");
+    } catch (err) {
+      logger.error("Error disconnecting from Upstash Redis:", err);
     }
   }
 

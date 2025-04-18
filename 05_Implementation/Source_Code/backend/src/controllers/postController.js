@@ -15,62 +15,53 @@ const ALLOWED_VIDEO_TYPES = ["mp4", "mov", "avi", "mkv", "webm"];
  * Supports text and media content
  */
 const createPost = async (req, res) => {
+  const { content } = req.body;
+  const userId = req.user.UserID;
+  const imageFile = req.file; // Assuming multer is used for file uploads
+
   try {
-    const { content } = req.body;
-    const mediaFile = req.file;
-    const userId = req.user.UserID;
+    // Fetch user's IsPrivate status
+    const user = await prisma.user.findUnique({
+      where: { UserID: userId },
+      select: { IsPrivate: true },
+    });
 
-    // Validate content or media presence
-    if (!content && !mediaFile) {
-      logger.info(
-        `Post creation failed for user ${userId}: No content or media provided`
-      );
-      return res
-        .status(400)
-        .json({ error: "Either content or media is required" });
+    // Upload image to Cloudinary (if provided)
+    let imageUrl = null;
+    if (imageFile) {
+      const uploadResult = await cloudinary.uploader.upload(imageFile.path);
+      imageUrl = uploadResult.secure_url;
     }
 
-    let mediaUrl = null,
-      isImage = false,
-      isVideo = false;
-
-    // Handle media upload
-    if (mediaFile) {
-      const uploadResult = await uploadToCloud(mediaFile.buffer, {
-        folder: "posts",
-        resource_type: "auto",
-      });
-
-      mediaUrl = uploadResult.secure_url || uploadResult;
-
-      // Determine media type
-      const fileExt = mediaFile.originalname.split(".").pop().toLowerCase();
-      isImage =
-        ALLOWED_IMAGE_TYPES.includes(fileExt) ||
-        mediaFile.mimetype.startsWith("image/");
-      isVideo =
-        ALLOWED_VIDEO_TYPES.includes(fileExt) ||
-        mediaFile.mimetype.startsWith("video/");
-    }
-
-    // Create post
+    // Create post with privacy based on user's IsPrivate status
     const post = await prisma.post.create({
       data: {
         UserID: userId,
-        Content: content || null,
-        ImageURL: isImage ? mediaUrl : null,
-        VideoURL: isVideo ? mediaUrl : null,
+        Content: content,
+        ImageURL: imageUrl,
+        privacy: user.IsPrivate ? "FOLLOWERS_ONLY" : "PUBLIC",
       },
-      include: { User: { select: { UserID: true, Username: true } } },
+      include: {
+        User: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+            IsPrivate: true,
+          },
+        },
+      },
     });
 
-    logger.info(
-      `Post created successfully for user ${userId}: PostID ${post.PostID}`
-    );
-    res.status(201).json({ success: true, post });
+    res.status(201).json({
+      message: "Post created successfully",
+      post,
+    });
   } catch (error) {
-    logger.error(`Error creating post for user ${userId}: ${error.message}`);
-    handleServerError(res, error, "Failed to create post");
+    res.status(500).json({
+      message: "Error creating post",
+      error: error.message,
+    });
   }
 };
 
@@ -198,11 +189,10 @@ const getPosts = async (req, res) => {
  * Includes privacy checks
  */
 const getPostById = async (req, res) => {
-  try {
-    const { postId } = req.params;
-    const userId = req.user?.UserID;
+  const { postId } = req.params;
+  const viewerId = req.user ? req.user.UserID : null;
 
-    // Fetch post with details
+  try {
     const post = await prisma.post.findUnique({
       where: { PostID: parseInt(postId) },
       include: {
@@ -214,71 +204,46 @@ const getPostById = async (req, res) => {
             IsPrivate: true,
           },
         },
-        Likes: { where: { UserID: userId }, select: { UserID: true } },
-        Comments: {
-          select: {
-            CommentID: true,
-            Content: true,
-            CreatedAt: true,
-            User: {
-              select: {
-                UserID: true,
-                Username: true,
-                ProfilePicture: true,
-              },
-            },
-          },
-          orderBy: { CreatedAt: "desc" },
-        },
+        Likes: { select: { UserID: true } },
         _count: { select: { Likes: true, Comments: true } },
       },
     });
 
     if (!post) {
-      logger.info(`Post ${postId} not found for user ${userId}`);
-      return res.status(404).json({ error: "Post not found" });
+      return res.status(404).json({ message: "Post not found" });
     }
 
-    // Verify privacy for private accounts
-    if (post.User.IsPrivate && post.User.UserID !== userId) {
-      const isFollowing = await prisma.follower.count({
+    // Check if post is accessible based on privacy
+    if (post.privacy === "FOLLOWERS_ONLY") {
+      if (!viewerId) {
+        return res.status(403).json({ message: "Authentication required" });
+      }
+      const isFollower = await prisma.follower.findFirst({
         where: {
-          UserID: post.User.UserID,
-          FollowerUserID: userId,
+          FollowerUserID: viewerId,
+          FollowingUserID: post.UserID,
           Status: "ACCEPTED",
         },
       });
-      if (!isFollowing) {
-        logger.info(`User ${userId} denied access to private post ${postId}`);
-        return res.status(403).json({ error: "Private account" });
+      if (!isFollower && viewerId !== post.UserID) {
+        return res.status(403).json({ message: "Post is private" });
       }
     }
 
-    // Format response
-    const response = {
-      ...post,
-      isLiked: post.Likes.length > 0,
-      likeCount: post._count.Likes,
-      commentCount: post._count.Comments,
-      comments: post.Comments.map((comment) => ({
-        commentId: comment.CommentID,
-        content: comment.Content,
-        createdAt: comment.CreatedAt,
-        user: {
-          userId: comment.User.UserID,
-          username: comment.User.Username,
-          profilePicture: comment.User.ProfilePicture,
-        },
-      })),
-    };
-    delete response._count;
-    delete response.Likes;
-    delete response.Comments;
+    // Add computed fields
+    post.isLiked = viewerId
+      ? post.Likes.some((like) => like.UserID === viewerId)
+      : false;
+    post.likeCount = post._count.Likes;
+    post.commentCount = post._count.Comments;
+    post.likedBy = post.Likes.map((like) => like.UserID);
 
-    res.json(response);
+    res.status(200).json(post);
   } catch (error) {
-    logger.error(`Error fetching post ${req.params.postId}: ${error.message}`);
-    handleServerError(res, error, "Failed to fetch post");
+    res.status(500).json({
+      message: "Error retrieving post",
+      error: error.message,
+    });
   }
 };
 

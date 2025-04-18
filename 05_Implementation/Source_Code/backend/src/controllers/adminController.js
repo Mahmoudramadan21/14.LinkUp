@@ -394,20 +394,50 @@ const takeAction = async (req, res) => {
             .status(400)
             .json({ error: "Post ID required for DELETE_POST" });
         }
-        const postExists = await prisma.post.findUnique({
-          where: { PostID: parseInt(postId) },
+        const parsedPostId = parseInt(postId);
+        if (isNaN(parsedPostId)) {
+          return res.status(400).json({ error: "Invalid post ID" });
+        }
+
+        // Check if post exists
+        const post = await prisma.post.findUnique({
+          where: { PostID: parsedPostId },
+          select: { PostID: true, UserID: true },
         });
-        if (!postExists) {
+        if (!post) {
           return res.status(404).json({ error: "Post not found" });
         }
-        // Delete post and related data
+
+        // Delete post and related data, including notification
         await prisma.$transaction([
-          prisma.comment.deleteMany({ where: { PostID: parseInt(postId) } }),
-          prisma.like.deleteMany({ where: { PostID: parseInt(postId) } }),
-          prisma.report.deleteMany({ where: { PostID: parseInt(postId) } }),
-          prisma.post.delete({ where: { PostID: parseInt(postId) } }),
+          prisma.comment.deleteMany({ where: { PostID: parsedPostId } }),
+          prisma.like.deleteMany({ where: { PostID: parsedPostId } }),
+          prisma.report.deleteMany({ where: { PostID: parsedPostId } }),
+          prisma.savedPost.deleteMany({ where: { PostID: parsedPostId } }),
+          prisma.post.delete({ where: { PostID: parsedPostId } }),
+          prisma.notification.create({
+            data: {
+              UserID: post.UserID,
+              Type: "ADMIN_WARNING",
+              Content: `Your post has been deleted: ${reason}`,
+              Metadata: {
+                AdminID: adminId,
+                AuditLogID: auditLog.AuditLogID,
+                PostID: parsedPostId,
+              },
+            },
+          }),
         ]);
-        responseMessage = `Post ${postId} deleted successfully`;
+
+        // Invalidate cache for post-related data
+        const redis = require("redis");
+        const client = redis.createClient({ url: process.env.REDIS_URL });
+        await client.connect();
+        await client.del(`posts:user:${post.UserID}`);
+        await client.del(`post:${parsedPostId}`);
+        await client.disconnect();
+
+        responseMessage = `Post ${parsedPostId} deleted successfully`;
         break;
 
       case "WARN_USER":
@@ -422,7 +452,6 @@ const takeAction = async (req, res) => {
         if (!userExistsWarn) {
           return res.status(404).json({ error: "User not found" });
         }
-        // Send warning notification
         await prisma.notification.create({
           data: {
             UserID: parseInt(userId),
@@ -446,7 +475,6 @@ const takeAction = async (req, res) => {
         if (!userExistsBan) {
           return res.status(404).json({ error: "User not found" });
         }
-        // Ban user and notify
         await prisma.$transaction([
           prisma.user.update({
             where: { UserID: parseInt(userId) },
@@ -476,7 +504,6 @@ const takeAction = async (req, res) => {
         if (!reportExists) {
           return res.status(404).json({ error: "Report not found" });
         }
-        // Dismiss reports
         await prisma.report.updateMany({
           where: { PostID: parseInt(postId) },
           data: { Status: "DISMISSED" },

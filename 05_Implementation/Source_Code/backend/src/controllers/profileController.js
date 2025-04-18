@@ -271,22 +271,115 @@ const updatePrivacySettings = async (req, res) => {
     // Convert string "true"/"false" to boolean
     const isPrivateBoolean = isPrivate === "true";
 
-    const updatedUser = await prisma.user.update({
+    // Fetch current user data to detect transition and get username
+    const currentUser = await prisma.user.findUnique({
       where: { UserID: userId },
-      data: {
-        IsPrivate: isPrivateBoolean,
-      },
-      select: {
-        Username: true,
-        Email: true,
-        ProfilePicture: true,
-        Bio: true,
-        IsPrivate: true,
-        Role: true,
-        CreatedAt: true,
-        UpdatedAt: true,
-      },
+      select: { IsPrivate: true, Username: true },
     });
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Start a transaction to ensure atomicity
+    const [updatedUser] = await prisma.$transaction([
+      // Update user privacy
+      prisma.user.update({
+        where: { UserID: userId },
+        data: {
+          IsPrivate: isPrivateBoolean,
+        },
+        select: {
+          Username: true,
+          Email: true,
+          ProfilePicture: true,
+          Bio: true,
+          IsPrivate: true,
+          Role: true,
+          CreatedAt: true,
+          UpdatedAt: true,
+        },
+      }),
+      // Update privacy of all posts
+      prisma.post.updateMany({
+        where: { UserID: userId },
+        data: {
+          privacy: isPrivateBoolean ? "FOLLOWERS_ONLY" : "PUBLIC",
+        },
+      }),
+      // Approve pending follow requests if transitioning to public
+      ...(currentUser.IsPrivate && !isPrivateBoolean
+        ? [
+            prisma.follower.updateMany({
+              where: {
+                UserID: userId, // هذا هو الحقل الصحيح بدلاً من FollowingUserID
+                Status: "PENDING",
+              },
+              data: {
+                Status: "ACCEPTED",
+                UpdatedAt: new Date(),
+              },
+            }),
+            // Create notifications for approved followers
+            prisma.notification.createMany({
+              data: await prisma.follower
+                .findMany({
+                  where: {
+                    UserID: userId,
+                    Status: "ACCEPTED",
+                  },
+                  select: {
+                    FollowerUserID: true,
+                  },
+                })
+                .then((followers) =>
+                  followers.map((follower) => ({
+                    UserID: follower.FollowerUserID,
+                    Type: "FOLLOW_ACCEPTED",
+                    Content: `Your follow request to ${currentUser.Username} has been automatically approved.`,
+                    Metadata: {
+                      FollowedUserID: userId,
+                    },
+                    CreatedAt: new Date(),
+                  }))
+                ),
+            }),
+          ]
+        : []),
+    ]);
+
+    // Invalidate Redis cache for user's posts and followers
+    const redis = require("redis");
+    const client = redis.createClient({ url: process.env.REDIS_URL });
+    await client.connect();
+    await client.del(`posts:user:${userId}`);
+    await client.del(`followers:user:${userId}`);
+    await client.disconnect();
+
+    // Emit privacy update event via Socket.IO
+    const io = req.app.get("io");
+    io.to(`user_${userId}`).emit("privacyUpdated", {
+      userId,
+      isPrivate: isPrivateBoolean,
+      timestamp: new Date(),
+    });
+
+    // Notify followers of approved requests
+    if (currentUser.IsPrivate && !isPrivateBoolean) {
+      const approvedFollowers = await prisma.follower.findMany({
+        where: {
+          UserID: userId,
+          Status: "ACCEPTED",
+        },
+        select: { FollowerUserID: true },
+      });
+      approvedFollowers.forEach((follower) => {
+        io.to(`user_${follower.FollowerUserID}`).emit("followAccepted", {
+          followedUserId: userId,
+          timestamp: new Date(),
+        });
+      });
+    }
 
     res.status(200).json({
       message: "Privacy settings updated successfully",
