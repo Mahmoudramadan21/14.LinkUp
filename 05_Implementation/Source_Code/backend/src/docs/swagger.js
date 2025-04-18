@@ -410,19 +410,25 @@ const swaggerUiOptions = {
   customfavIcon: "https://linkup.com/favicon.ico",
 };
 
-/**
- * Configures Swagger UI and JSON endpoints for API documentation
- * @param {Express} app - Express application instance
- */
 module.exports = (app) => {
-  // Serve Swagger UI at /api-docs
+  // Serve Swagger UI with CDN
   app.use(
     "/api-docs",
     swaggerUi.serve,
-    swaggerUi.setup(swaggerDocs, swaggerUiOptions)
+    swaggerUi.setup(swaggerDocs, {
+      swaggerOptions: {
+        url: "/api-docs.json", // Fetch local JSON
+      },
+      customCssUrl:
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css",
+      customJs: [
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.js",
+      ],
+    })
   );
 
-  // Expose raw Swagger JSON
+  // Serve Swagger JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);
