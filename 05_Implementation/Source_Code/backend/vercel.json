@@ -8,20 +8,41 @@
     ],
     "routes": [
       {
-        "src": "/api/(.*)",
-        "dest": "src/index.js"
-      },
-      {
         "src": "/api-docs/(.*)",
-        "dest": "src/index.js"
+        "dest": "src/index.js",
+        "headers": {
+          "Cache-Control": "no-cache"
+        }
       },
       {
         "src": "/api-docs.json",
+        "dest": "src/index.js",
+        "headers": {
+          "Cache-Control": "no-cache",
+          "Content-Type": "application/json"
+        }
+      },
+      {
+        "src": "/api/(.*)",
         "dest": "src/index.js"
       },
       {
         "src": "/(.*)",
         "dest": "src/index.js"
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/api-docs/:path*",
+        "destination": "/api-docs/:path*"
+      },
+      {
+        "source": "/api/:path*",
+        "destination": "/api/:path*"
+      },
+      {
+        "source": "/:path*",
+        "destination": "/"
       }
     ]
   }

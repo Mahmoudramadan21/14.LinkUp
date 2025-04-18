@@ -525,8 +525,19 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
 module.exports = (app) => {
+  // Middleware to set correct Content-Type for Swagger UI assets
+  app.use("/api-docs", (req, res, next) => {
+    if (req.path.endsWith(".js")) {
+      res.setHeader("Content-Type", "application/javascript");
+    } else if (req.path.endsWith(".css")) {
+      res.setHeader("Content-Type", "text/css");
+    }
+    next();
+  });
+
   // Serve Swagger UI
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
   // Serve Swagger JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
