@@ -2,13 +2,14 @@ const express = require("express");
 const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
 const { authMiddleware } = require("../middleware/authMiddleware");
-const { moderateContent } = require("../middleware/moderationMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const {
   getConversationsRules,
   createConversationRules,
   getMessagesRules,
   sendMessageRules,
+  addReactionRules,
+  handleTypingRules,
 } = require("../validators/messageValidators");
 const {
   getConversations,
@@ -33,7 +34,7 @@ router.use(authMiddleware);
 
 /**
  * @swagger
- * /api/messanger/conversations:
+ * /messanger/conversations:
  *   get:
  *     summary: Get list of user conversations
  *     tags: [Messages]
@@ -119,7 +120,7 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
 
 /**
  * @swagger
- * /api/messanger/conversations:
+ * /messanger/conversations:
  *   post:
  *     summary: Create a new one-on-one conversation
  *     tags: [Messages]
@@ -190,7 +191,7 @@ router.post(
 
 /**
  * @swagger
- * /api/messanger/conversations/{conversationId}/messages:
+ * /messanger/conversations/{conversationId}/messages:
  *   get:
  *     summary: Get messages in a conversation
  *     tags: [Messages]
@@ -315,24 +316,28 @@ router.post(
  *                     createdAt:
  *                       type: string
  *                       format: date-time
- *                     senderId:
- *                       type: integer
- *       400:
- *         description: Invalid conversation ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *                     sender:
+ *                       type: object
+ *                       properties:
+ *                         UserID:
+ *                           type: integer
+ *                         Username:
+ *                           type: string
+ *                         ProfilePicture:
+ *                           type: string
+ *                           nullable: true
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *                 updatedAt:
+ *                   type: string
+ *                   format: date-time
+ *                 totalMessages:
+ *                   type: integer
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not a participant in this conversation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Conversation not found
+ *         description: Conversation not found or access denied
  *         content:
  *           application/json:
  *             schema:
@@ -353,7 +358,7 @@ router.get(
 
 /**
  * @swagger
- * /api/messanger/conversations/{conversationId}/messages:
+ * /messanger/conversations/{conversationId}/messages:
  *   post:
  *     summary: Send a message in a conversation
  *     tags: [Messages]
@@ -377,15 +382,15 @@ router.get(
  *                 type: string
  *                 maxLength: 2000
  *                 example: "Hello, how are you?"
- *               replyTo:
+ *                 description: Message content, required if no attachment is provided
+ *               attachment:
  *                 type: string
- *                 description: ID of the message being replied to
- *               attachments:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Files to upload (images, videos, documents)
+ *                 format: binary
+ *                 description: Optional file attachment (image, video, audio, or other file)
+ *               replyToId:
+ *                 type: string
+ *                 example: "msg_123"
+ *                 description: Optional ID of message being replied to
  *     responses:
  *       201:
  *         description: Message sent successfully
@@ -401,10 +406,16 @@ router.get(
  *                 createdAt:
  *                   type: string
  *                   format: date-time
- *                 senderId:
- *                   type: integer
- *                 conversationId:
- *                   type: string
+ *                 sender:
+ *                   type: object
+ *                   properties:
+ *                     UserID:
+ *                       type: integer
+ *                     Username:
+ *                       type: string
+ *                     ProfilePicture:
+ *                       type: string
+ *                       nullable: true
  *                 attachments:
  *                   type: array
  *                   items:
@@ -433,27 +444,15 @@ router.get(
  *                     senderId:
  *                       type: integer
  *       400:
- *         description: Invalid input or content violation
+ *         description: Invalid message content, attachment, or replyToId
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not a participant in this conversation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Conversation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       413:
- *         description: Payload too large (file size limit exceeded)
+ *         description: Conversation not found or access denied
  *         content:
  *           application/json:
  *             schema:
@@ -467,16 +466,15 @@ router.get(
  */
 router.post(
   "/conversations/:conversationId/messages",
+  upload.single("attachment"),
   sendMessageRules,
   validate,
-  upload.array("attachments", 5),
-  moderateContent,
   sendMessage
 );
 
 /**
  * @swagger
- * /api/messanger/messages/{messageId}/reactions:
+ * /messanger/messages/{messageId}/reactions:
  *   post:
  *     summary: Add a reaction to a message
  *     tags: [Messages]
@@ -502,7 +500,6 @@ router.post(
  *                 type: string
  *                 maxLength: 10
  *                 example: "👍"
- *                 description: The emoji to add as a reaction
  *     responses:
  *       201:
  *         description: Reaction added successfully
@@ -511,17 +508,10 @@ router.post(
  *             schema:
  *               type: object
  *               properties:
- *                 id:
+ *                 messageId:
  *                   type: string
  *                 emoji:
  *                   type: string
- *                 userId:
- *                   type: integer
- *                 messageId:
- *                   type: string
- *                 createdAt:
- *                   type: string
- *                   format: date-time
  *       400:
  *         description: Invalid emoji or reaction already exists
  *         content:
@@ -530,14 +520,8 @@ router.post(
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not a participant in this conversation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Message not found
+ *         description: Message not found or access denied
  *         content:
  *           application/json:
  *             schema:
@@ -549,26 +533,41 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/messages/:messageId/reactions", validate, addReaction);
+router.post(
+  "/messages/:messageId/reactions",
+  addReactionRules,
+  validate,
+  addReaction
+);
 
 /**
  * @swagger
- * /api/messanger/conversations/{conversationId}/typing:
+ * /messanger/conversations/typing:
  *   post:
- *     summary: Indicate typing status in a conversation
+ *     summary: Notify typing status in a conversation (HTTP fallback)
  *     tags: [Messages]
+ *     description: Stores typing status in Redis. For real-time typing indicators, use Socket.IO 'typing' event instead.
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: conversationId
- *         required: true
- *         schema:
- *           type: string
- *         description: UUID of the conversation
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - conversationId
+ *             properties:
+ *               conversationId:
+ *                 type: string
+ *                 example: "conv_123"
+ *               isTyping:
+ *                 type: boolean
+ *                 default: true
+ *                 example: true
  *     responses:
  *       200:
- *         description: Typing status updated
+ *         description: Typing status stored successfully
  *         content:
  *           application/json:
  *             schema:
@@ -576,24 +575,17 @@ router.post("/messages/:messageId/reactions", validate, addReaction);
  *               properties:
  *                 success:
  *                   type: boolean
- *                 conversationId:
- *                   type: string
+ *                   example: true
  *       400:
- *         description: Invalid conversation ID
+ *         description: Invalid conversation ID or isTyping value
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not a participant in this conversation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Conversation not found
+ *         description: Conversation not found or access denied
  *         content:
  *           application/json:
  *             schema:
@@ -605,45 +597,43 @@ router.post("/messages/:messageId/reactions", validate, addReaction);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/conversations/:conversationId/typing", validate, handleTyping);
+router.post("/conversations/typing", handleTypingRules, validate, handleTyping);
 
 /**
  * @swagger
- * /api/messanger/active-following:
+ * /messanger/active-following:
  *   get:
- *     summary: Get list of active following users
+ *     summary: Get active users the current user follows
  *     tags: [Messages]
+ *     description: Returns users followed by the current user who were active in the last 5 minutes
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 50
- *           default: 10
- *         description: Number of users to retrieve
  *     responses:
  *       200:
- *         description: List of active following users
+ *         description: List of active followed users
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   UserID:
- *                     type: integer
- *                   Username:
- *                     type: string
- *                   ProfilePicture:
- *                     type: string
- *                     nullable: true
- *                   lastActive:
- *                     type: string
- *                     format: date-time
+ *               type: object
+ *               properties:
+ *                 activeFollowing:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       UserID:
+ *                         type: integer
+ *                       Username:
+ *                         type: string
+ *                       ProfilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                       lastActive:
+ *                         type: string
+ *                         format: date-time
+ *                 count:
+ *                   type: integer
+ *                   example: 2
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
@@ -653,44 +643,40 @@ router.post("/conversations/:conversationId/typing", validate, handleTyping);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/active-following", getActiveFollowing);
+router.get("/active-following", validate, getActiveFollowing);
 
 /**
  * @swagger
- * /api/messanger/suggested-users:
+ * /messanger/suggested-chat-users:
  *   get:
- *     summary: Get suggested users to chat with
+ *     summary: Get suggested users to start a chat with
  *     tags: [Messages]
+ *     description: Returns users followed by the current user with no existing conversations
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 50
- *           default: 10
- *         description: Number of users to retrieve
  *     responses:
  *       200:
  *         description: List of suggested users
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   UserID:
- *                     type: integer
- *                   Username:
- *                     type: string
- *                   ProfilePicture:
- *                     type: string
- *                     nullable: true
- *                   mutualConnections:
- *                     type: integer
+ *               type: object
+ *               properties:
+ *                 suggestedUsers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       UserID:
+ *                         type: integer
+ *                       Username:
+ *                         type: string
+ *                       ProfilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                 count:
+ *                   type: integer
+ *                   example: 3
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
@@ -700,6 +686,6 @@ router.get("/active-following", getActiveFollowing);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/suggested-users", getSuggestedChatUsers);
+router.get("/suggested-chat-users", validate, getSuggestedChatUsers);
 
 module.exports = router;

@@ -1,15 +1,22 @@
 const express = require("express");
 const router = express.Router();
-const { authMiddleware } = require("../middleware/authMiddleware");
 const {
   getNotifications,
-  markAsRead,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  updateNotificationPreferences,
   deleteNotification,
 } = require("../controllers/notificationController");
+const { authMiddleware } = require("../middleware/authMiddleware");
 const { validate } = require("../middleware/validationMiddleware");
-const { notificationRules } = require("../validators/notificationValidators");
+const {
+  getNotificationsValidator,
+  markNotificationAsReadValidator,
+  updateNotificationPreferencesValidator,
+  deleteNotificationValidator,
+} = require("../validators/notificationValidator");
 
-// Apply authentication middleware to all routes
+// Apply auth middleware to all routes
 router.use(authMiddleware);
 
 /**
@@ -21,10 +28,11 @@ router.use(authMiddleware);
 
 /**
  * @swagger
- * /api/notifications:
+ * /notifications:
  *   get:
- *     summary: Get user notifications
+ *     summary: Fetch user notifications
  *     tags: [Notifications]
+ *     description: Retrieves notifications for the authenticated user with pagination and optional read status filtering
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -32,27 +40,24 @@ router.use(authMiddleware);
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
  *         description: Page number for pagination
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 50
- *           default: 10
+ *           default: 20
  *         description: Number of notifications per page
  *       - in: query
- *         name: type
+ *         name: readStatus
  *         schema:
  *           type: string
- *           enum: [all, unread, read, follow, post, story, message]
- *           default: all
- *         description: Filter notifications by type
+ *           enum: [ALL, READ, UNREAD]
+ *           default: ALL
+ *         description: Filter notifications by read status
  *     responses:
  *       200:
- *         description: List of user notifications
+ *         description: Notifications retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -63,11 +68,10 @@ router.use(authMiddleware);
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
+ *                       notificationId:
  *                         type: integer
  *                       type:
  *                         type: string
- *                         enum: [FOLLOW, POST, STORY, MESSAGE]
  *                       content:
  *                         type: string
  *                       isRead:
@@ -75,63 +79,47 @@ router.use(authMiddleware);
  *                       createdAt:
  *                         type: string
  *                         format: date-time
- *                       actor:
- *                         type: object
- *                         properties:
- *                           UserID:
- *                             type: integer
- *                           Username:
- *                             type: string
- *                           ProfilePicture:
- *                             type: string
- *                             nullable: true
- *                       reference:
+ *                       sender:
  *                         type: object
  *                         nullable: true
  *                         properties:
- *                           id:
+ *                           userId:
  *                             type: integer
- *                           type:
+ *                           username:
  *                             type: string
- *                             enum: [POST, STORY, CONVERSATION]
- *                 total:
+ *                           profilePicture:
+ *                             type: string
+ *                       metadata:
+ *                         type: object
+ *                 totalCount:
  *                   type: integer
  *                 page:
  *                   type: integer
- *                 limit:
+ *                 totalPages:
  *                   type: integer
  *       400:
- *         description: Invalid query parameters
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         $ref: '#/components/responses/ErrorResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/", notificationRules, validate, getNotifications);
+router.get("/", getNotificationsValidator, validate, getNotifications);
 
 /**
  * @swagger
- * /api/notifications/{id}/read:
- *   patch:
+ * /notifications/{notificationId}/read:
+ *   put:
  *     summary: Mark a notification as read
  *     tags: [Notifications]
+ *     description: Marks a specific notification as read for the authenticated user
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: notificationId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the notification to mark as read
+ *         description: ID of the notification
  *     responses:
  *       200:
  *         description: Notification marked as read
@@ -144,52 +132,129 @@ router.get("/", notificationRules, validate, getNotifications);
  *                   type: boolean
  *                 message:
  *                   type: string
- *                 notificationId:
- *                   type: integer
- *       400:
- *         description: Invalid notification ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not the notification owner
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Notification not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         $ref: '#/components/responses/NotFoundError'
+ *       403:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       400:
+ *         $ref: '#/components/responses/ErrorResponse'
  */
-router.patch("/:id/read", validate, markAsRead);
+router.put(
+  "/:notificationId/read",
+  markNotificationAsReadValidator,
+  validate,
+  markNotificationAsRead
+);
 
 /**
  * @swagger
- * /api/notifications/{id}:
+ * /notifications/read:
+ *   put:
+ *     summary: Mark all notifications as read
+ *     tags: [Notifications]
+ *     description: Marks all notifications as read for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/ErrorResponse'
+ */
+router.put("/read", markAllNotificationsAsRead);
+
+/**
+ * @swagger
+ * /notifications/preferences:
+ *   put:
+ *     summary: Update notification preferences
+ *     tags: [Notifications]
+ *     description: Updates the notification preferences for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               emailNotifications:
+ *                 type: boolean
+ *                 description: Enable or disable email notifications
+ *               pushNotifications:
+ *                 type: boolean
+ *                 description: Enable or disable push notifications
+ *               notificationTypes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   enum: [LIKE, COMMENT, FOLLOW, FOLLOW_REQUEST, REPORT, STORY_LIKE]
+ *                 description: List of allowed notification types
+ *           example:
+ *             emailNotifications: true
+ *             pushNotifications: false
+ *             notificationTypes: ["LIKE", "COMMENT", "STORY_LIKE"]
+ *     responses:
+ *       200:
+ *         description: Notification preferences updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 preferences:
+ *                   type: object
+ *                   properties:
+ *                     EmailNotifications:
+ *                       type: boolean
+ *                     PushNotifications:
+ *                       type: boolean
+ *                     NotificationTypes:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *       400:
+ *         $ref: '#/components/responses/ErrorResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.put(
+  "/preferences",
+  updateNotificationPreferencesValidator,
+  validate,
+  updateNotificationPreferences
+);
+
+/**
+ * @swagger
+ * /notifications/{notificationId}:
  *   delete:
  *     summary: Delete a notification
  *     tags: [Notifications]
+ *     description: Deletes a specific notification for the authenticated user
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: notificationId
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the notification to delete
+ *         description: ID of the notification
  *     responses:
  *       200:
  *         description: Notification deleted successfully
@@ -202,35 +267,18 @@ router.patch("/:id/read", validate, markAsRead);
  *                   type: boolean
  *                 message:
  *                   type: string
- *                 notificationId:
- *                   type: integer
- *       400:
- *         description: Invalid notification ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         description: Not the notification owner
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Notification not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         $ref: '#/components/responses/NotFoundError'
+ *       403:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       400:
+ *         $ref: '#/components/responses/ErrorResponse'
  */
-router.delete("/:id", validate, deleteNotification);
+router.delete(
+  "/:notificationId",
+  deleteNotificationValidator,
+  validate,
+  deleteNotification
+);
 
 module.exports = router;

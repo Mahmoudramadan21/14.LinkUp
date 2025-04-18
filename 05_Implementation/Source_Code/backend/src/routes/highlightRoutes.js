@@ -59,7 +59,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/highlights:
+ * /highlights:
  *   post:
  *     summary: Create a new highlight
  *     tags: [Highlights]
@@ -113,7 +113,7 @@ router.post(
 
 /**
  * @swagger
- * /api/highlights/user/{userId}:
+ * /highlights/user/{userId}:
  *   get:
  *     summary: Get all highlights for a user
  *     tags: [Highlights]
@@ -158,7 +158,7 @@ router.get("/user/:userId", authMiddleware, getUserHighlights);
 
 /**
  * @swagger
- * /api/highlights/{highlightId}:
+ * /highlights/{highlightId}:
  *   get:
  *     summary: Get highlight details
  *     tags: [Highlights]
@@ -193,7 +193,7 @@ router.get("/:highlightId", authMiddleware, getHighlightDetails);
 
 /**
  * @swagger
- * /api/highlights/{highlightId}/stories:
+ * /highlights/{highlightId}/stories:
  *   get:
  *     summary: Get stories in a highlight
  *     tags: [Highlights]
@@ -262,7 +262,7 @@ router.get("/:highlightId/stories", authMiddleware, getHighlightStories);
 
 /**
  * @swagger
- * /api/highlights/{highlightId}:
+ * /highlights/{highlightId}:
  *   put:
  *     summary: Update a highlight
  *     tags: [Highlights]
@@ -321,7 +321,7 @@ router.put(
 
 /**
  * @swagger
- * /api/highlights/{highlightId}:
+ * /highlights/{highlightId}:
  *   delete:
  *     summary: Delete a highlight
  *     tags: [Highlights]
