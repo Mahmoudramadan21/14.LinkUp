@@ -1,56 +1,31 @@
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") }); // Load .env from the root directory
 const express = require("express");
 const cors = require("cors");
-const { createServer } = require("http");
-const configureSocket = require("./server.js");
-const routes = require("./routes/index.js");
+const cookieParser = require("cookie-parser");
 const setupSwagger = require("./docs/swagger.js");
-const {
-  handleServerError,
-  handleValidationError,
-} = require("./utils/errorHandler");
+const routes = require("./routes/index.js");
 
 const app = express();
-const httpServer = createServer(app);
 
 // Middleware
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3001",
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
-  })
-);
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Setup Swagger UI and JSON endpoints
+// Setup Swagger UI (must come before catch-all routes)
 setupSwagger(app);
 
-// Routes
+// API Routes
 app.use("/api", routes);
 
-// Default route
+// Default route (keep this after Swagger and API routes)
 app.get("/", (req, res) => {
-  res.json({ status: "OK", message: "LinkUp Server is Running!" });
+  res.status(200).json({ message: "Welcome to LinkUp API" });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  if (err.name === "ValidationError") {
-    return handleValidationError(res, err);
-  }
-  handleServerError(res, err);
+// Catch-all route (must be the last route)
+app.use((req, res) => {
+  res.status(404).json({ error: "Not Found" });
 });
 
-// Configure Socket.IO
-const io = configureSocket(httpServer);
-app.set("io", io); // Make io accessible to controllers
-
-// Start server
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Socket.IO ready on port ${PORT}`);
-  console.log(`Swagger UI available at http://localhost:${PORT}/api-docs`);
-});
+module.exports = app;

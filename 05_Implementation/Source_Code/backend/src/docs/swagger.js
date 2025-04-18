@@ -1,7 +1,6 @@
 const swaggerJsDoc = require("swagger-jsdoc");
-const swaggerUi = require("swagger-ui-express");
-const glob = require("glob");
 const path = require("path");
+const glob = require("glob");
 
 // Log scanned files for debugging
 const projectRoot = path.resolve(__dirname, "../../");
@@ -525,22 +524,42 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
 module.exports = (app) => {
-  // Middleware to set correct Content-Type for Swagger UI assets
-  app.use("/api-docs", (req, res, next) => {
-    if (req.path.endsWith(".js")) {
-      res.setHeader("Content-Type", "application/javascript");
-    } else if (req.path.endsWith(".css")) {
-      res.setHeader("Content-Type", "text/css");
-    }
-    next();
-  });
-
-  // Serve Swagger UI
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
   // Serve Swagger JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);
+  });
+
+  // Serve Swagger UI using CDN
+  app.get("/api-docs", (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LinkUp API Documentation</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+      </head>
+      <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+        <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js"></script>
+        <script>
+          window.onload = () => {
+            window.ui = SwaggerUIBundle({
+              url: '/api-docs.json',
+              dom_id: '#swagger-ui',
+              presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+              ],
+              layout: "StandaloneLayout"
+            });
+          };
+        </script>
+      </body>
+      </html>
+    `);
   });
 };
