@@ -218,5 +218,5 @@ This project is licensed under the MIT License. See the LICENSE for details.
 
 - **Developer**: Mahmoud Ramadan
 - **Email**: mahmoud.fci25@gmail.com
-- **LinkedIn**: Mahmoud Ramadan
+- **LinkedIn**: [Mahmoud Ramadan](https://www.linkedin.com/in/mahmoud-ramadan-9a6618250/)
 - **Support**: For additional support, contact mahmoud.fci25@gmail.com.
