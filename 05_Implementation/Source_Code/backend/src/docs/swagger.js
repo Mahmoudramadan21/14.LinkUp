@@ -4,9 +4,10 @@ const glob = require("glob");
 const path = require("path");
 
 // Log scanned files for debugging
-const routeFiles = glob.sync(path.join(__dirname, "../../src/routes/*.js"));
+const projectRoot = path.resolve(__dirname, "../../");
+const routeFiles = glob.sync(path.join(projectRoot, "src/routes/*.js"));
 const controllerFiles = glob.sync(
-  path.join(__dirname, "../../src/controllers/*.js")
+  path.join(projectRoot, "src/controllers/*.js")
 );
 console.log("Swagger scanned routes:", routeFiles);
 console.log("Swagger scanned controllers:", controllerFiles);
