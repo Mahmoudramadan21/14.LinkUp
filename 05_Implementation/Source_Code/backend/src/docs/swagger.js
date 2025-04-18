@@ -11,7 +11,7 @@ const swaggerOptions = {
       description: "API for LinkUp Social Media Application",
       contact: {
         name: "API Support",
-        email: "support@linkup.com",
+        email: "linkup.101203@gmail.com",
       },
       license: {
         name: "MIT",
@@ -20,13 +20,10 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "http://localhost:3000/api/",
-        description: "Development server",
-      },
-      {
-        url: "https://api.linkup.com",
+        url: "https://link-up-25.vercel.app/api/",
         description: "Production server",
       },
+      { url: "http://localhost:3000/api/", description: "Development server" },
     ],
     tags: [
       {
