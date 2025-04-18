@@ -1,5 +1,15 @@
 const swaggerJsDoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
+const glob = require("glob");
+const path = require("path");
+
+// Log scanned files for debugging
+const routeFiles = glob.sync(path.join(__dirname, "../src/routes/*.js"));
+const controllerFiles = glob.sync(
+  path.join(__dirname, "../src/controllers/*.js")
+);
+console.log("Swagger scanned routes:", routeFiles);
+console.log("Swagger scanned controllers:", controllerFiles);
 
 // Swagger configuration options
 const swaggerOptions = {
@@ -20,7 +30,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "https://link-up-25.vercel.app/api/",
+        url: "https://14-link-up.vercel.app/api/",
         description: "Production server",
       },
       { url: "http://localhost:3000/api/", description: "Development server" },
@@ -51,6 +61,11 @@ const swaggerOptions = {
         description: "Real-time messaging and conversations",
       },
       { name: "Test", description: "Test endpoints" },
+      { name: "Admin", description: "Admin management endpoints" },
+      {
+        name: "Notifications",
+        description: "Notification management endpoints",
+      },
     ],
     components: {
       securitySchemes: {
@@ -258,6 +273,105 @@ const swaggerOptions = {
           properties: {
             error: { type: "string", example: "Error message" },
             details: { type: "string", example: "Additional error details" },
+          },
+        },
+        ReportedPost: {
+          type: "object",
+          properties: {
+            postId: { type: "integer" },
+            content: { type: "string" },
+            reportCount: { type: "integer" },
+            reporterUsernames: {
+              type: "array",
+              items: { type: "string" },
+            },
+            createdAt: { type: "string", format: "date-time" },
+            owner: { type: "string" },
+          },
+        },
+        UserDetails: {
+          type: "object",
+          properties: {
+            userId: { type: "integer" },
+            username: { type: "string" },
+            email: { type: "string" },
+            role: { type: "string", enum: ["USER", "ADMIN", "BANNED"] },
+            isBanned: { type: "boolean" },
+            createdAt: { type: "string", format: "date-time" },
+            postCount: { type: "integer" },
+            filedReportCount: { type: "integer" },
+            reportedPostCount: { type: "integer" },
+          },
+        },
+        AdminAction: {
+          type: "object",
+          properties: {
+            actionType: {
+              type: "string",
+              enum: ["DELETE_POST", "WARN_USER", "BAN_USER", "DISMISS_REPORT"],
+            },
+            postId: { type: "integer" },
+            userId: { type: "integer" },
+            reason: { type: "string" },
+          },
+        },
+        UpdateUser: {
+          type: "object",
+          properties: {
+            userId: { type: "integer" },
+            role: { type: "string", enum: ["USER", "ADMIN", "BANNED"] },
+            isBanned: { type: "boolean" },
+            reason: { type: "string" },
+          },
+        },
+        RefreshTokenRequest: {
+          type: "object",
+          required: ["refreshToken"],
+          properties: {
+            refreshToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
+        VerifyCodeRequest: {
+          type: "object",
+          required: ["email", "code"],
+          properties: {
+            email: {
+              type: "string",
+              format: "email",
+              example: "john@example.com",
+            },
+            code: {
+              type: "string",
+              pattern: "^[0-9]{4}$",
+              example: "1234",
+            },
+          },
+        },
+        PasswordResetWithToken: {
+          type: "object",
+          required: ["resetToken", "newPassword"],
+          properties: {
+            resetToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+            newPassword: {
+              type: "string",
+              minLength: 8,
+              example: "NewP@ssw0rd123",
+            },
+          },
+        },
+        SuccessResponse: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            codeSent: { type: "boolean" },
+            resetToken: { type: "string" },
+            data: { type: "object" },
           },
         },
       },
