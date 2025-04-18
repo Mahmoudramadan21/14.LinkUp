@@ -4,12 +4,16 @@ const glob = require("glob");
 const path = require("path");
 
 // Log scanned files for debugging
-const routeFiles = glob.sync(path.join(__dirname, "../src/routes/*.js"));
+const routeFiles = glob.sync(path.join(__dirname, "../../src/routes/*.js"));
 const controllerFiles = glob.sync(
-  path.join(__dirname, "../src/controllers/*.js")
+  path.join(__dirname, "../../src/controllers/*.js")
 );
 console.log("Swagger scanned routes:", routeFiles);
 console.log("Swagger scanned controllers:", controllerFiles);
+
+if (!routeFiles.length || !controllerFiles.length) {
+  console.error("Swagger failed to load route or controller files");
+}
 
 // Swagger configuration options
 const swaggerOptions = {
@@ -30,7 +34,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "https://14-link-up.vercel.app/api/",
+        url: "https://link-up-25.vercel.app/api/",
         description: "Production server",
       },
       { url: "http://localhost:3000/api/", description: "Development server" },
@@ -507,7 +511,10 @@ const swaggerOptions = {
     security: [{ bearerAuth: [] }],
   },
   // Adjusted paths for backend/docs/
-  apis: ["../routes/*.js", "../controllers/*.js"],
+  apis: [
+    path.join(__dirname, "../../src/routes/*.js"),
+    path.join(__dirname, "../../src/controllers/*.js"),
+  ],
 };
 
 // Generated Swagger documentation object
@@ -525,24 +532,8 @@ const swaggerUiOptions = {
 };
 
 module.exports = (app) => {
-  // Serve Swagger UI with CDN
-  app.use(
-    "/api-docs",
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerDocs, {
-      swaggerOptions: {
-        url: "/api-docs.json", // Fetch local JSON
-      },
-      customCssUrl:
-        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css",
-      customJs: [
-        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.js",
-        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.js",
-      ],
-    })
-  );
-
   // Serve Swagger JSON
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);
