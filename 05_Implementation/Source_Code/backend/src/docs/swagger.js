@@ -27,6 +27,10 @@ const swaggerOptions = {
     ],
     tags: [
       {
+        name: "Authentication",
+        description: "User authentication and account management",
+      },
+      {
         name: "Profile",
         description: "User profile management",
       },
@@ -35,8 +39,8 @@ const swaggerOptions = {
         description: "User posts management",
       },
       {
-        name: "Authentication",
-        description: "User authentication and account management",
+        name: "Stories",
+        description: "Story management endpoints",
       },
       {
         name: "Highlights",
@@ -46,10 +50,7 @@ const swaggerOptions = {
         name: "Messages",
         description: "Real-time messaging and conversations",
       },
-      {
-        name: "Stories",
-        description: "Story management endpoints",
-      },
+      { name: "Test", description: "Test endpoints" },
     ],
     components: {
       securitySchemes: {
