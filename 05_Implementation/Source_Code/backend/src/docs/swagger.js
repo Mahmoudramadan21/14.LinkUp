@@ -9,16 +9,16 @@ const routeFiles = glob.sync(path.join(projectRoot, "src/routes/*.js"));
 const controllerFiles = glob.sync(
   path.join(projectRoot, "src/controllers/*.js")
 );
-console.log("Swagger scanned routes:", routeFiles);
-console.log("Swagger scanned controllers:", controllerFiles);
+console.log("Swagger scanned route files:", routeFiles);
+console.log("Swagger scanned controller files:", controllerFiles);
 
-if (!routeFiles.length || !controllerFiles.length) {
+if (!routeFiles.length && !controllerFiles.length) {
   console.error("Swagger failed to load route or controller files");
 }
 
 // Swagger configuration options
 const swaggerOptions = {
-  swaggerDefinition: {
+  definition: {
     openapi: "3.0.0",
     info: {
       title: "LinkUp API",
@@ -521,20 +521,13 @@ const swaggerOptions = {
 // Generated Swagger documentation object
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
-// Custom options for Swagger UI branding
-const swaggerUiOptions = {
-  explorer: true,
-  customSiteTitle: "LinkUp API Documentation",
-  customCss: `
-    .topbar-wrapper img { content:url('https://linkup.com/logo.png'); height:60px; }
-    .swagger-ui .topbar { background-color: #2d3e50; }
-  `,
-  customfavIcon: "https://linkup.com/favicon.ico",
-};
+// Log the actual routes Swagger found for debugging
+console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
 module.exports = (app) => {
-  // Serve Swagger JSON
+  // Serve Swagger UI
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+  // Serve Swagger JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);
