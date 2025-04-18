@@ -1,4 +1,5 @@
-require("dotenv").config({ path: "../.env" });
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") }); // Load .env from the root directory
 const express = require("express");
 const cors = require("cors");
 const { createServer } = require("http");
