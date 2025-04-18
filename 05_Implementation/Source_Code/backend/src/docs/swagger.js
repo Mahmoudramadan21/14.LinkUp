@@ -507,7 +507,7 @@ const swaggerOptions = {
     security: [{ bearerAuth: [] }],
   },
   // Adjusted paths for backend/docs/
-  apis: ["../src/routes/*.js", "../src/controllers/*.js"],
+  apis: ["../routes/*.js", "../controllers/*.js"],
 };
 
 // Generated Swagger documentation object
