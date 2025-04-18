@@ -8,7 +8,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate --schema=src/models/prisma/schema.prisma"
+  },
+  "prisma": {
+    "schema": "src/models/prisma/schema.prisma"
   },
   "keywords": [],
   "author": "",
