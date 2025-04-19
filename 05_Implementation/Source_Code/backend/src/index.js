@@ -1,31 +1,53 @@
+require("dotenv").config({ path: "../.env" });
 const express = require("express");
 const cors = require("cors");
-const cookieParser = require("cookie-parser");
-const setupSwagger = require("./docs/swagger.js");
+const { createServer } = require("http");
+const configureSocket = require("./server.js");
 const routes = require("./routes/index.js");
+const setupSwagger = require("./docs/swagger.js");
+const bodyParser = require("body-parser");
 
 const app = express();
+const httpServer = createServer(app);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Setup Swagger UI (must come before catch-all routes)
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  })
+);
+
 setupSwagger(app);
-
-// API Routes
 app.use("/api", routes);
 
-// Default route (keep this after Swagger and API routes)
 app.get("/", (req, res) => {
-  res.status(200).json({ message: "Welcome to LinkUp API" });
+  res.json({ status: "OK", message: "LinkUp Server is Running!" });
 });
 
-// Catch-all route (must be the last route)
-app.use((req, res) => {
-  res.status(404).json({ error: "Not Found" });
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    console.error(
+      "JSON parsing error:",
+      err.message,
+      "Body:",
+      req.body,
+      "Raw:",
+      req.rawBody
+    );
+    return res.status(400).json({ error: "Invalid JSON format" });
+  }
+  console.error("Error stack:", err.stack);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
-module.exports = app;
+const io = configureSocket(httpServer);
+
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Socket.IO ready on port ${PORT}`);
+  console.log(`Swagger UI available at http://localhost:${PORT}/api-docs`);
+});

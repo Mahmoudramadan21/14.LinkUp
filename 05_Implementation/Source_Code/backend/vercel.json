@@ -1,48 +1,40 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "src/index.js",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api-docs/(.*)",
-        "dest": "src/index.js",
-        "headers": {
-          "Cache-Control": "no-cache"
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/api-docs",
+      "destination": "/api-docs"
+    },
+    {
+      "source": "/api-docs.json",
+      "destination": "/api-docs.json"
+    },
+    {
+      "source": "/swagger-ui/(.*)",
+      "destination": "/swagger-ui/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api-docs",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://link-7gq2gvwce-mahmoudramadan21s-projects.vercel.app;"
         }
-      },
-      {
-        "src": "/api-docs.json",
-        "dest": "src/index.js",
-        "headers": {
-          "Cache-Control": "no-cache",
-          "Content-Type": "application/json"
+      ]
+    },
+    {
+      "source": "/swagger-ui/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000"
         }
-      },
-      {
-        "src": "/api/(.*)",
-        "dest": "src/index.js"
-      },
-      {
-        "src": "/(.*)",
-        "dest": "src/index.js"
-      }
-    ],
-    "rewrites": [
-      {
-        "source": "/api-docs/:path*",
-        "destination": "/api-docs/:path*"
-      },
-      {
-        "source": "/api/:path*",
-        "destination": "/api/:path*"
-      },
-      {
-        "source": "/:path*",
-        "destination": "/"
-      }
-    ]
-  }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 const swaggerJsDoc = require("swagger-jsdoc");
+const express = require("express");
 const path = require("path");
 const glob = require("glob");
 
@@ -34,7 +35,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "https://link-up-25.vercel.app/api/",
+        url: "https://link-7gq2gvwce-mahmoudramadan21s-projects.vercel.app/api/",
         description: "Production server",
       },
       { url: "http://localhost:3000/api/", description: "Development server" },
@@ -510,7 +511,6 @@ const swaggerOptions = {
     },
     security: [{ bearerAuth: [] }],
   },
-  // Adjusted paths for backend/docs/
   apis: [
     path.join(__dirname, "../../src/routes/*.js"),
     path.join(__dirname, "../../src/controllers/*.js"),
@@ -524,13 +524,13 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
 module.exports = (app) => {
-  // Serve Swagger JSON
-  app.get("/api-docs.json", (req, res) => {
-    res.setHeader("Content-Type", "application/json");
-    res.send(swaggerDocs);
-  });
+  // Serve Swagger UI static files from swagger-ui-dist
+  app.use(
+    "/swagger-ui",
+    express.static(path.join(__dirname, "../../node_modules/swagger-ui-dist"))
+  );
 
-  // Serve Swagger UI using CDN
+  // Serve Swagger UI with custom configuration
   app.get("/api-docs", (req, res) => {
     res.send(`
       <!DOCTYPE html>
@@ -539,27 +539,37 @@ module.exports = (app) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>LinkUp API Documentation</title>
-        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+        <link rel="stylesheet" href="/swagger-ui/swagger-ui.css" />
       </head>
       <body>
         <div id="swagger-ui"></div>
-        <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
-        <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js"></script>
+        <script src="/swagger-ui/swagger-ui-bundle.js"></script>
+        <script src="/swagger-ui/swagger-ui-standalone-preset.js"></script>
         <script>
           window.onload = () => {
-            window.ui = SwaggerUIBundle({
-              url: '/api-docs.json',
-              dom_id: '#swagger-ui',
-              presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
-              ],
-              layout: "StandaloneLayout"
-            });
+            try {
+              window.ui = SwaggerUIBundle({
+                url: '/api-docs.json',
+                dom_id: '#swagger-ui',
+                presets: [
+                  SwaggerUIBundle.presets.apis,
+                  SwaggerUIStandalonePreset
+                ],
+                layout: "StandaloneLayout"
+              });
+            } catch (error) {
+              console.error('Swagger UI initialization failed:', error);
+            }
           };
         </script>
       </body>
       </html>
     `);
+  });
+
+  // Serve Swagger JSON
+  app.get("/api-docs.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.send(swaggerDocs);
   });
 };
