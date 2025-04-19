@@ -29,7 +29,11 @@ const createPost = async (req, res) => {
     // Upload image to Cloudinary (if provided)
     let imageUrl = null;
     if (imageFile) {
-      const uploadResult = await cloudinary.uploader.upload(imageFile.path);
+      const uploadResult = await uploadToCloud(imageFile.buffer, {
+        folder: "posts",
+        resource_type: "auto",
+        allowed_formats: ALLOWED_IMAGE_TYPES,
+      });
       imageUrl = uploadResult.secure_url;
     }
 
