@@ -35,7 +35,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "https://link-7gq2gvwce-mahmoudramadan21s-projects.vercel.app/api/",
+        url: "http://52.200.206.235:3000/api/",
         description: "Production server",
       },
       { url: "http://localhost:3000/api/", description: "Development server" },
