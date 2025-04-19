@@ -7,10 +7,10 @@
   },
   "scripts": {
     "start": "cd src && node index.js",
-    "postinstall": "npx prisma generate --schema=/models/prisma/schema.prisma"
+    "postinstall": "npx prisma generate --schema=src/models/prisma/schema.prisma"
   },
   "prisma": {
-    "schema": "/models/prisma/schema.prisma"
+    "schema": "src/models/prisma/schema.prisma"
   },
   "keywords": [],
   "author": "",
