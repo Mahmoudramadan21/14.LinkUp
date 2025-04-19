@@ -16,7 +16,7 @@ const generateTokens = (user) => {
   const accessToken = jwt.sign(
     { userId: user.UserID },
     process.env.JWT_SECRET,
-    { expiresIn: "15m", issuer: "linkup-api" }
+    { expiresIn: "7d", issuer: "linkup-api" }
   );
 
   const refreshToken = jwt.sign(
@@ -79,7 +79,7 @@ const login = async (usernameOrEmail, password) => {
   const accessToken = jwt.sign(
     { userId: user.UserID },
     process.env.JWT_SECRET,
-    { expiresIn: "15m", issuer: "linkup-api" }
+    { expiresIn: "7d", issuer: "linkup-api" }
   );
   const refreshToken = jwt.sign(
     { userId: user.UserID },
