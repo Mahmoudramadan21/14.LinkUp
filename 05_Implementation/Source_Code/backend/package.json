@@ -6,7 +6,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "cd src && node index.js",
     "postinstall": "npx prisma generate --schema=src/models/prisma/schema.prisma"
   },
   "prisma": {
