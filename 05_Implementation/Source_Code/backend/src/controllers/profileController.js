@@ -2,6 +2,7 @@ const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const cloudinary = require("cloudinary").v2;
+const redis = require("../utils/redis");
 
 // Salt rounds for password hashing - recommended value
 const SALT_ROUNDS = 10;
@@ -348,37 +349,39 @@ const updatePrivacySettings = async (req, res) => {
         : []),
     ]);
 
-    // Invalidate Redis cache for user's posts and followers
-    const redis = require("redis");
-    const client = redis.createClient({ url: process.env.REDIS_URL });
-    await client.connect();
-    await client.del(`posts:user:${userId}`);
-    await client.del(`followers:user:${userId}`);
-    await client.disconnect();
+    // Invalidate Redis cache for user's posts and followers using the existing RedisClient
+    await redis.del(`posts:user:${userId}`);
+    await redis.del(`followers:user:${userId}`);
 
-    // Emit privacy update event via Socket.IO
+    // Emit privacy update event via Socket.IO if the instance is available
     const io = req.app.get("io");
-    io.to(`user_${userId}`).emit("privacyUpdated", {
-      userId,
-      isPrivate: isPrivateBoolean,
-      timestamp: new Date(),
-    });
+    if (io) {
+      io.to(`user_${userId}`).emit("privacyUpdated", {
+        userId,
+        isPrivate: isPrivateBoolean,
+        timestamp: new Date(),
+      });
 
-    // Notify followers of approved requests
-    if (currentUser.IsPrivate && !isPrivateBoolean) {
-      const approvedFollowers = await prisma.follower.findMany({
-        where: {
-          UserID: userId,
-          Status: "ACCEPTED",
-        },
-        select: { FollowerUserID: true },
-      });
-      approvedFollowers.forEach((follower) => {
-        io.to(`user_${follower.FollowerUserID}`).emit("followAccepted", {
-          followedUserId: userId,
-          timestamp: new Date(),
+      // Notify followers of approved requests
+      if (currentUser.IsPrivate && !isPrivateBoolean) {
+        const approvedFollowers = await prisma.follower.findMany({
+          where: {
+            UserID: userId,
+            Status: "ACCEPTED",
+          },
+          select: { FollowerUserID: true },
         });
-      });
+        approvedFollowers.forEach((follower) => {
+          io.to(`user_${follower.FollowerUserID}`).emit("followAccepted", {
+            followedUserId: userId,
+            timestamp: new Date(),
+          });
+        });
+      }
+    } else {
+      console.warn(
+        "Socket.IO instance not found. Real-time privacy update emission skipped."
+      );
     }
 
     res.status(200).json({

@@ -171,13 +171,14 @@ const getStoryViews = async (req, res) => {
 /**
  * Fetches story feed for followed users
  * Prioritizes unviewed stories
+ * Includes user details (username, profilePicture)
  */
 const getStoryFeed = async (req, res) => {
   const { UserID } = req.user;
 
   try {
     // Check cache
-    const cacheKey = `stories:feed_ids:${UserID}`;
+    const cacheKey = `stories:feed:${UserID}`;
     const cachedData = await redis.get(cacheKey);
     if (cachedData) return res.json(cachedData);
 
@@ -192,6 +193,28 @@ const getStoryFeed = async (req, res) => {
 
     const followingIds = following.map((f) => f.UserID);
     followingIds.push(UserID);
+
+    // Fetch user details for followed users
+    const users = await prisma.user.findMany({
+      where: {
+        UserID: { in: followingIds },
+      },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+      },
+    });
+
+    // Create a map of user details for quick lookup
+    const userMap = users.reduce((acc, user) => {
+      acc[user.UserID] = {
+        userId: user.UserID,
+        username: user.Username,
+        profilePicture: user.ProfilePicture,
+      };
+      return acc;
+    }, {});
 
     // Fetch stories with view status
     const stories = await prisma.story.findMany({
@@ -226,11 +249,19 @@ const getStoryFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // Format response
-    const result = Object.values(usersWithStories).map((user) => ({
-      userId: user.userId,
-      hasUnviewedStories: user.storyIds.length > user.viewedStoryIds.length,
-    }));
+    // Format response with user details
+    const result = Object.values(usersWithStories)
+      .map((user) => {
+        const userDetails = userMap[user.userId];
+        if (!userDetails) return null; // Skip if user details not found
+        return {
+          userId: user.userId,
+          username: userDetails.username,
+          profilePicture: userDetails.profilePicture,
+          hasUnviewedStories: user.storyIds.length > user.viewedStoryIds.length,
+        };
+      })
+      .filter((user) => user !== null); // Remove any null entries
 
     // Sort by unviewed stories
     result.sort((a, b) => {

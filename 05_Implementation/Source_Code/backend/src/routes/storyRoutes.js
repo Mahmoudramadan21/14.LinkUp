@@ -158,13 +158,13 @@ router.get("/:storyId/views", authMiddleware, getStoryViews);
  * @swagger
  * /stories/feed:
  *   get:
- *     summary: Get user IDs with active stories from followed users
+ *     summary: Get users with active stories from followed users
  *     tags: [Stories]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of user IDs with view status
+ *         description: List of users with active stories and view status
  *         content:
  *           application/json:
  *             schema:
@@ -174,8 +174,16 @@ router.get("/:storyId/views", authMiddleware, getStoryViews);
  *                 properties:
  *                   userId:
  *                     type: integer
+ *                     example: 1
+ *                   username:
+ *                     type: string
+ *                     example: "johndoe"
+ *                   profilePicture:
+ *                     type: string
+ *                     example: "https://example.com/profile.jpg"
  *                   hasUnviewedStories:
  *                     type: boolean
+ *                     example: true
  *       401:
  *         description: Unauthorized
  */

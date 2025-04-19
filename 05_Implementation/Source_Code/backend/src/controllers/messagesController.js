@@ -388,13 +388,19 @@ const sendMessage = async (req, res) => {
       await redis.del(`conversations:${participant.UserID}`);
     }
 
-    // Emit message via Socket.IO
+    // Emit message via Socket.IO if the instance is available
     const io = req.app.get("io");
-    io.to(conversationId).emit("newMessage", {
-      ...message,
-      conversationId,
-      timestamp: new Date(),
-    });
+    if (io) {
+      io.to(conversationId).emit("newMessage", {
+        ...message,
+        conversationId,
+        timestamp: new Date(),
+      });
+    } else {
+      console.warn(
+        "Socket.IO instance not found. Real-time message emission skipped."
+      );
+    }
 
     res.status(201).json(message);
   } catch (error) {
