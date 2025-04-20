@@ -3,16 +3,27 @@ const express = require("express");
 const path = require("path");
 const glob = require("glob");
 
-// Log scanned files for debugging
+// Set the project root directory
 const projectRoot = path.resolve(__dirname, "../../");
+
+// Scan for route and controller files, including nested search folder
 const routeFiles = glob.sync(path.join(projectRoot, "src/routes/*.js"));
+const nestedRouteFiles = glob.sync(
+  path.join(projectRoot, "src/routes/search/*.js")
+); // Include nested search routes
 const controllerFiles = glob.sync(
   path.join(projectRoot, "src/controllers/*.js")
 );
-console.log("Swagger scanned route files:", routeFiles);
+
+// Combine all route files (top-level and nested)
+const allRouteFiles = [...routeFiles, ...nestedRouteFiles];
+
+// Log scanned files for debugging
+console.log("Swagger scanned route files:", allRouteFiles);
 console.log("Swagger scanned controller files:", controllerFiles);
 
-if (!routeFiles.length && !controllerFiles.length) {
+// Check if no route or controller files were found
+if (!allRouteFiles.length && !controllerFiles.length) {
   console.error("Swagger failed to load route or controller files");
 }
 
@@ -71,6 +82,10 @@ const swaggerOptions = {
         name: "Notifications",
         description: "Notification management endpoints",
       },
+      {
+        name: "Search", // Added Search tag
+        description: "Search for users and posts",
+      },
     ],
     components: {
       securitySchemes: {
@@ -83,6 +98,7 @@ const swaggerOptions = {
         },
       },
       schemas: {
+        // Existing schemas
         Highlight: {
           type: "object",
           properties: {
@@ -113,22 +129,50 @@ const swaggerOptions = {
             },
           },
         },
+        // Updated User schema (already provided)
         User: {
           type: "object",
           properties: {
             UserID: { type: "integer", example: 1 },
-            Username: { type: "string", example: "johndoe" },
-            Email: { type: "string", example: "john@example.com" },
+            Username: { type: "string", example: "john_doe" },
+            Email: { type: "string", example: "john@example.com" }, // Added Email to match earlier schema
             ProfilePicture: {
               type: "string",
-              example: "https://example.com/profile.jpg",
+              example: "https://example.com/john.jpg",
             },
-            Bio: {
-              type: "string",
-              example: "Software developer from New York",
-            },
-            IsPrivate: { type: "boolean", example: false },
+            bio: { type: "string", example: "I love coding!" }, // Changed Bio to bio to match earlier schema
+            IsPrivate: { type: "boolean", example: false }, // Changed isPrivate to IsPrivate to match existing schema
             CreatedAt: { type: "string", format: "date-time" },
+          },
+        },
+        // Added Post schema (already provided)
+        Post: {
+          type: "object",
+          properties: {
+            postId: { type: "integer", example: 1 }, // Changed PostID to postId to match earlier schema
+            content: { type: "string", example: "This is my post!" }, // Changed Content to content to match earlier schema
+            imageUrl: {
+              // Changed ImageURL to imageUrl to match earlier schema
+              type: "string",
+              example: "https://example.com/image.jpg",
+              nullable: true,
+            },
+            videoUrl: {
+              // Added videoUrl to match earlier schema
+              type: "string",
+              example: "https://example.com/video.mp4",
+              nullable: true,
+            },
+            createdAt: { type: "string", format: "date-time" }, // Changed CreatedAt to createdAt to match earlier schema
+            user: {
+              // Added user object to match earlier schema
+              type: "object",
+              properties: {
+                UserID: { type: "integer", example: 1 },
+                Username: { type: "string", example: "john_doe" },
+                isPrivate: { type: "boolean", example: false },
+              },
+            },
           },
         },
         Follower: {
@@ -155,18 +199,6 @@ const swaggerOptions = {
             },
             CreatedAt: { type: "string", format: "date-time" },
             UpdatedAt: { type: "string", format: "date-time" },
-          },
-        },
-        Post: {
-          type: "object",
-          properties: {
-            PostID: { type: "integer", example: 1 },
-            Content: { type: "string", example: "This is a sample post" },
-            ImageURL: {
-              type: "string",
-              example: "https://example.com/image.jpg",
-            },
-            CreatedAt: { type: "string", format: "date-time" },
           },
         },
         UserAuth: {
@@ -513,18 +545,20 @@ const swaggerOptions = {
   },
   apis: [
     path.join(__dirname, "../../src/routes/*.js"),
+    path.join(__dirname, "../../src/routes/search/*.js"), // Include nested search routes
     path.join(__dirname, "../../src/controllers/*.js"),
   ],
 };
 
-// Generated Swagger documentation object
+// Generate Swagger documentation
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
-// Log the actual routes Swagger found for debugging
+// Log the routes Swagger found for debugging
 console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
+// Export the Swagger setup function
 module.exports = (app) => {
-  // Serve Swagger UI static files from swagger-ui-dist
+  // Serve Swagger UI static files
   app.use(
     "/swagger-ui",
     express.static(path.join(__dirname, "../../node_modules/swagger-ui-dist"))

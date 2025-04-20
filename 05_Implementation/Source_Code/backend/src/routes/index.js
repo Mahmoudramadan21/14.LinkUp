@@ -9,6 +9,7 @@ const highlightRoutes = require("./highlightRoutes");
 const adminRoutes = require("./adminRoutes");
 const notificationRoutes = require("./notificationRoutes");
 const testRoutes = require("./testRoutes");
+const searchRoutes = require("./searchRoutes");
 
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
@@ -19,5 +20,6 @@ router.use("/highlights", highlightRoutes);
 router.use("/admin", adminRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/test", testRoutes);
+router.use("/search", searchRoutes);
 
 module.exports = router;
