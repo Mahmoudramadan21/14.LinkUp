@@ -5,12 +5,83 @@ const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { sendResetEmail } = require("../services/emailService");
 const { register, login: serviceLogin } = require("../services/authService");
+const { v4: uuidv4 } = require("uuid");
 
 const SALT_ROUNDS = 10; // Define salt rounds
 
+// Encryption key (same as used in authService.js)
+const ENCRYPTION_KEY =
+  process.env.ENCRYPTION_KEY || "your-32-char-long-secret-key-here";
+const IV_LENGTH = 16;
+
+// Fixed cookie name for sessionId (obfuscated but constant)
+const SESSION_COOKIE_NAME = "qkz7m4p8v2";
+
+/**
+ * Encrypts the given text using AES-256-CBC
+ * @param {string} text - The text to encrypt
+ * @returns {string} The encrypted text with IV
+ */
+const encrypt = (text) => {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(
+    "aes-256-cbc",
+    Buffer.from(ENCRYPTION_KEY),
+    iv
+  );
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
+};
+
+/**
+ * Decrypts the given encrypted text using AES-256-CBC
+ * @param {string} text - The encrypted text with IV
+ * @returns {string} The decrypted text
+ */
+const decrypt = (text) => {
+  const [iv, encryptedText] = text
+    .split(":")
+    .map((part) => Buffer.from(part, "hex"));
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    Buffer.from(ENCRYPTION_KEY),
+    iv
+  );
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+};
+
+/**
+ * Generates a random string in UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+ * @returns {string} Random string in UUID format
+ */
+const generateRandomString = () => {
+  const chars = "0123456789abcdef";
+  const segments = [8, 4, 4, 4, 12]; // UUID segment lengths
+  const randomSegment = (length) =>
+    Array.from({ length }, () => chars[Math.floor(Math.random() * 16)]).join(
+      ""
+    );
+  return segments.map(randomSegment).join("-");
+};
+
+/**
+ * Generates a random cookie name (10 characters, lowercase letters and numbers)
+ * @returns {string} Random cookie name
+ */
+const generateRandomCookieName = () => {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from(
+    { length: 10 },
+    () => chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
+};
+
 /**
  * Handles user registration with email/username availability check
- * and password hashing, sets tokens as secure cookies
+ * and password hashing, sets session ID as a secure cookie with a fixed name
  */
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body); // Log incoming request
@@ -113,25 +184,50 @@ const signup = async (req, res) => {
       { expiresIn: "7d", issuer: "linkup-api" }
     );
 
-    // Store refresh token in Redis
-    console.log("Storing refresh token in Redis...");
-    await redis.set(
-      `refresh_token:${newUser.UserID}`,
-      refreshToken,
-      7 * 24 * 60 * 60
-    );
-    console.log("Refresh token stored");
+    // Generate a unique session ID
+    const sessionId = uuidv4();
 
-    // Set secure cookies
+    // Generate a random cookie name for additional obfuscation
+    const randomCookieName = generateRandomCookieName();
+
+    // Encrypt the tokens before storing in Redis
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedRefreshToken = encrypt(refreshToken);
+
+    // Store encrypted tokens and the random cookie name in Redis with the session ID
+    await redis.set(
+      `session:${sessionId}`,
+      JSON.stringify({
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        userId: newUser.UserID,
+        randomCookieName: randomCookieName, // Store the random cookie name for logout
+      }),
+      7 * 24 * 60 * 60 // 7 days
+    );
+
+    // Set session ID as a secure cookie with the fixed name
     const cookieOptions = {
-      httpOnly: true, // Prevent client-side access
-      secure: process.env.NODE_ENV === "production", // Secure in production
-      sameSite: "Strict", // Protect against CSRF
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     };
 
-    res.cookie("accessToken", accessToken, cookieOptions);
-    res.cookie("refreshToken", refreshToken, cookieOptions);
+    // Set the sessionId in a cookie with a fixed, obfuscated name
+    res.cookie(SESSION_COOKIE_NAME, sessionId, cookieOptions);
+
+    // Also set the sessionId in a cookie with a random name for obfuscation
+    res.cookie(randomCookieName, sessionId, cookieOptions);
+
+    // Add dummy cookies for obfuscation (same format as sessionId)
+    const dummyCookieNames = Array.from({ length: 5 }, () =>
+      generateRandomCookieName()
+    );
+    dummyCookieNames.forEach((name) => {
+      const dummyValue = generateRandomString(); // Generate a UUID-like string
+      res.cookie(name, dummyValue, cookieOptions);
+    });
 
     // Send response
     res.status(201).json({
@@ -152,7 +248,7 @@ const signup = async (req, res) => {
 };
 
 /**
- * Authenticates user and sets tokens as secure cookies
+ * Authenticates user and sets session ID as a secure cookie with a fixed name
  */
 const login = async (req, res) => {
   const { usernameOrEmail, password } = req.body;
@@ -179,7 +275,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (error.message.includes("redis.set")) {
-      return res.status(503).json({ message: "Failed to store refresh token" });
+      return res.status(503).json({ message: "Failed to store session data" });
     }
     res.status(500).json({
       message: "Authentication failed",
@@ -189,19 +285,29 @@ const login = async (req, res) => {
 };
 
 /**
- * Refreshes access token using refresh token from cookies
+ * Refreshes access token using session ID from cookies
  */
 const refreshToken = async (req, res) => {
   try {
-    // Extract refresh token from cookies
-    const refreshToken = req.cookies.refreshToken;
-    console.log("Received refreshToken from cookies:", refreshToken);
-    if (!refreshToken || typeof refreshToken !== "string") {
+    const sessionId = req.cookies[SESSION_COOKIE_NAME];
+    console.log("Received sessionId from cookies:", sessionId);
+    if (!sessionId || typeof sessionId !== "string") {
       return res
         .status(400)
-        .json({ message: "Refresh token required in cookies" });
+        .json({ message: "Session ID required in cookies" });
     }
 
+    // Retrieve session data from Redis
+    const sessionData = await redis.get(`session:${sessionId}`);
+    if (!sessionData) {
+      return res.status(401).json({ message: "Invalid session" });
+    }
+
+    const { refreshToken: encryptedRefreshToken, userId } =
+      JSON.parse(sessionData);
+    const refreshToken = decrypt(encryptedRefreshToken);
+
+    // Verify the refresh token
     let decoded;
     try {
       if (!process.env.JWT_REFRESH_SECRET) {
@@ -220,27 +326,11 @@ const refreshToken = async (req, res) => {
       return res.status(400).json({ message: "Invalid token payload" });
     }
 
-    let storedToken;
-    try {
-      storedToken = await redis.get(`refresh_token:${decoded.userId}`);
-      console.log(
-        `Retrieved refresh_token:${decoded.userId} from Redis:`,
-        storedToken
-      );
-    } catch (redisError) {
-      console.error("Redis get error in refreshToken:", redisError.message);
-      return res.status(503).json({ message: "Redis service unavailable" });
-    }
-
-    if (!storedToken || storedToken !== refreshToken) {
-      console.error("Refresh token mismatch or not found in Redis");
-      return res.status(401).json({ message: "Invalid refresh token" });
-    }
-
+    // Fetch user
     let user;
     try {
       user = await prisma.user.findUnique({
-        where: { UserID: decoded.userId },
+        where: { UserID: userId },
         select: { UserID: true, Username: true, IsBanned: true },
       });
     } catch (dbError) {
@@ -256,7 +346,8 @@ const refreshToken = async (req, res) => {
       return res.status(403).json({ message: "User is banned" });
     }
 
-    const accessToken = jwt.sign(
+    // Generate new tokens (rotate refresh token)
+    const newAccessToken = jwt.sign(
       { userId: user.UserID },
       process.env.JWT_SECRET,
       { expiresIn: "15m", issuer: "linkup-api" }
@@ -267,30 +358,21 @@ const refreshToken = async (req, res) => {
       { expiresIn: "7d", issuer: "linkup-api" }
     );
 
-    try {
-      await redis.set(
-        `refresh_token:${user.UserID}`,
-        newRefreshToken,
-        7 * 24 * 60 * 60
-      );
-      console.log(`Stored new refresh_token:${user.UserID} in Redis`);
-    } catch (redisError) {
-      console.error("Redis set error in refreshToken:", redisError.message);
-      return res
-        .status(503)
-        .json({ message: "Failed to store new refresh token" });
-    }
+    // Encrypt the new tokens
+    const newEncryptedAccessToken = encrypt(newAccessToken);
+    const newEncryptedRefreshToken = encrypt(newRefreshToken);
 
-    // Set new secure cookies
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-    };
-
-    res.cookie("accessToken", accessToken, cookieOptions);
-    res.cookie("refreshToken", newRefreshToken, cookieOptions);
+    // Update Redis with the new tokens
+    await redis.set(
+      `session:${sessionId}`,
+      JSON.stringify({
+        accessToken: newEncryptedAccessToken,
+        refreshToken: newEncryptedRefreshToken,
+        userId: user.UserID,
+        randomCookieName: JSON.parse(sessionData).randomCookieName,
+      }),
+      7 * 24 * 60 * 60 // 7 days
+    );
 
     res.json({
       message: "Token refreshed successfully",
@@ -303,19 +385,45 @@ const refreshToken = async (req, res) => {
 };
 
 /**
- * Logs out user by clearing cookies and removing refresh token from Redis
+ * Logs out user by clearing session ID cookie and dummy cookies, and removing session from Redis
  */
-const logout = async (userId, res) => {
+const logout = async (req, res) => {
   try {
-    await redis.del(`refresh_token:${userId}`);
-    console.log(`Deleted refresh_token:${userId} from Redis`);
+    const sessionId = req.cookies[SESSION_COOKIE_NAME];
+    if (sessionId) {
+      const sessionData = await redis.get(`session:${sessionId}`);
+      if (sessionData) {
+        const { randomCookieName } = JSON.parse(sessionData);
+        await redis.del(`session:${sessionId}`);
+        console.log(`Deleted session:${sessionId} from Redis`);
 
-    // Clear cookies
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+        // Clear the fixed session ID cookie
+        res.clearCookie(SESSION_COOKIE_NAME);
+
+        // Clear the random cookie that also contains the sessionId
+        if (randomCookieName) {
+          res.clearCookie(randomCookieName);
+        }
+
+        // Clear all other cookies (since all other cookie names are random, we assume they are dummy)
+        Object.keys(req.cookies).forEach((cookieName) => {
+          if (
+            cookieName !== SESSION_COOKIE_NAME &&
+            cookieName !== randomCookieName
+          ) {
+            res.clearCookie(cookieName);
+          }
+        });
+      }
+    }
+
+    res.json({
+      message: "Logged out successfully",
+      data: {},
+    });
   } catch (error) {
     console.error("Logout error:", error.message);
-    throw new Error(`Logout failed: ${error.message}`);
+    res.status(500).json({ message: "Logout failed" });
   }
 };
 

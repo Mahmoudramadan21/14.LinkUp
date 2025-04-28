@@ -26,6 +26,9 @@ const loginLimiter = rateLimit({
   message: "Too many login attempts, please try again after 15 minutes",
 });
 
+// Fixed cookie name for sessionId (obfuscated but constant)
+const SESSION_COOKIE_NAME = "qkz7m4p8v2";
+
 /**
  * @swagger
  * tags:
@@ -65,7 +68,7 @@ const loginLimiter = rateLimit({
  *           type: string
  *           minLength: 8
  *           example: P@ssw0rd123
- *           description: Password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
+ *           description: Password with minimum 8 characters
  *     LoginCredentials:
  *       type: object
  *       required:
@@ -121,7 +124,7 @@ const loginLimiter = rateLimit({
  *           type: string
  *           minLength: 8
  *           example: NewP@ssw0rd123
- *           description: New password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
+ *           description: New password with minimum 8 characters
  *     SuccessResponse:
  *       type: object
  *       properties:
@@ -180,7 +183,7 @@ const loginLimiter = rateLimit({
  *             $ref: '#/components/schemas/UserAuth'
  *     responses:
  *       201:
- *         description: User registered successfully, tokens set as secure cookies
+ *         description: User registered successfully, session ID set as a secure cookie
  *         content:
  *           application/json:
  *             schema:
@@ -195,35 +198,26 @@ const loginLimiter = rateLimit({
  *           Set-Cookie:
  *             schema:
  *               type: string
- *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
- *             description: Sets accessToken and refreshToken as secure cookies
+ *               example: qkz7m4p8v2=123e4567-e89b-12d3-a456-426614174000; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+ *             description: Sets session ID as a secure cookie with a fixed name (qkz7m4p8v2), along with dummy cookies for obfuscation
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Username, email, and password are required
- *               errors:
- *                 - field: username
- *                   error: Username is required
  *       409:
  *         description: Email or username already exists
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Email or username already exists
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Error registering user
  */
 router.post("/signup", signupValidationRules, validate, signup);
 
@@ -231,7 +225,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Authenticate user and set secure cookies
+ *     summary: Authenticate user and set session ID as a secure cookie
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -241,7 +235,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             $ref: '#/components/schemas/LoginCredentials'
  *     responses:
  *       200:
- *         description: Login successful, tokens are set as secure cookies
+ *         description: Login successful, session ID set as a secure cookie
  *         content:
  *           application/json:
  *             schema:
@@ -255,43 +249,32 @@ router.post("/signup", signupValidationRules, validate, signup);
  *           Set-Cookie:
  *             schema:
  *               type: string
- *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
- *             description: Sets accessToken and refreshToken as secure cookies
+ *               example: qkz7m4p8v2=123e4567-e89b-12d3-a456-426614174000; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+ *             description: Sets session ID as a secure cookie with a fixed name (qkz7m4p8v2), along with dummy cookies for obfuscation
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Username or email is required
- *               errors:
- *                 - field: usernameOrEmail
- *                   error: Username or email is required
  *       401:
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Invalid credentials
  *       429:
  *         description: Too many login attempts
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Too many login attempts, please try again after 15 minutes
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Authentication failed
  */
 router.post("/login", loginLimiter, loginValidationRules, validate, login);
 
@@ -299,11 +282,11 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  * @swagger
  * /auth/refresh:
  *   post:
- *     summary: Refresh access token using refresh token from cookies
+ *     summary: Refresh access token using session ID from cookies
  *     tags: [Authentication]
  *     responses:
  *       200:
- *         description: Token refreshed successfully, new tokens set as secure cookies
+ *         description: Token refreshed successfully
  *         content:
  *           application/json:
  *             schema:
@@ -311,52 +294,36 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *             example:
  *               message: Token refreshed successfully
  *               data: {}
- *         headers:
- *           Set-Cookie:
- *             schema:
- *               type: string
- *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
- *             description: Sets new accessToken and refreshToken as secure cookies
  *       400:
- *         description: Missing refresh token in cookies
+ *         description: Missing session ID in cookies
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Refresh token required in cookies
  *       401:
- *         description: Invalid or expired refresh token
+ *         description Gravity: Invalid or expired refresh token
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Invalid or expired refresh token
  *       403:
  *         description: User is banned
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: User is banned
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: User not found
  *       503:
  *         description: Service unavailable (Redis or database)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Redis service unavailable
  */
 router.post("/refresh", controllerRefreshToken);
 
@@ -364,13 +331,13 @@ router.post("/refresh", controllerRefreshToken);
  * @swagger
  * /auth/logout:
  *   post:
- *     summary: Logout user and clear authentication cookies
+ *     summary: Logout user and clear session ID cookie and dummy cookies
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Logged out successfully, cookies cleared
+ *         description: Logged out successfully, session ID cookie and dummy cookies cleared
  *         content:
  *           application/json:
  *             schema:
@@ -382,24 +349,20 @@ router.post("/refresh", controllerRefreshToken);
  *           Set-Cookie:
  *             schema:
  *               type: string
- *               example: accessToken=; Max-Age=0; HttpOnly; Secure; SameSite=Strict
- *             description: Clears accessToken and refreshToken cookies
+ *               example: qkz7m4p8v2=; Max-Age=0; HttpOnly; Secure; SameSite=Strict
+ *             description: Clears session ID cookie (qkz7m4p8v2) and dummy cookies
  *       401:
  *         description: Unauthorized - No user authenticated
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Unauthorized
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Logout failed
  */
 router.post("/logout", logout);
 
@@ -422,28 +385,18 @@ router.post("/logout", logout);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: If the email exists, a verification code has been sent
- *               codeSent: true
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Email is required
- *               errors:
- *                 - field: email
- *                   error: Email is required
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Error processing request
  */
 router.post(
   "/forgot-password",
@@ -471,25 +424,18 @@ router.post(
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: Code verified successfully
- *               resetToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
  *         description: Invalid or expired verification code
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Invalid or expired verification code
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Error verifying code
  */
 router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
 
@@ -512,32 +458,24 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: Password updated successfully
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: New password must be at least 8 characters long
  *       401:
  *         description: Invalid or expired reset token
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Invalid or expired reset token
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               message: Error updating password
  */
 router.post(
   "/reset-password",

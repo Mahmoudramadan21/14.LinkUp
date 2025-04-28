@@ -2,30 +2,48 @@ const jwt = require("jsonwebtoken");
 const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { handleUnauthorizedError } = require("../utils/errorHandler");
+const crypto = require("crypto");
 
-const verifyToken = (token) => {
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error("Invalid token");
-  }
+// Encryption key (same as used in authService.js)
+const ENCRYPTION_KEY =
+  process.env.ENCRYPTION_KEY || "your-32-char-long-secret-key-here";
+const IV_LENGTH = 16;
+
+// Fixed cookie name for sessionId (obfuscated but constant)
+const SESSION_COOKIE_NAME = "qkz7m4p8v2";
+
+/**
+ * Decrypts the given encrypted text using AES-256-CBC
+ * @param {string} text - The encrypted text with IV
+ * @returns {string} The decrypted text
+ */
+const decrypt = (text) => {
+  const [iv, encryptedText] = text
+    .split(":")
+    .map((part) => Buffer.from(part, "hex"));
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    Buffer.from(ENCRYPTION_KEY),
+    iv
+  );
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
 };
 
 /**
- * Verifies JWT token and attaches user to request
+ * Middleware to authenticate requests by finding session ID in cookies
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
- * @async
  */
 const authMiddleware = async (req, res, next) => {
-  const sessionId = req.cookies.sessionId;
+  const sessionId = req.cookies[SESSION_COOKIE_NAME];
 
-  if (!sessionId) {
+  if (!sessionId || typeof sessionId !== "string") {
     return res
       .status(401)
-      .json({ message: "Unauthorized: No session ID provided" });
+      .json({ message: "Unauthorized: No session ID found" });
   }
 
   try {
@@ -35,21 +53,24 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized: Invalid session" });
     }
 
-    const { accessToken, userId } = JSON.parse(sessionData);
+    const { accessToken: encryptedAccessToken, userId } =
+      JSON.parse(sessionData);
+
+    // Decrypt the access token
+    const accessToken = decrypt(encryptedAccessToken);
 
     // Verify the access token
     const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
     req.user = { UserID: userId };
-    next();
+    return next();
   } catch (error) {
-    console.error("Auth middleware error:", error.message);
-    return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    console.error("Error verifying session:", error.message);
+    return res.status(401).json({ message: "Unauthorized: Invalid session" });
   }
 };
 
 /**
- * Authorizes requests based on user role
- * Caches role in Redis to reduce database queries
+ * Authorizes requests based on user role, caches role in Redis to reduce database queries
  * @param {string[]} allowedRoles - Array of allowed roles
  * @returns {Function} Express middleware
  */
