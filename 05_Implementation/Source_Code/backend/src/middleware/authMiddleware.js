@@ -3,6 +3,15 @@ const prisma = require("../utils/prisma");
 const redis = require("../utils/redis");
 const { handleUnauthorizedError } = require("../utils/errorHandler");
 
+const verifyToken = (token) => {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    throw new Error("Invalid token");
+  }
+};
+
 /**
  * Verifies JWT token and attaches user to request
  * @param {Object} req - Express request object
@@ -11,35 +20,30 @@ const { handleUnauthorizedError } = require("../utils/errorHandler");
  * @async
  */
 const authMiddleware = async (req, res, next) => {
+  const sessionId = req.cookies.sessionId;
+
+  if (!sessionId) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized: No session ID provided" });
+  }
+
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return handleUnauthorizedError(res, "No token provided");
+    // Retrieve session data from Redis
+    const sessionData = await redis.get(`session:${sessionId}`);
+    if (!sessionData) {
+      return res.status(401).json({ message: "Unauthorized: Invalid session" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await prisma.user.findUnique({
-      where: { UserID: decoded.userId },
-      select: {
-        UserID: true,
-        Username: true,
-        Role: true,
-        IsBanned: true,
-      },
-    });
+    const { accessToken, userId } = JSON.parse(sessionData);
 
-    if (!user) {
-      return handleUnauthorizedError(res, "User not found");
-    }
-
-    if (user.IsBanned) {
-      return handleUnauthorizedError(res, "User is banned");
-    }
-
-    req.user = user;
+    // Verify the access token
+    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+    req.user = { UserID: userId };
     next();
   } catch (error) {
-    handleUnauthorizedError(res, "Authentication failed");
+    console.error("Auth middleware error:", error.message);
+    return res.status(401).json({ message: "Unauthorized: Invalid token" });
   }
 };
 

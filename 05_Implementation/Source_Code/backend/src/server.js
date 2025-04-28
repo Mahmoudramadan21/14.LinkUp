@@ -1,13 +1,13 @@
 const { Server } = require("socket.io");
 const prisma = require("./utils/prisma");
-const authMiddleware = require("./middleware/authMiddleware");
+const { verifyToken } = require("./middleware/authMiddleware");
 
 const configureSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: process.env.FRONTEND_URL || "http://localhost:3001",
       methods: ["GET", "POST"],
-      credentials: true,
+      credentials: true, // Allow cookies to be sent
     },
     connectionStateRecovery: {
       maxDisconnectionDuration: 2 * 60 * 1000,
@@ -17,11 +17,24 @@ const configureSocket = (server) => {
 
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token;
-      if (!token)
-        return next(new Error("Authentication error: No token provided"));
+      // Extract token from cookies in handshake headers
+      const cookieHeader = socket.handshake.headers.cookie;
+      if (!cookieHeader) {
+        return next(new Error("Authentication error: No cookies provided"));
+      }
 
-      const decoded = authMiddleware.verifyToken(token);
+      const cookies = cookieHeader.split(";").reduce((acc, cookie) => {
+        const [name, value] = cookie.trim().split("=");
+        acc[name] = value;
+        return acc;
+      }, {});
+
+      const token = cookies.accessToken;
+      if (!token) {
+        return next(new Error("Authentication error: No token provided"));
+      }
+
+      const decoded = verifyToken(token);
       const user = await prisma.user.findUnique({
         where: { UserID: decoded.userId },
         select: {
@@ -32,7 +45,9 @@ const configureSocket = (server) => {
         },
       });
 
-      if (!user) return next(new Error("Authentication error: User not found"));
+      if (!user) {
+        return next(new Error("Authentication error: User not found"));
+      }
 
       socket.user = user;
       next();

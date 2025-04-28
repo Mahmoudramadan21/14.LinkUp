@@ -10,7 +10,7 @@ const SALT_ROUNDS = 10; // Define salt rounds
 
 /**
  * Handles user registration with email/username availability check
- * and password hashing
+ * and password hashing, sets tokens as secure cookies
  */
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body); // Log incoming request
@@ -122,6 +122,17 @@ const signup = async (req, res) => {
     );
     console.log("Refresh token stored");
 
+    // Set secure cookies
+    const cookieOptions = {
+      httpOnly: true, // Prevent client-side access
+      secure: process.env.NODE_ENV === "production", // Secure in production
+      sameSite: "Strict", // Protect against CSRF
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    };
+
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", refreshToken, cookieOptions);
+
     // Send response
     res.status(201).json({
       message: "User registered successfully",
@@ -129,8 +140,6 @@ const signup = async (req, res) => {
         userId: newUser.UserID,
         username: newUser.Username,
         email: newUser.Email,
-        accessToken,
-        refreshToken,
       },
     });
   } catch (error) {
@@ -143,8 +152,7 @@ const signup = async (req, res) => {
 };
 
 /**
- * Authenticates user and returns JWT token
- * Uses constant-time comparison to prevent timing attacks
+ * Authenticates user and sets tokens as secure cookies
  */
 const login = async (req, res) => {
   const { usernameOrEmail, password } = req.body;
@@ -157,14 +165,12 @@ const login = async (req, res) => {
         .json({ message: "Username/email and password required" });
     }
 
-    const { user, tokens } = await serviceLogin(usernameOrEmail, password);
+    const result = await serviceLogin(usernameOrEmail, password, res);
     res.json({
       message: "Login successful",
       data: {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        userId: user.UserID,
-        username: user.Username,
+        userId: result.user.UserID,
+        username: result.user.Username,
       },
     });
   } catch (error) {
@@ -183,14 +189,17 @@ const login = async (req, res) => {
 };
 
 /**
- * Refreshes access token using a valid refresh token
+ * Refreshes access token using refresh token from cookies
  */
 const refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body || {};
-    console.log("Received refreshToken:", refreshToken);
+    // Extract refresh token from cookies
+    const refreshToken = req.cookies.refreshToken;
+    console.log("Received refreshToken from cookies:", refreshToken);
     if (!refreshToken || typeof refreshToken !== "string") {
-      return res.status(400).json({ error: "Valid refresh token required" });
+      return res
+        .status(400)
+        .json({ message: "Refresh token required in cookies" });
     }
 
     let decoded;
@@ -204,16 +213,15 @@ const refreshToken = async (req, res) => {
       console.error("JWT verification error:", jwtError.message);
       return res
         .status(401)
-        .json({ error: "Invalid or expired refresh token" });
+        .json({ message: "Invalid or expired refresh token" });
     }
 
     if (!decoded.userId) {
-      return res.status(400).json({ error: "Invalid token payload" });
+      return res.status(400).json({ message: "Invalid token payload" });
     }
 
     let storedToken;
     try {
-      // Retrieve token as plain string
       storedToken = await redis.get(`refresh_token:${decoded.userId}`);
       console.log(
         `Retrieved refresh_token:${decoded.userId} from Redis:`,
@@ -221,12 +229,12 @@ const refreshToken = async (req, res) => {
       );
     } catch (redisError) {
       console.error("Redis get error in refreshToken:", redisError.message);
-      return res.status(503).json({ error: "Redis service unavailable" });
+      return res.status(503).json({ message: "Redis service unavailable" });
     }
 
     if (!storedToken || storedToken !== refreshToken) {
       console.error("Refresh token mismatch or not found in Redis");
-      return res.status(401).json({ error: "Invalid refresh token" });
+      return res.status(401).json({ message: "Invalid refresh token" });
     }
 
     let user;
@@ -237,15 +245,15 @@ const refreshToken = async (req, res) => {
       });
     } catch (dbError) {
       console.error("Database error in refreshToken:", dbError.message);
-      return res.status(503).json({ error: "Database connection failed" });
+      return res.status(503).json({ message: "Database connection failed" });
     }
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     if (user.IsBanned) {
-      return res.status(403).json({ error: "User is banned" });
+      return res.status(403).json({ message: "User is banned" });
     }
 
     const accessToken = jwt.sign(
@@ -260,7 +268,6 @@ const refreshToken = async (req, res) => {
     );
 
     try {
-      // Store new refresh token as plain string
       await redis.set(
         `refresh_token:${user.UserID}`,
         newRefreshToken,
@@ -271,16 +278,44 @@ const refreshToken = async (req, res) => {
       console.error("Redis set error in refreshToken:", redisError.message);
       return res
         .status(503)
-        .json({ error: "Failed to store new refresh token" });
+        .json({ message: "Failed to store new refresh token" });
     }
+
+    // Set new secure cookies
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    };
+
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", newRefreshToken, cookieOptions);
 
     res.json({
       message: "Token refreshed successfully",
-      data: { accessToken, refreshToken: newRefreshToken },
+      data: {},
     });
   } catch (error) {
     console.error("refreshToken error:", error.message);
-    res.status(500).json({ error: "Failed to refresh token" });
+    res.status(500).json({ message: "Failed to refresh token" });
+  }
+};
+
+/**
+ * Logs out user by clearing cookies and removing refresh token from Redis
+ */
+const logout = async (userId, res) => {
+  try {
+    await redis.del(`refresh_token:${userId}`);
+    console.log(`Deleted refresh_token:${userId} from Redis`);
+
+    // Clear cookies
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+  } catch (error) {
+    console.error("Logout error:", error.message);
+    throw new Error(`Logout failed: ${error.message}`);
   }
 };
 
@@ -432,8 +467,9 @@ const resetPassword = async (req, res) => {
 module.exports = {
   signup,
   login,
-  forgotPassword,
   refreshToken,
+  logout,
+  forgotPassword,
   verifyCode,
   resetPassword,
 };

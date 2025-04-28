@@ -16,7 +16,7 @@ const generateTokens = (user) => {
   const accessToken = jwt.sign(
     { userId: user.UserID },
     process.env.JWT_SECRET,
-    { expiresIn: "7d", issuer: "linkup-api" }
+    { expiresIn: "15m", issuer: "linkup-api" }
   );
 
   const refreshToken = jwt.sign(
@@ -52,17 +52,18 @@ const register = async ({ username, email, password }) => {
 };
 
 /**
- * Authenticates a user and stores refresh token in Redis
+ * Authenticates a user, stores refresh token in Redis, and sets tokens as secure cookies
  * @param {string} usernameOrEmail - Username or email of the user
  * @param {string} password - User's password
- * @returns {Object} Object containing user and tokens
+ * @param {Object} res - Express response object to set cookies
+ * @returns {Object} Object containing user data
  */
-const login = async (usernameOrEmail, password) => {
+const login = async (usernameOrEmail, password, res) => {
   const user = await prisma.user.findFirst({
     where: {
       OR: [
         { Username: usernameOrEmail },
-        { Email: { equals: usernameOrEmail, mode: "insensitive" } }, // Case-insensitive email match
+        { Email: { equals: usernameOrEmail, mode: "insensitive" } },
       ],
     },
   });
@@ -76,37 +77,51 @@ const login = async (usernameOrEmail, password) => {
     throw new Error("Invalid credentials");
   }
 
-  const accessToken = jwt.sign(
-    { userId: user.UserID },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d", issuer: "linkup-api" }
-  );
-  const refreshToken = jwt.sign(
-    { userId: user.UserID },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: "7d", issuer: "linkup-api" }
-  );
+  const { accessToken, refreshToken } = generateTokens(user);
 
+  // Store refresh token in Redis
   await redis.set(
     `refresh_token:${user.UserID}`,
     refreshToken,
     7 * 24 * 60 * 60
   );
 
+  // Set secure cookies
+  const cookieOptionsAccessToken = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+    maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+  };
+
+  const cookieOptionsRefreshToken = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+  };
+
+  res.cookie("accessToken", accessToken, cookieOptionsAccessToken);
+  res.cookie("refreshToken", refreshToken, cookieOptionsRefreshToken);
+
   return {
     user: { UserID: user.UserID, Username: user.Username },
-    tokens: { accessToken, refreshToken },
   };
 };
 
 /**
- * Removes a user's refresh token from Redis
+ * Removes a user's refresh token from Redis and clears cookies
  * @param {number} userId - ID of the user to logout
+ * @param {Object} res - Express response object to clear cookies
  */
-const logout = async (userId) => {
+const logout = async (userId, res) => {
   try {
     await redis.del(`refresh_token:${userId}`);
     console.log(`Deleted refresh_token:${userId} from Redis`);
+
+    // Clear cookies
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
   } catch (error) {
     console.error("Logout error:", error.message);
     throw new Error(`Logout failed: ${error.message}`);

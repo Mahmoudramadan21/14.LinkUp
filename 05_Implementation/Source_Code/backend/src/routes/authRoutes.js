@@ -6,6 +6,7 @@ const {
   forgotPassword,
   verifyCode,
   resetPassword,
+  logout,
 } = require("../controllers/authController");
 const {
   signupValidationRules,
@@ -80,15 +81,6 @@ const loginLimiter = rateLimit({
  *           minLength: 8
  *           example: P@ssw0rd123
  *           description: User password
- *     RefreshTokenRequest:
- *       type: object
- *       required:
- *         - refreshToken
- *       properties:
- *         refreshToken:
- *           type: string
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *           description: Valid refresh token
  *     PasswordResetRequest:
  *       type: object
  *       required:
@@ -188,7 +180,7 @@ const loginLimiter = rateLimit({
  *             $ref: '#/components/schemas/UserAuth'
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User registered successfully, tokens set as secure cookies
  *         content:
  *           application/json:
  *             schema:
@@ -199,8 +191,12 @@ const loginLimiter = rateLimit({
  *                 userId: 1
  *                 username: john_doe
  *                 email: john@example.com
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+ *             description: Sets accessToken and refreshToken as secure cookies
  *       400:
  *         description: Validation error
  *         content:
@@ -235,7 +231,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Authenticate user and get access token
+ *     summary: Authenticate user and set secure cookies
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -245,7 +241,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             $ref: '#/components/schemas/LoginCredentials'
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login successful, tokens are set as secure cookies
  *         content:
  *           application/json:
  *             schema:
@@ -253,10 +249,14 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             example:
  *               message: Login successful
  *               data:
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *                 userId: 1
  *                 username: john_doe
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+ *             description: Sets accessToken and refreshToken as secure cookies
  *       400:
  *         description: Validation error
  *         content:
@@ -299,34 +299,32 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  * @swagger
  * /auth/refresh:
  *   post:
- *     summary: Refresh access token
+ *     summary: Refresh access token using refresh token from cookies
  *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RefreshTokenRequest'
  *     responses:
  *       200:
- *         description: Token refreshed successfully
+ *         description: Token refreshed successfully, new tokens set as secure cookies
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
  *               message: Token refreshed successfully
- *               data:
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               data: {}
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+ *             description: Sets new accessToken and refreshToken as secure cookies
  *       400:
- *         description: Invalid or missing refresh token
+ *         description: Missing refresh token in cookies
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
- *               message: Valid refresh token required
+ *               message: Refresh token required in cookies
  *       401:
  *         description: Invalid or expired refresh token
  *         content:
@@ -361,6 +359,49 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *               message: Redis service unavailable
  */
 router.post("/refresh", controllerRefreshToken);
+
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Logout user and clear authentication cookies
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logged out successfully, cookies cleared
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               message: Logged out successfully
+ *               data: {}
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=; Max-Age=0; HttpOnly; Secure; SameSite=Strict
+ *             description: Clears accessToken and refreshToken cookies
+ *       401:
+ *         description: Unauthorized - No user authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Unauthorized
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Logout failed
+ */
+router.post("/logout", logout);
 
 /**
  * @swagger

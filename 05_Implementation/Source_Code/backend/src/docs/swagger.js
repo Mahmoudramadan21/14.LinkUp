@@ -34,7 +34,8 @@ const swaggerOptions = {
     info: {
       title: "LinkUp API",
       version: "1.0.0",
-      description: "API for LinkUp Social Media Application",
+      description:
+        "API for LinkUp Social Media Application. Authentication tokens are provided and managed as secure cookies.",
       contact: {
         name: "API Support",
         email: "linkup.101203@gmail.com",
@@ -83,7 +84,7 @@ const swaggerOptions = {
         description: "Notification management endpoints",
       },
       {
-        name: "Search", // Added Search tag
+        name: "Search",
         description: "Search for users and posts",
       },
     ],
@@ -94,11 +95,10 @@ const swaggerOptions = {
           scheme: "bearer",
           bearerFormat: "JWT",
           description:
-            "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
+            "Authentication is handled via secure cookies. After login, accessToken and refreshToken are set as HttpOnly cookies and should be sent automatically with each request.",
         },
       },
       schemas: {
-        // Existing schemas
         Highlight: {
           type: "object",
           properties: {
@@ -129,43 +129,38 @@ const swaggerOptions = {
             },
           },
         },
-        // Updated User schema (already provided)
         User: {
           type: "object",
           properties: {
             UserID: { type: "integer", example: 1 },
             Username: { type: "string", example: "john_doe" },
-            Email: { type: "string", example: "john@example.com" }, // Added Email to match earlier schema
+            Email: { type: "string", example: "john@example.com" },
             ProfilePicture: {
               type: "string",
               example: "https://example.com/john.jpg",
             },
-            bio: { type: "string", example: "I love coding!" }, // Changed Bio to bio to match earlier schema
-            IsPrivate: { type: "boolean", example: false }, // Changed isPrivate to IsPrivate to match existing schema
+            bio: { type: "string", example: "I love coding!" },
+            IsPrivate: { type: "boolean", example: false },
             CreatedAt: { type: "string", format: "date-time" },
           },
         },
-        // Added Post schema (already provided)
         Post: {
           type: "object",
           properties: {
-            postId: { type: "integer", example: 1 }, // Changed PostID to postId to match earlier schema
-            content: { type: "string", example: "This is my post!" }, // Changed Content to content to match earlier schema
+            postId: { type: "integer", example: 1 },
+            content: { type: "string", example: "This is my post!" },
             imageUrl: {
-              // Changed ImageURL to imageUrl to match earlier schema
               type: "string",
               example: "https://example.com/image.jpg",
               nullable: true,
             },
             videoUrl: {
-              // Added videoUrl to match earlier schema
               type: "string",
               example: "https://example.com/video.mp4",
               nullable: true,
             },
-            createdAt: { type: "string", format: "date-time" }, // Changed CreatedAt to createdAt to match earlier schema
+            createdAt: { type: "string", format: "date-time" },
             user: {
-              // Added user object to match earlier schema
               type: "object",
               properties: {
                 UserID: { type: "integer", example: 1 },
@@ -361,16 +356,6 @@ const swaggerOptions = {
             reason: { type: "string" },
           },
         },
-        RefreshTokenRequest: {
-          type: "object",
-          required: ["refreshToken"],
-          properties: {
-            refreshToken: {
-              type: "string",
-              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-            },
-          },
-        },
         VerifyCodeRequest: {
           type: "object",
           required: ["email", "code"],
@@ -506,23 +491,6 @@ const swaggerOptions = {
             },
           },
         },
-        LoginResponse: {
-          description: "Successful login response",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  message: { type: "string", example: "Login successful" },
-                  token: {
-                    type: "string",
-                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                  },
-                },
-              },
-            },
-          },
-        },
         PasswordResetResponse: {
           description: "Password reset response",
           content: {
@@ -545,7 +513,7 @@ const swaggerOptions = {
   },
   apis: [
     path.join(__dirname, "../../src/routes/*.js"),
-    path.join(__dirname, "../../src/routes/search/*.js"), // Include nested search routes
+    path.join(__dirname, "../../src/routes/search/*.js"),
     path.join(__dirname, "../../src/controllers/*.js"),
   ],
 };

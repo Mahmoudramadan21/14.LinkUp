@@ -6,27 +6,39 @@ const configureSocket = require("./server.js");
 const routes = require("./routes/index.js");
 const setupSwagger = require("./docs/swagger.js");
 const bodyParser = require("body-parser");
+const cookieParser = require("cookie-parser"); // Add cookie-parser
 
 const app = express();
 const httpServer = createServer(app);
 
+// Add cookie-parser middleware
+app.use(cookieParser());
+
+// Parse JSON and URL-encoded bodies
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// CORS configuration
 app.use(
   cors({
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "http://localhost:8000", // Specify frontend URL
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true, // Allow cookies to be sent
   })
 );
 
+// Swagger setup
 setupSwagger(app);
+
+// Routes
 app.use("/api", routes);
 
+// Health check endpoint
 app.get("/", (req, res) => {
   res.json({ status: "OK", message: "LinkUp Server is Running!" });
 });
 
+// Error handling middleware
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
     console.error(
@@ -43,8 +55,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal Server Error" });
 });
 
+// Socket.IO setup
 const io = configureSocket(httpServer);
 
+// Start server
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
