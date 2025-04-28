@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Auth Layout */
+/* Auth Layout */
+.auth-layout {
+    @apply min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-pink-100 relative overflow-hidden;
+  }
+  
+  .auth-layout__container {
+    @apply container flex w-full mx-auto p-4 relative z-10;
+  }
+  
+  .auth-layout__liquid {
+    @apply absolute top-0 right-0 z-0;
+  }
+  
+  .auth-layout__liquid-image {
+    @apply w-auto h-auto;
+  }
+  
+  .auth-layout__footer {
+    @apply absolute bottom-0 left-0 w-full z-0;
+  }
+  
+  .auth-layout__footer-image {
+    @apply w-full h-auto;
+  }
+
+/* Login Form Section */
+.login-form__container {
+  @apply bg-white p-8 rounded-lg shadow-lg w-full max-w-md;
+}
+
+.login-form__title {
+  @apply text-2xl font-bold mb-6;
+}
+
+.login-form__form {
+  @apply space-y-4;
+}
+
+.login-form__error {
+  @apply text-red-500 text-sm text-center;
+}
+
+.login-form__options {
+  @apply flex justify-between items-center mb-4;
+}
+
+.login-form__checkbox {
+  @apply flex items-center;
+}
+
+.login-form__checkbox-input {
+  @apply mr-2;
+}
+
+.login-form__checkbox-label {
+  @apply text-gray-600 text-sm;
+}
+
+.login-form__link {
+  @apply text-linkup-purple hover:underline text-sm;
+}
+
+.login-form__signup {
+  @apply text-center text-gray-600 text-sm mt-4;
+}
+
+/* Login Page */
+.login-page {
+    background-color: rgba(255, 255, 255, 0.56);
+  @apply w-full flex items-center justify-center min-h-screen;
+}
+
+.login-page__container {
+  @apply p-4 flex items-center justify-between w-full;
+}
+
+.login-page__form {
+  @apply w-full lg:w-1/2;
+}
+
+.login-page__illustration {
+  @apply w-1/2 hidden lg:block;
+}
+
+.login-page__illustration-image {
+  @apply w-full h-auto;
+}

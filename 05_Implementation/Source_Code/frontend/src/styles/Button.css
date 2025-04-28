@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Button Styles */
+.button-block {
+  @apply w-full rounded-lg font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-linkup-purple;
+}
+
+/* Variants */
+.button-block--primary {
+  @apply bg-linkup-purple text-white hover:bg-opacity-90;
+}
+
+.button-block--secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+}
+
+.button-block--tertiary {
+  @apply bg-transparent border border-linkup-purple text-linkup-purple hover:bg-linkup-purple hover:text-white;
+}
+
+/* Sizes */
+.button-block--small {
+  @apply px-3 py-1 text-sm;
+}
+
+.button-block--medium {
+  @apply px-4 py-2 text-base;
+}
+
+.button-block--large {
+  @apply px-6 py-3 text-lg;
+}
+
+/* Disabled State */
+.button-block--disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
