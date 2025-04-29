@@ -3,31 +3,25 @@ const express = require("express");
 const path = require("path");
 const glob = require("glob");
 
-// Set the project root directory
 const projectRoot = path.resolve(__dirname, "../../");
 
-// Scan for route and controller files, including nested search folder
 const routeFiles = glob.sync(path.join(projectRoot, "src/routes/*.js"));
 const nestedRouteFiles = glob.sync(
   path.join(projectRoot, "src/routes/search/*.js")
-); // Include nested search routes
+);
 const controllerFiles = glob.sync(
   path.join(projectRoot, "src/controllers/*.js")
 );
 
-// Combine all route files (top-level and nested)
 const allRouteFiles = [...routeFiles, ...nestedRouteFiles];
 
-// Log scanned files for debugging
 console.log("Swagger scanned route files:", allRouteFiles);
 console.log("Swagger scanned controller files:", controllerFiles);
 
-// Check if no route or controller files were found
 if (!allRouteFiles.length && !controllerFiles.length) {
   console.error("Swagger failed to load route or controller files");
 }
 
-// Swagger configuration options
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
@@ -198,25 +192,58 @@ const swaggerOptions = {
         },
         UserAuth: {
           type: "object",
-          required: ["username", "email", "password"],
+          required: [
+            "profileName",
+            "username",
+            "email",
+            "password",
+            "gender",
+            "dateOfBirth",
+          ],
           properties: {
+            profileName: {
+              type: "string",
+              minLength: 3,
+              maxLength: 50,
+              pattern: "^[a-zA-Z0-9\\s\\-']+$",
+              example: "John Doe",
+              description:
+                "User's profile name (3-50 characters, letters, numbers, spaces, hyphens, apostrophes)",
+            },
             username: {
               type: "string",
               minLength: 3,
-              maxLength: 20,
+              maxLength: 30,
               pattern: "^[a-zA-Z0-9_]+$",
               example: "john_doe",
+              description:
+                "Unique username (alphanumeric and underscores only)",
             },
             email: {
               type: "string",
               format: "email",
               example: "john@example.com",
+              description: "Valid email address",
             },
             password: {
               type: "string",
-              format: "password",
               minLength: 8,
               example: "P@ssw0rd123",
+              description:
+                "Password with minimum 8 characters, must include at least one uppercase letter, one lowercase letter, one number, and one special character",
+            },
+            gender: {
+              type: "string",
+              enum: ["MALE", "FEMALE"],
+              example: "MALE",
+              description: "User's gender",
+            },
+            dateOfBirth: {
+              type: "string",
+              format: "date",
+              example: "2000-01-01",
+              description:
+                "User's date of birth (ISO 8601 format, e.g., 2000-01-01, user must be at least 13 years old)",
             },
           },
         },
@@ -243,68 +270,68 @@ const swaggerOptions = {
             },
           },
         },
-        PasswordReset: {
+        VerifyCodeRequest: {
           type: "object",
-          required: ["token", "newPassword"],
+          required: ["email", "code"],
           properties: {
-            token: { type: "string", example: "abc123def456" },
+            email: {
+              type: "string",
+              format: "email",
+              example: "john@example.com",
+            },
+            code: {
+              type: "string",
+              pattern: "^[0-9]{4}$",
+              example: "1234",
+            },
+          },
+        },
+        PasswordResetWithToken: {
+          type: "object",
+          required: ["resetToken", "newPassword"],
+          properties: {
+            resetToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
             newPassword: {
               type: "string",
-              format: "password",
+              minLength: 8,
               example: "NewP@ssw0rd123",
             },
           },
         },
-        Conversation: {
+        SuccessResponse: {
           type: "object",
           properties: {
-            id: { type: "string", example: "conv_123" },
-            title: { type: "string", example: "Chat with User1" },
-            isGroup: { type: "boolean", example: false },
-            participants: {
-              type: "array",
-              items: { $ref: "#/components/schemas/User" },
-            },
-            updatedAt: {
-              type: "string",
-              format: "date-time",
-              example: "2023-01-01T00:00:00Z",
-            },
-          },
-        },
-        Message: {
-          type: "object",
-          properties: {
-            MessageID: { type: "string", example: "msg_123" },
-            content: { type: "string", example: "Hello, how are you?" },
-            senderId: { type: "integer", example: 1 },
-            conversationId: { type: "string", example: "conv_123" },
-            createdAt: {
-              type: "string",
-              format: "date-time",
-              example: "2023-01-01T00:00:00Z",
-            },
-            readAt: { type: "string", format: "date-time", nullable: true },
-            attachments: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  type: { type: "string", example: "image" },
-                  url: {
-                    type: "string",
-                    example: "https://example.com/image.jpg",
-                  },
-                },
-              },
-            },
+            message: { type: "string" },
+            codeSent: { type: "boolean" },
+            resetToken: { type: "string" },
+            data: { type: "object" },
           },
         },
         ErrorResponse: {
           type: "object",
           properties: {
-            error: { type: "string", example: "Error message" },
-            details: { type: "string", example: "Additional error details" },
+            message: { type: "string", example: "Error message" },
+            error: { type: "string", example: "Detailed error message" },
+            errors: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  msg: { type: "string", example: "Error message" },
+                },
+              },
+            },
+          },
+          example: {
+            message: "Invalid registration data",
+            errors: [
+              {
+                msg: "Invalid date of birth format",
+              },
+            ],
           },
         },
         ReportedPost: {
@@ -354,46 +381,6 @@ const swaggerOptions = {
             role: { type: "string", enum: ["USER", "ADMIN", "BANNED"] },
             isBanned: { type: "boolean" },
             reason: { type: "string" },
-          },
-        },
-        VerifyCodeRequest: {
-          type: "object",
-          required: ["email", "code"],
-          properties: {
-            email: {
-              type: "string",
-              format: "email",
-              example: "john@example.com",
-            },
-            code: {
-              type: "string",
-              pattern: "^[0-9]{4}$",
-              example: "1234",
-            },
-          },
-        },
-        PasswordResetWithToken: {
-          type: "object",
-          required: ["resetToken", "newPassword"],
-          properties: {
-            resetToken: {
-              type: "string",
-              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-            },
-            newPassword: {
-              type: "string",
-              minLength: 8,
-              example: "NewP@ssw0rd123",
-            },
-          },
-        },
-        SuccessResponse: {
-          type: "object",
-          properties: {
-            message: { type: "string" },
-            codeSent: { type: "boolean" },
-            resetToken: { type: "string" },
-            data: { type: "object" },
           },
         },
       },
@@ -456,8 +443,8 @@ const swaggerOptions = {
             "application/json": {
               schema: { $ref: "#/components/schemas/ErrorResponse" },
               example: {
-                error: "Unauthorized",
-                details: "Authentication token is missing or invalid",
+                message: "Unauthorized",
+                error: "Authentication token is missing or invalid",
               },
             },
           },
@@ -468,8 +455,8 @@ const swaggerOptions = {
             "application/json": {
               schema: { $ref: "#/components/schemas/ErrorResponse" },
               example: {
-                error: "Not Found",
-                details: "The requested resource was not found",
+                message: "Not Found",
+                error: "The requested resource was not found",
               },
             },
           },
@@ -518,21 +505,16 @@ const swaggerOptions = {
   ],
 };
 
-// Generate Swagger documentation
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
-// Log the routes Swagger found for debugging
 console.log("Swagger scanned routes:", Object.keys(swaggerDocs.paths));
 
-// Export the Swagger setup function
 module.exports = (app) => {
-  // Serve Swagger UI static files
   app.use(
     "/swagger-ui",
     express.static(path.join(__dirname, "../../node_modules/swagger-ui-dist"))
   );
 
-  // Serve Swagger UI with custom configuration
   app.get("/api-docs", (req, res) => {
     res.send(`
       <!DOCTYPE html>
@@ -569,7 +551,6 @@ module.exports = (app) => {
     `);
   });
 
-  // Serve Swagger JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerDocs);

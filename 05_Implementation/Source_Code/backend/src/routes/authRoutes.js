@@ -177,16 +177,13 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           items:
  *             type: object
  *             properties:
- *               field:
- *                 type: string
- *               error:
+ *               msg:
  *                 type: string
  *           description: Validation errors (optional)
  *       example:
  *         message: Validation failed
  *         errors:
- *           - field: email
- *             error: Invalid email format
+ *           - msg: Invalid date of birth format
  */
 
 /**
@@ -216,7 +213,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *                 username: john_doe
  *                 email: john@example.com
  *                 gender: MALE
- *                 dateOfBirth: 2000-01-01
+ *                 dateOfBirth: 2000-01-01T00:00:00.000Z
  *         headers:
  *           Set-Cookie:
  *             schema:
@@ -224,23 +221,31 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *               example: qkz7m4p8v2=123e4567-e89b-12d3-a456-426614174000; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
  *             description: Sets session ID as a secure cookie with a fixed name (qkz7m4p8v2), along with dummy cookies for obfuscation
  *       400:
- *         description: Validation error
+ *         description: Validation error or invalid registration data
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid registration data
+ *               errors:
+ *                 - msg: Invalid date of birth format
  *       409:
  *         description: Email or username already exists
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Email or username already exists
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Error registering user
  */
 router.post("/signup", signupValidationRules, validate, signup);
 

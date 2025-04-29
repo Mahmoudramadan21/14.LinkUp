@@ -114,6 +114,15 @@ const register = async ({
   dateOfBirth,
 }) => {
   try {
+    // Normalize dateOfBirth to UTC midnight to avoid timezone issues
+    const dob = new Date(dateOfBirth);
+    if (isNaN(dob.getTime())) {
+      throw new Error("Invalid date of birth format");
+    }
+    const normalizedDate = new Date(
+      Date.UTC(dob.getFullYear(), dob.getMonth(), dob.getDate())
+    );
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
@@ -122,7 +131,7 @@ const register = async ({
         Email: email,
         Password: hashedPassword,
         Gender: gender,
-        DateOfBirth: new Date(dateOfBirth),
+        DateOfBirth: normalizedDate, // Use normalized date
         Role: "USER",
       },
     });
@@ -132,7 +141,6 @@ const register = async ({
     throw new Error(`Registration failed: ${error.message}`);
   }
 };
-
 /**
  * Authenticates a user, stores tokens in Redis with a session ID, sets session ID as a secure cookie with a fixed name,
  * and adds dummy cookies for obfuscation

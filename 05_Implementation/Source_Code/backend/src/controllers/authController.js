@@ -84,7 +84,7 @@ const generateRandomCookieName = () => {
  * and sets session ID as a secure cookie with a fixed name
  */
 const signup = async (req, res) => {
-  console.log("Signup request received:", req.body); // Log incoming request
+  console.log("Signup request received:", req.body);
 
   const { profileName, username, email, password, gender, dateOfBirth } =
     req.body;
@@ -107,12 +107,10 @@ const signup = async (req, res) => {
         gender,
         dateOfBirth,
       });
-      return res
-        .status(400)
-        .json({
-          message:
-            "Profile name, username, email, password, gender, and date of birth are required",
-        });
+      return res.status(400).json({
+        message:
+          "Profile name, username, email, password, gender, and date of birth are required",
+      });
     }
 
     // Check for existing user
@@ -146,7 +144,7 @@ const signup = async (req, res) => {
     await prisma.notification.create({
       data: {
         UserID: newUser.UserID,
-        Type: "ADMIN_WARNING", // Replace with "WELCOME" if enum is updated
+        Type: "WELCOME", // Updated to use WELCOME type
         Content: `Welcome to LinkUp, ${username}! Start exploring and connecting!`,
         Metadata: { signupDate: new Date().toISOString() },
       },
@@ -182,8 +180,9 @@ const signup = async (req, res) => {
         accessToken: encryptedAccessToken,
         refreshToken: encryptedRefreshToken,
         userId: newUser.UserID,
-        randomCookieName: randomCookieName, // Store the random cookie name for logout
+        randomCookieName: randomCookieName,
       }),
+      "EX",
       7 * 24 * 60 * 60 // 7 days
     );
 
@@ -195,22 +194,17 @@ const signup = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     };
 
-    // Set the sessionId in a cookie with a fixed, obfuscated name
     res.cookie(SESSION_COOKIE_NAME, sessionId, cookieOptions);
-
-    // Also set the sessionId in a cookie with a random name for obfuscation
     res.cookie(randomCookieName, sessionId, cookieOptions);
 
-    // Add dummy cookies for obfuscation (same format as sessionId)
     const dummyCookieNames = Array.from({ length: 5 }, () =>
       generateRandomCookieName()
     );
     dummyCookieNames.forEach((name) => {
-      const dummyValue = generateRandomString(); // Generate a UUID-like string
+      const dummyValue = generateRandomString();
       res.cookie(name, dummyValue, cookieOptions);
     });
 
-    // Send response
     res.status(201).json({
       message: "User registered successfully",
       data: {
@@ -219,14 +213,20 @@ const signup = async (req, res) => {
         username: newUser.Username,
         email: newUser.Email,
         gender: newUser.Gender,
-        dateOfBirth: newUser.DateOfBirth,
+        dateOfBirth: newUser.DateOfBirth.toISOString(), // Convert to ISO string for response
       },
     });
   } catch (error) {
-    console.error("Signup error:", error);
+    console.error("Signup error:", error.message);
+    if (error.message.includes("Registration failed")) {
+      return res.status(400).json({
+        message: "Invalid registration data",
+        errors: [{ msg: error.message }],
+      });
+    }
     res.status(500).json({
       message: "Error registering user",
-      error: process.env.NODE_ENV === "development" ? error.stack : null,
+      error: process.env.NODE_ENV === "development" ? error.message : null,
     });
   }
 };
@@ -355,6 +355,7 @@ const refreshToken = async (req, res) => {
         userId: user.UserID,
         randomCookieName: JSON.parse(sessionData).randomCookieName,
       }),
+      "EX",
       7 * 24 * 60 * 60 // 7 days
     );
 
@@ -483,6 +484,7 @@ const verifyCode = async (req, res) => {
     await redis.set(
       `reset_token:${user.UserID}`,
       resetToken,
+      "EX",
       5 * 60 // 5 minutes expiry
     );
 
