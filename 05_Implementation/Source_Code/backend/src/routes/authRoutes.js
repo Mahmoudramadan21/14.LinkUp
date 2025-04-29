@@ -48,10 +48,20 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *     UserAuth:
  *       type: object
  *       required:
+ *         - profileName
  *         - username
  *         - email
  *         - password
+ *         - gender
+ *         - dateOfBirth
  *       properties:
+ *         profileName:
+ *           type: string
+ *           minLength: 3
+ *           maxLength: 50
+ *           pattern: '^[a-zA-Z0-9\\s\\-\']+$'
+ *           example: John Doe
+ *           description: User's profile name (3-50 characters, letters, numbers, spaces, hyphens, apostrophes)
  *         username:
  *           type: string
  *           minLength: 3
@@ -68,7 +78,17 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           type: string
  *           minLength: 8
  *           example: P@ssw0rd123
- *           description: Password with minimum 8 characters
+ *           description: Password with minimum 8 characters, must include at least one uppercase letter, one lowercase letter, one number, and one special character
+ *         gender:
+ *           type: string
+ *           enum: [MALE, FEMALE]
+ *           example: MALE
+ *           description: User's gender
+ *         dateOfBirth:
+ *           type: string
+ *           format: date
+ *           example: 2000-01-01
+ *           description: User's date of birth (ISO format, user must be at least 13 years old)
  *     LoginCredentials:
  *       type: object
  *       required:
@@ -192,8 +212,11 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *               message: User registered successfully
  *               data:
  *                 userId: 1
+ *                 profileName: John Doe
  *                 username: john_doe
  *                 email: john@example.com
+ *                 gender: MALE
+ *                 dateOfBirth: 2000-01-01
  *         headers:
  *           Set-Cookie:
  *             schema:
@@ -301,7 +324,7 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
- *         description Gravity: Invalid or expired refresh token
+ *         description: Invalid or expired refresh token
  *         content:
  *           application/json:
  *             schema:
