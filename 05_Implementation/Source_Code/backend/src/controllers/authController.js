@@ -80,46 +80,39 @@ const generateRandomCookieName = () => {
 };
 
 /**
- * Handles user registration with email/username availability check
- * and password hashing, sets session ID as a secure cookie with a fixed name
+ * Handles user registration with profileName, username, email, password, gender, and dateOfBirth
+ * and sets session ID as a secure cookie with a fixed name
  */
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body); // Log incoming request
 
-  const { username, email, password } = req.body;
+  const { profileName, username, email, password, gender, dateOfBirth } =
+    req.body;
 
   try {
-    // Validate input
-    if (!username || !email || !password) {
-      console.log("Missing required fields:", { username, email, password });
-      return res
-        .status(400)
-        .json({ message: "Username, email, and password are required" });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      console.log("Invalid email format:", email);
-      return res.status(400).json({ message: "Invalid email format" });
-    }
-
-    // Validate username format
-    const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
-    if (!usernameRegex.test(username)) {
-      console.log("Invalid username format:", username);
-      return res.status(400).json({
-        message:
-          "Username must be 3-30 characters long and contain only letters, numbers, or underscores",
+    // Validate input (already handled by middleware, but double-check)
+    if (
+      !profileName ||
+      !username ||
+      !email ||
+      !password ||
+      !gender ||
+      !dateOfBirth
+    ) {
+      console.log("Missing required fields:", {
+        profileName,
+        username,
+        email,
+        password,
+        gender,
+        dateOfBirth,
       });
-    }
-
-    // Validate password strength
-    if (password.length < 8) {
-      console.log("Password too short:", password.length);
       return res
         .status(400)
-        .json({ message: "Password must be at least 8 characters long" });
+        .json({
+          message:
+            "Profile name, username, email, password, gender, and date of birth are required",
+        });
     }
 
     // Check for existing user
@@ -138,27 +131,15 @@ const signup = async (req, res) => {
         .json({ message: "Email or username already exists" });
     }
 
-    // Hash password
-    console.log("Hashing password...");
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    console.log("Password hashed successfully");
-
-    // Create user and welcome notification
-    console.log("Creating new user...");
-    const newUser = await prisma.user.create({
-      data: {
-        Username: username,
-        Email: email.toLowerCase(), // Store email in lowercase
-        Password: hashedPassword,
-        Role: "USER",
-        CreatedAt: new Date(),
-        UpdatedAt: new Date(),
-      },
-      select: {
-        UserID: true,
-        Username: true,
-        Email: true,
-      },
+    // Register the user using authService
+    console.log("Registering new user...");
+    const { user: newUser } = await register({
+      profileName,
+      username,
+      email: email.toLowerCase(),
+      password,
+      gender,
+      dateOfBirth,
     });
 
     // Create welcome notification
@@ -234,8 +215,11 @@ const signup = async (req, res) => {
       message: "User registered successfully",
       data: {
         userId: newUser.UserID,
+        profileName: newUser.ProfileName,
         username: newUser.Username,
         email: newUser.Email,
+        gender: newUser.Gender,
+        dateOfBirth: newUser.DateOfBirth,
       },
     });
   } catch (error) {

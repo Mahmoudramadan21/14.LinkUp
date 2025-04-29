@@ -102,17 +102,27 @@ const generateTokens = (user) => {
 
 /**
  * Registers a new user with hashed password
- * @param {Object} params - Object containing username, email, and password
+ * @param {Object} params - Object containing profileName, username, email, password, gender, and dateOfBirth
  * @returns {Object} Created user object
  */
-const register = async ({ username, email, password }) => {
+const register = async ({
+  profileName,
+  username,
+  email,
+  password,
+  gender,
+  dateOfBirth,
+}) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
+        ProfileName: profileName,
         Username: username,
         Email: email,
         Password: hashedPassword,
+        Gender: gender,
+        DateOfBirth: new Date(dateOfBirth),
         Role: "USER",
       },
     });

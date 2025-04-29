@@ -14,6 +14,11 @@ enum Role {
   BANNED 
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum FollowStatus {
   PENDING
   ACCEPTED
@@ -62,14 +67,16 @@ model AuditLog {
 model User {
   UserID             Int              @id @default(autoincrement())
   Username           String           @unique
+  ProfileName        String           // Added ProfileName
   Email              String           @unique
   Password           String
+  Gender             Gender           // Added Gender
   ProfilePicture     String?
   CoverPicture       String?
   Bio                String?
   Address            String?
   JobTitle           String?
-  DateOfBirth        DateTime?
+  DateOfBirth        DateTime         // Made DateOfBirth required
   IsPrivate          Boolean          @default(false)
   Role               Role             @default(USER)
   CreatedAt          DateTime         @default(now())
@@ -89,8 +96,8 @@ model User {
   reactions          Reaction[]
   Followers          Follower[]       @relation("Followers")
   Following          Follower[]       @relation("Following")
-  Notifications      Notification[]   @relation("NotificationUser") // ربط مع User في Notification
-  SentNotifications  Notification[]   @relation("NotificationSender") // ربط مع Sender في Notification
+  Notifications      Notification[]   @relation("NotificationUser")
+  SentNotifications  Notification[]   @relation("NotificationSender")
   NotificationPreferences Json?
   Reports            Report[]         @relation("Reporter")
   SupportRequests    SupportRequest[]
@@ -288,7 +295,6 @@ model Follower {
   @@index([UserID, Status])
   @@index([FollowerUserID])
 }
-
 
 model Report {
   ReportID    Int          @id @default(autoincrement())

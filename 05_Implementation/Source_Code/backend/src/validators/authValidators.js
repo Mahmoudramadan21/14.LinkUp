@@ -5,11 +5,42 @@ const {
   validatePassword,
 } = require("../utils/validators");
 
+// Validate date of birth (ensure user is at least 13 years old)
+const validateDateOfBirth = (value) => {
+  const dob = new Date(value);
+  const today = new Date();
+  const age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  const dayDiff = today.getDate() - dob.getDate();
+
+  // Adjust age if birthday hasn't occurred this year
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age--;
+  }
+
+  if (isNaN(dob.getTime())) {
+    throw new Error("Invalid date of birth format");
+  }
+
+  if (age < 13) {
+    throw new Error("You must be at least 13 years old to register");
+  }
+
+  return true;
+};
+
 /**
  * Validation rules for user sign-up
- * Ensures username, email, and password meet specific criteria
+ * Ensures all required fields meet specific criteria
  */
 const signupValidationRules = [
+  body("profilename")
+    .notEmpty()
+    .withMessage("Profile name is required")
+    .matches(/^[a-zA-Z0-9\s\-']{3,50}$/)
+    .withMessage(
+      "Profile name must be 3-50 characters long and can only contain letters, numbers, spaces, hyphens, or apostrophes"
+    ),
   body("username")
     .notEmpty()
     .withMessage("Username is required")
@@ -29,6 +60,19 @@ const signupValidationRules = [
     .withMessage(
       "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character."
     ),
+  body("gender")
+    .notEmpty()
+    .withMessage("Gender is required")
+    .isIn(["MALE", "FEMALE", "OTHER"])
+    .withMessage("Gender must be one of: MALE, FEMALE, OTHER"),
+  body("dateOfBirth")
+    .notEmpty()
+    .withMessage("Date of birth is required")
+    .isISO8601()
+    .withMessage(
+      "Date of birth must be a valid date in ISO format (e.g., 2000-01-01)"
+    )
+    .custom(validateDateOfBirth),
 ];
 
 /**
