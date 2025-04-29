@@ -1,162 +1,137 @@
-# LinkUp - Social Media Web Application
+# LinkUp Frontend
 
-**LinkUp** is a social media web application designed to connect people and facilitate seamless interactions through content sharing, direct messaging, and social engagement. This repository contains all the documentation, source code, and deliverables for the project as part of the **Egypt Digital Pioneers Initiative**.
+## Overview
 
----
+This is the frontend for the **LinkUp** application, a platform for user authentication and interaction. The project is built using **Next.js** with **TypeScript**, providing a modern, type-safe, and optimized user experience. The current implementation includes a login page with reusable components and a custom layout for authentication pages, designed to be extensible for other auth-related pages like signup.
 
-## 📂 Repository Structure
+## Features
 
-```
-LinkUp/
-├── 00_Project_Documentation/
-│   └── 00_Project_Documentation_5.pdf
-│
-├── 01_Project_Planning_&_Management/
-│   ├── 01_Project_Proposal_Social_Media_Web_Application.pdf
-│   ├── 02_Project_Plan.pdf
-│   ├── 03_Task_Assignment_&_Roles.pdf
-│   └── 04_Risk_Assessment.pdf
-│
-├── 02_Literature_Review/
-│   └── Literature_Review.pdf
-│
-├── 03_Requirement_Gathering/
-│   ├── 01_Stakeholder_Analysis.pdf
-│   ├── 02.1_User_Stories.pdf
-│   ├── 03_Functional_Requirements.pdf
-│   ├── 04_Non_Functional_Requirements.pdf
-│   └── 02.2_Use_Cases/
-│       ├── 01_User_Authentication_Flowchart.png
-│       ├── 02_Social_Media_Interaction_Flowchart.png
-│       ├── 03_Content_Sharing_Flowchart.png
-│       └── 04_Direct_Messaging_Flowchart.png
-│
-├── 04_System_Analysis_&_Design/
-│   ├── 01_Software_Architecture.png
-│   ├── 02_ERD.pdf
-│   ├── 03_Data_Flow_Diagram(DFD).png
-│   ├── 04_Sequence_Diagram.png
-│   ├── 05_Activity_Diagram.png
-│   ├── 06_State_Diagram.png
-│   └── 07_Class_Diagram.svg
-│
-├── 05_Implementation/
-│   ├── Source_Code/
-│   └── README.md (Installation and execution guide)
-│
-└── README.md (This file)
-```
+- **Login Page**: A responsive login page with form validation, password visibility toggle, and "Remember Me" functionality (located at `/login`).
+- **Reusable Components**: Custom `Button` and `Input` components for consistent UI across the app.
+- **Auth Layout**: A dedicated layout for authentication pages with decorative SVGs and SEO meta tags.
+- **Generic Auth Styles**: CSS classes (e.g., `auth-page`, `auth-form`) designed for reuse across multiple authentication pages.
+- Built with **Next.js** for server-side rendering and routing.
+- Uses **TypeScript** for type safety and better developer experience.
+- Styled using **Tailwind CSS** with **CSS Modules** and **BEM** naming convention for modular and scoped styling.
+- Utilities for API requests (`api.ts`) and cookie management (`cookie.ts`).
 
----
+## Tech Stack
 
-## 📄 Project Documentation
+- **Next.js**: React framework for building the frontend with SSR/SSG capabilities.
+- **TypeScript**: Superset of JavaScript for type safety.
+- **React**: JavaScript library for building user interfaces.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **CSS Modules**: For modular and scoped styling.
+- **BEM**: Naming convention for CSS classes.
+- **Axios**: For making API requests.
+- **js-cookie**: For managing cookies.
+- **Node.js**: For managing dependencies and running the development server.
+- **npm**: Package manager for installing dependencies.
 
-The project documentation is divided into several phases, each with its own deliverables:
+## Prerequisites
 
-### 1. **Project Planning & Management**
+Before you begin, ensure you have the following installed:
 
-- **Project Proposal**: Overview of the project, objectives, and scope.
-- **Project Plan**: Timeline (Gantt chart), milestones, deliverables, and resource allocation.
-- **Task Assignment & Roles**: Defined responsibilities for team members.
-- **Risk Assessment & Mitigation Plan**: Identifying risks and solutions.
-- **KPIs (Key Performance Indicators)**: Metrics for project success.
+- **Node.js** (v16 or higher)
+- **npm** (v7 or higher)
 
-### 2. **Literature Review**
-
-- **Feedback & Evaluation**: Lecturer’s assessment of the project.
-- **Suggested Improvements**: Areas for enhancement.
-- **Final Grading Criteria**: Breakdown of marks.
-
-### 3. **Requirements Gathering**
-
-- **Stakeholder Analysis**: Identifying key stakeholders and their needs.
-- **User Stories & Use Cases**: Scenarios illustrating system interactions.
-- **Functional & Non-functional Requirements**: Features, security, usability, and reliability criteria.
-
-### 4. **System Analysis & Design**
-
-- **Problem Statement & Objectives**
-- **Use Case Diagram & Descriptions**
-- **Software Architecture**
-- **Database Design & Data Modeling**
-- **Data Flow & System Behavior**
-- **UI/UX Design & Prototyping**
-- **System Deployment & Integration**
-
-### 5. **Implementation**
-
-- **Source Code**: Clean, modular, and well-documented code.
-- **Version Control**: GitHub-hosted with a clear branching strategy.
-- **Deployment & Execution**: Steps for setup and running the system.
-
-### 6. **Testing & Quality Assurance**
-
-- **Test Cases & Test Plan**
-- **Automated Testing** (if applicable)
-- **Bug Reports**
-
-### 7. **Final Presentation & Reports**
-
-- **User Manual**
-- **Technical Documentation**
-- **Project Presentation**
-- **Video Demonstration**
-
----
-
-## 🛠️ Installation & Execution
+## Getting Started
 
 ### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Mahmoudramadan21/14.LinkUp.git
-cd 14.LinkUp
+cd 14.LinkUp/05_Implementation/Source_Code/frontend
 ```
 
-### 2. Install Dependencies
+### 2. Set Up Environment Variables
 
-Ensure you have the required software installed (e.g., Node.js, Docker, etc.). Then, run:
+Create a `.env` file in the `frontend` directory and add the following:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api # Replace with your backend API URL
+```
+
+### 3. Install Dependencies
+
+Install the required packages using npm:
 
 ```bash
 npm install
 ```
 
-### 3. Configure the Environment
+### 4. Run the Development Server
 
-Set up environment variables (e.g., database credentials, API keys). Modify the configuration files as needed.
-
-### 4. Run the Application
-
-Start the backend server:
-
-```bash
-npm start
-```
-
-Start the frontend development server:
+Start the development server to see the app in action:
 
 ```bash
 npm run dev
 ```
 
-### 5. Access the Application
+The app will be available at `http://localhost:3000`.
 
-Open your browser and navigate to:
+- Visit `http://localhost:3000/login` to see the login page.
+
+## Project Structure
 
 ```
-http://localhost:3000
+frontend/
+├── public/                  # Static assets
+│   ├── illustrations/       # Illustration images (e.g., login-illustration.svg)
+│   └── svgs/                # Decorative SVGs (e.g., liquid.svg, footer.svg)
+├── src/                     # Source code
+│   ├── components/          # Reusable React components
+│   │   ├── Button.tsx       # Button component with variants and sizes
+│   │   └── Input.tsx        # Input component with password toggle and error handling
+│   ├── layout/              # Layout components
+│   │   └── AuthLayout.tsx   # Layout for authentication pages with SEO and SVGs
+│   ├── pages/               # Next.js pages (routing)
+│   │   ├── index.tsx        # Home page
+│   │   ├── login/           # Login page directory
+│   │   │   └── index.tsx    # Login page component
+│   │   └── _app.tsx         # Custom App component for Next.js
+│   ├── sections/            # Page sections
+│   │   └── LoginForm.tsx    # Login form section with form handling
+│   ├── styles/              # CSS styles
+│   │   ├── globals.css      # Global styles with Tailwind imports
+│   │   ├── auth.css         # Generic styles for authentication pages
+│   │   ├── Input.css        # Styles for Input component
+│   │   └── Button.css       # Styles for Button component
+│   ├── utils/               # Utility functions
+│   │   ├── api.ts           # Axios instance for API requests
+│   │   ├── constants.ts     # Constants (e.g., API endpoints, error messages)
+│   │   └── cookie.ts        # Cookie handling utilities
+├── .env                     # Environment variables
+├── .gitignore               # Git ignore file
+├── package.json             # Project dependencies and scripts
+├── package-lock.json        # Dependency lock file
+├── tailwind.config.js       # Tailwind CSS configuration
+├── tsconfig.json            # TypeScript configuration
+└── README.md                # Project documentation (this file)
 ```
 
----
+## Available Scripts
 
-## 📜 License
+- `npm run dev`: Runs the app in development mode.
+- `npm run build`: Builds the app for production.
+- `npm run start`: Starts the app in production mode (after building).
 
-This project is licensed under the MIT License. See the LICENSE file for more details.
+## Future Enhancements
 
-## 📧 Contact
+- Add signup page for user registration using the generic `auth-page` and `auth-form` classes.
+- Implement API integration with the backend for authentication (e.g., handle cookies like `qkz7m4p8v2`).
+- Add form validation on the client side for better UX.
+- Create more reusable components for the UI.
+- Add protected routes for authenticated users.
 
-For any inquiries, contact:
+## Contributing
 
-- **Mahmoud Ramadan**
-- **Email**: mahmoud.fci25@gmail.com
-- **GitHub**: [Mahmoudramadan21](https://github.com/Mahmoudramadan21)
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/your-feature`).
+3. Commit your changes (`git commit -m "Add your feature"`).
+4. Push to the branch (`git push origin feature/your-feature`).
+5. Open a pull request.
+
+## License
+
+This project is licensed under the MIT License.

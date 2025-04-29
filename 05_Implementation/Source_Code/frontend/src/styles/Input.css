@@ -27,7 +27,7 @@
   }
   
   .input-block__input {
-    @apply w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-linkup-purple;
+    @apply mb-1 w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-linkup-purple;
   }
   
   .input-block__input--error {

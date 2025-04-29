@@ -44,6 +44,10 @@
     @apply space-y-4;
 }
 
+.auth-form__info {
+    @apply text-gray-500 text-xs mt-1;
+}
+
 .auth-form__error {
     @apply text-red-500 text-sm text-center;
 }
