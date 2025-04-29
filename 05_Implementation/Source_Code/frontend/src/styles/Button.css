@@ -4,7 +4,7 @@
 
 /* Base Button Styles */
 .button-block {
-  @apply w-full rounded-lg font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-linkup-purple;
+  @apply w-full rounded-3xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-linkup-purple;
 }
 
 /* Variants */
@@ -26,11 +26,11 @@
 }
 
 .button-block--medium {
-  @apply px-4 py-2 text-base;
+  @apply px-4 py-3 text-base;
 }
 
 .button-block--large {
-  @apply px-6 py-3 text-lg;
+  @apply px-6 text-lg;
 }
 
 /* Disabled State */

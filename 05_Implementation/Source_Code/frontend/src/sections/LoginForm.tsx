@@ -81,10 +81,10 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <section className="login-form">
-      <div className="login-form__container">
-        <h1 className="login-form__title">Sign in</h1>
-        <form onSubmit={handleSubmit} className="login-form__form" aria-label="Login form">
+    <section className="auth-form">
+      <div className="auth-form__container">
+        <h1 className="auth-form__title">Sign in</h1>
+        <form onSubmit={handleSubmit} className="auth-form__form" aria-label="Login form">
           {/* Username or Email Input */}
           <Input
             id="usernameOrEmail"
@@ -115,23 +115,23 @@ const LoginForm: React.FC = () => {
 
           {/* Server Error Message */}
           {serverError && (
-            <div className="login-form__error" role="alert">
+            <div className="auth-form__error" role="alert">
               {serverError}
             </div>
           )}
 
           {/* Remember Me and Forgot Password */}
-          <div className="login-form__options">
-            <label className="login-form__checkbox">
+          <div className="auth-form__options">
+            <label className="auth-form__checkbox">
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="login-form__checkbox-input"
+                className="auth-form__checkbox-input"
               />
-              <span className="login-form__checkbox-label">Remember me</span>
+              <span className="auth-form__checkbox-label">Remember me</span>
             </label>
-            <Link href="/forgot-password" className="login-form__link">
+            <Link href="/forgot-password" className="auth-form__link">
               forgot password?
             </Link>
           </div>
@@ -142,9 +142,9 @@ const LoginForm: React.FC = () => {
           </Button>
 
           {/* Sign Up Link */}
-          <p className="login-form__signup">
+          <p className="auth-form__signup">
             Don’t have an account?{" "}
-            <Link href="/signup" className="login-form__link">
+            <Link href="/signup" className="auth-form__link">
               Sign up
             </Link>
           </p>

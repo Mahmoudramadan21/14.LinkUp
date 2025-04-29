@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Auth Layout */
+.auth-layout {
+    @apply h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-pink-100 relative overflow-hidden;
+}
+
+.auth-layout__container {
+    @apply container flex w-full mx-auto md:p-16 relative z-10;
+}
+
+.auth-layout__container > * {
+    @apply py-24 p-4 rounded-xl;
+}
+
+.auth-layout__liquid {
+    @apply absolute top-0 right-0 z-0;
+}
+
+.auth-layout__liquid-image {
+    @apply w-auto h-auto;
+}
+
+.auth-layout__footer {
+    @apply absolute bottom-0 left-0 w-full z-0;
+}
+
+.auth-layout__footer-image {
+    @apply w-full h-auto;
+}
+
+/* Auth Form Section */
+.auth-form__container {
+    @apply bg-white p-8 rounded-lg shadow-lg pt-16 pb-20 w-full lg:max-w-md;
+}
+
+.auth-form__title {
+    @apply text-2xl font-bold mb-6;
+}
+
+.auth-form__form {
+    @apply space-y-4;
+}
+
+.auth-form__error {
+    @apply text-red-500 text-sm text-center;
+}
+
+.auth-form__options {
+    @apply flex justify-between items-center mb-4;
+}
+
+.auth-form__checkbox {
+    @apply flex items-center;
+}
+
+.auth-form__checkbox-input {
+    @apply mr-2;
+}
+
+.auth-form__checkbox-label {
+    @apply text-gray-600 text-sm;
+}
+
+.auth-form__link {
+    @apply text-linkup-purple hover:underline text-sm;
+}
+
+.auth-form__signup {
+    @apply text-gray-600 text-sm pt-4;
+}
+
+/* Auth Page */
+.auth-page {
+    background-color: rgba(255, 255, 255, 0.56);
+    @apply w-full flex items-center justify-center;
+}
+
+.auth-page__container {
+    @apply p-4 flex items-center justify-between gap-8 w-full;
+}
+
+.auth-page__form {
+    @apply w-full lg:w-1/2;
+}
+
+.auth-page__illustration {
+    @apply w-1/2 hidden lg:block;
+}
+
+.auth-page__illustration-image {
+    @apply w-full h-auto;
+}

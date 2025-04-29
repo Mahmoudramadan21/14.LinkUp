@@ -1,4 +1,3 @@
-// AuthLayout component for authentication pages
 import Head from "next/head";
 import Image from "next/image";
 
