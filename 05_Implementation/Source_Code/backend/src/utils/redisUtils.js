@@ -10,12 +10,12 @@ const redis = require("./redis");
 const setWithTracking = async (key, value, expiry, userId) => {
   try {
     // Use set with EX option for expiration
-    await redis.set(key, JSON.stringify(value), { EX: expiry });
+    await redis.set(key, value, expiry); // Remove JSON.stringify, let redis.js handle it
 
     if (userId) {
       // Store user-key mapping as a separate key instead of using sets
       const userKey = `user:key:${userId}:${key}`;
-      await redis.set(userKey, "1", { EX: 30 * 24 * 60 * 60 }); // 30 days expiration
+      await redis.set(userKey, "1", 30 * 24 * 60 * 60); // 30 days expiration
     }
   } catch (error) {
     console.error("Error in setWithTracking:", error);
@@ -24,14 +24,14 @@ const setWithTracking = async (key, value, expiry, userId) => {
 };
 
 /**
- * Gets a value from Redis and parses it from JSON
+ * Gets a value from Redis
  * @param {string} key - The Redis key
- * @returns {Promise<any>} The parsed value or null if not found
+ * @returns {Promise<any>} The value or null if not found
  */
 const get = async (key) => {
   try {
-    const data = await redis.get(key);
-    return data ? JSON.parse(data) : null;
+    const data = await redis.get(key); // Rely on redis.js to handle JSON parsing
+    return data;
   } catch (error) {
     console.error("Error in get:", error);
     throw error;

@@ -542,9 +542,14 @@ const verifyCode = async (req, res) => {
  * Completes password reset flow using a temporary token
  */
 const resetPassword = async (req, res) => {
-  const { resetToken, newPassword } = req.body;
+  const { resetToken, newPassword, email } = req.body;
 
   try {
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
     // Verify the temporary token
     let decoded;
     try {
@@ -561,10 +566,31 @@ const resetPassword = async (req, res) => {
       get(`reset_token:${userId}`)
     );
 
+    // Since resetToken is stored as a plain string, this comparison should now work
     if (!storedToken || storedToken !== resetToken) {
       return res
         .status(401)
         .json({ message: "Invalid or expired reset token" });
+    }
+
+    // Fetch the user to verify the email
+    const user = await prisma.user.findUnique({
+      where: { UserID: userId },
+      select: { Email: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify the email matches the user associated with the resetToken
+    if (user.Email.toLowerCase() !== email.toLowerCase()) {
+      return res
+        .status(401)
+        .json({
+          message:
+            "Email does not match the user associated with this reset token",
+        });
     }
 
     // Validate new password

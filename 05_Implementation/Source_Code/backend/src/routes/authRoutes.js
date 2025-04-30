@@ -494,7 +494,13 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
- *         description: Invalid or expired reset token
+ *         description: Invalid or expired reset token, or email mismatch
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
  *         content:
  *           application/json:
  *             schema:
@@ -505,6 +511,33 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     PasswordResetWithToken:
+ *       type: object
+ *       required:
+ *         - resetToken
+ *         - newPassword
+ *         - email
+ *       properties:
+ *         resetToken:
+ *           type: string
+ *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *           description: Temporary token received after code verification
+ *         newPassword:
+ *           type: string
+ *           minLength: 8
+ *           example: NewP@ssw0rd123
+ *           description: New password with minimum 8 characters
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: john@example.com
+ *           description: Email address associated with the account
  */
 router.post(
   "/reset-password",
