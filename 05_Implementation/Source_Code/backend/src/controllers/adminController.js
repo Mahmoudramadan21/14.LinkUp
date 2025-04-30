@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { handleServerError } = require("../utils/errorHandler");
+const { del } = require("../utils/redisUtils"); // Update to use redisUtils
 
 /**
  * Fetches reported posts with pagination
@@ -429,13 +430,9 @@ const takeAction = async (req, res) => {
           }),
         ]);
 
-        // Invalidate cache for post-related data
-        const redis = require("redis");
-        const client = redis.createClient({ url: process.env.REDIS_URL });
-        await client.connect();
-        await client.del(`posts:user:${post.UserID}`);
-        await client.del(`post:${parsedPostId}`);
-        await client.disconnect();
+        // Invalidate cache for post-related data using redisUtils
+        await del(`posts:user:${post.UserID}`, post.UserID);
+        await del(`post:${parsedPostId}`, post.UserID);
 
         responseMessage = `Post ${parsedPostId} deleted successfully`;
         break;

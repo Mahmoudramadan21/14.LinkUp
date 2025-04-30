@@ -1,5 +1,10 @@
 const prisma = require("../utils/prisma");
-const redis = require("../utils/redis");
+const {
+  setWithTracking,
+  get,
+  clearUserCache,
+  del,
+} = require("../utils/redisUtils");
 const { uploadToCloud } = require("../services/cloudService");
 const { handleServerError } = require("../utils/errorHandler");
 
@@ -50,9 +55,9 @@ const createStory = async (req, res) => {
       },
     });
 
-    // Clear cache
-    await redis.del(`stories:${UserID}`);
-    await redis.del(`stories:feed:${UserID}`);
+    // Clear cache using redisUtils
+    await del(`stories:${UserID}`, UserID);
+    await del(`stories:feed:${UserID}`, UserID);
 
     res.status(201).json(story);
   } catch (error) {
@@ -177,9 +182,9 @@ const getStoryFeed = async (req, res) => {
   const { UserID } = req.user;
 
   try {
-    // Check cache
+    // Check cache using redisUtils
     const cacheKey = `stories:feed:${UserID}`;
-    const cachedData = await redis.get(cacheKey);
+    const cachedData = await get(cacheKey);
     if (cachedData) return res.json(cachedData);
 
     // Get followed users
@@ -270,8 +275,8 @@ const getStoryFeed = async (req, res) => {
       return 0;
     });
 
-    // Cache response
-    await redis.set(cacheKey, result, 300);
+    // Cache response using redisUtils
+    await setWithTracking(cacheKey, result, 300, UserID);
 
     res.json(result);
   } catch (error) {
@@ -356,9 +361,9 @@ const getStoryById = async (req, res) => {
         },
       });
 
-      // Clear cache
-      await redis.del(`stories:${story.User.UserID}`);
-      await redis.del(`stories:feed:${UserID}`);
+      // Clear cache using redisUtils
+      await del(`stories:${story.User.UserID}`, story.User.UserID);
+      await del(`stories:feed:${UserID}`, UserID);
     }
 
     // Check like status
@@ -493,9 +498,9 @@ const toggleStoryLike = async (req, res) => {
       action = "liked";
     }
 
-    // Clear cache
-    await redis.del(`stories:${story.UserID}`);
-    await redis.del(`stories:feed:${UserID}`);
+    // Clear cache using redisUtils
+    await del(`stories:${story.UserID}`, story.UserID);
+    await del(`stories:feed:${UserID}`, UserID);
 
     res.json({ success: true, action });
   } catch (error) {
@@ -536,9 +541,9 @@ const deleteStory = async (req, res) => {
       where: { StoryID: parseInt(storyId) },
     });
 
-    // Clear cache
-    await redis.del(`stories:${UserID}`);
-    await redis.del(`stories:feed:${UserID}`);
+    // Clear cache using redisUtils
+    await del(`stories:${UserID}`, UserID);
+    await del(`stories:feed:${UserID}`, UserID);
 
     res.json({ success: true, message: "Story deleted successfully" });
   } catch (error) {

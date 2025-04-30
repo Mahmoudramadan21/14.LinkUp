@@ -1,5 +1,10 @@
 const prisma = require("../utils/prisma");
-const redis = require("../utils/redis");
+const {
+  setWithTracking,
+  get,
+  clearUserCache,
+  del,
+} = require("../utils/redisUtils");
 const { v4: uuidv4 } = require("uuid");
 const { uploadToCloud } = require("../services/cloudService");
 const { handleServerError } = require("../utils/errorHandler");
@@ -81,10 +86,10 @@ const getPosts = async (req, res) => {
 
     // Check cache
     const cacheKey = `posts:${userId}:${page}:${limit}`;
-    const cachedPosts = await redis.get(cacheKey);
+    const cachedPosts = await get(cacheKey);
     if (cachedPosts) {
       logger.info(`Cache hit for posts: ${cacheKey}`);
-      return res.json(cachedPosts); // Already parsed by redis.get
+      return res.json(cachedPosts);
     }
     logger.info(`Cache miss for posts: ${cacheKey}`);
 
@@ -107,7 +112,7 @@ const getPosts = async (req, res) => {
     const followingIds = following.map((f) => f.UserID);
 
     if (followingIds.length === 0) {
-      await redis.set(cacheKey, [], POST_CACHE_TTL);
+      await setWithTracking(cacheKey, [], POST_CACHE_TTL, userId);
       logger.info(
         `No followed users for user ${userId}, returning empty posts`
       );
@@ -126,7 +131,7 @@ const getPosts = async (req, res) => {
       },
       orderBy: { CreatedAt: "desc" },
       include: {
-        User: {
+        BCL: {
           select: {
             UserID: true,
             Username: true,
@@ -176,7 +181,7 @@ const getPosts = async (req, res) => {
     }));
 
     // Cache response
-    await redis.set(cacheKey, response, POST_CACHE_TTL);
+    await setWithTracking(cacheKey, response, POST_CACHE_TTL, userId);
     logger.info(`Cached posts for ${cacheKey}`);
 
     res.json(response);
@@ -321,8 +326,9 @@ const updatePost = async (req, res) => {
     });
 
     // Clear cache
-    await redis.del("posts:*");
-    await redis.del(`post:${postId}`);
+    await clearUserCache(userId);
+    await del(`post:${postId}`);
+
     logger.info(`Post ${postId} updated successfully by user ${userId}`);
 
     res.json(updatedPost);
@@ -402,8 +408,8 @@ const deletePost = async (req, res) => {
 
     // Clear cache
     logger.info(`Clearing cache for post ${parsedPostId}`);
-    await redis.del("posts:*");
-    await redis.del(`post:${parsedPostId}`);
+    await clearUserCache(userId);
+    await del(`post:${parsedPostId}`);
 
     res.json({ success: true });
   } catch (error) {
@@ -483,8 +489,8 @@ const likePost = async (req, res) => {
     }
 
     // Clear cache
-    await redis.del(`post:${postId}`);
-    await redis.del("posts:*");
+    await del(`post:${postId}`);
+    await clearUserCache(userId);
 
     res.json({ success: true, action: existingLike ? "unliked" : "liked" });
   } catch (error) {
@@ -576,7 +582,7 @@ const addComment = async (req, res) => {
     }
 
     // Clear cache
-    await redis.del(`post:${postId}`);
+    await del(`post:${postId}`);
     logger.info(
       `Comment added successfully to post ${postId} by user ${userId}`
     );

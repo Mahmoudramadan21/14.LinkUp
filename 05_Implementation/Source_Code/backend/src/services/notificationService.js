@@ -1,5 +1,5 @@
 const { prisma } = require("../utils/prisma");
-const { redisClient } = require("../utils/redis");
+const { setWithTracking, del } = require("../utils/redisUtils");
 const logger = require("../utils/logger");
 
 class NotificationService {
@@ -31,8 +31,8 @@ class NotificationService {
 
       // Rate limit notifications per user
       const rateLimitKey = `notification:ratelimit:${userId}:${type}`;
-      const count = await redisClient.incr(rateLimitKey);
-      if (count === 1) await redisClient.expire(rateLimitKey, 60); // 1 minute window
+      const count = await redis.incr(rateLimitKey);
+      if (count === 1) await redis.expire(rateLimitKey, 60); // 1 minute window
       if (count > 5) {
         logger.warn(`Rate limit exceeded for notification to user ${userId}`);
         return;
@@ -49,10 +49,11 @@ class NotificationService {
       });
 
       // Cache notification in Redis (expires in 24 hours)
-      await redisClient.setEx(
+      await setWithTracking(
         `notification:${notification.NotificationID}`,
+        notification,
         24 * 60 * 60,
-        JSON.stringify(notification)
+        userId
       );
 
       // Emit notification via Socket.IO
@@ -107,7 +108,7 @@ class NotificationService {
           UserID: userId,
         },
       });
-      await redisClient.del(`notification:${notificationId}`);
+      await del(`notification:${notificationId}`, userId);
       logger.info(`Deleted notification ${notificationId} for user ${userId}`);
     } catch (error) {
       logger.error(`Failed to delete notification: ${error.message}`);

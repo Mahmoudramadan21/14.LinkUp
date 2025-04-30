@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
-const redis = require("../utils/redis");
+const { setWithTracking, get, del } = require("../utils/redisUtils"); // Update to use redisUtils
 const { sendResetEmail } = require("../services/emailService");
 const { register, login: serviceLogin } = require("../services/authService");
 const { v4: uuidv4 } = require("uuid");
@@ -16,6 +16,24 @@ const IV_LENGTH = 16;
 
 // Fixed cookie name for sessionId (obfuscated but constant)
 const SESSION_COOKIE_NAME = "qkz7m4p8v2";
+
+/**
+ * Utility function to retry an operation with exponential backoff
+ * @param {Function} operation - The async operation to retry
+ * @param {number} maxRetries - Maximum number of retries
+ * @param {number} delay - Delay between retries in milliseconds
+ */
+const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      console.log(`Retry ${i + 1}/${maxRetries} after ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+};
 
 /**
  * Encrypts the given text using AES-256-CBC
@@ -80,19 +98,19 @@ const generateRandomCookieName = () => {
 };
 
 /**
- * Handles user registration with profileName, username, email, password, gender, and dateOfBirth
+ * Handles user registration with profilename, username, email, password, gender, and dateOfBirth
  * and sets session ID as a secure cookie with a fixed name
  */
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body);
 
-  const { profileName, username, email, password, gender, dateOfBirth } =
+  const { profilename, username, email, password, gender, dateOfBirth } =
     req.body;
 
   try {
-    // Validate input (already handled by middleware, but double-check)
+    // Validate input
     if (
-      !profileName ||
+      !profilename ||
       !username ||
       !email ||
       !password ||
@@ -100,7 +118,7 @@ const signup = async (req, res) => {
       !dateOfBirth
     ) {
       console.log("Missing required fields:", {
-        profileName,
+        profilename,
         username,
         email,
         password,
@@ -132,7 +150,7 @@ const signup = async (req, res) => {
     // Register the user using authService
     console.log("Registering new user...");
     const { user: newUser } = await register({
-      profileName,
+      profileName: profilename,
       username,
       email: email.toLowerCase(),
       password,
@@ -144,7 +162,7 @@ const signup = async (req, res) => {
     await prisma.notification.create({
       data: {
         UserID: newUser.UserID,
-        Type: "WELCOME", // Updated to use WELCOME type
+        Type: "WELCOME",
         Content: `Welcome to LinkUp, ${username}! Start exploring and connecting!`,
         Metadata: { signupDate: new Date().toISOString() },
       },
@@ -173,18 +191,29 @@ const signup = async (req, res) => {
     const encryptedAccessToken = encrypt(accessToken);
     const encryptedRefreshToken = encrypt(refreshToken);
 
-    // Store encrypted tokens and the random cookie name in Redis with the session ID
-    await redis.set(
-      `session:${sessionId}`,
-      JSON.stringify({
-        accessToken: encryptedAccessToken,
-        refreshToken: encryptedRefreshToken,
-        userId: newUser.UserID,
-        randomCookieName: randomCookieName,
-      }),
-      "EX",
-      7 * 24 * 60 * 60 // 7 days
-    );
+    // Store encrypted tokens and the random cookie name in Redis using redisUtils
+    try {
+      await retryOperation(() =>
+        setWithTracking(
+          `session:${sessionId}`,
+          {
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
+            userId: newUser.UserID,
+            randomCookieName: randomCookieName,
+          },
+          7 * 24 * 60 * 60, // 7 days in seconds
+          newUser.UserID
+        )
+      );
+    } catch (redisError) {
+      console.error("Redis error during signup:", redisError.message);
+      return res.status(503).json({
+        message: "Failed to store session data in Redis",
+        error:
+          process.env.NODE_ENV === "development" ? redisError.message : null,
+      });
+    }
 
     // Set session ID as a secure cookie with the fixed name
     const cookieOptions = {
@@ -213,7 +242,7 @@ const signup = async (req, res) => {
         username: newUser.Username,
         email: newUser.Email,
         gender: newUser.Gender,
-        dateOfBirth: newUser.DateOfBirth.toISOString(), // Convert to ISO string for response
+        dateOfBirth: newUser.DateOfBirth.toISOString(),
       },
     });
   } catch (error) {
@@ -281,14 +310,13 @@ const refreshToken = async (req, res) => {
         .json({ message: "Session ID required in cookies" });
     }
 
-    // Retrieve session data from Redis
-    const sessionData = await redis.get(`session:${sessionId}`);
+    // Retrieve session data from Redis using redisUtils
+    const sessionData = await retryOperation(() => get(`session:${sessionId}`));
     if (!sessionData) {
       return res.status(401).json({ message: "Invalid session" });
     }
 
-    const { refreshToken: encryptedRefreshToken, userId } =
-      JSON.parse(sessionData);
+    const { refreshToken: encryptedRefreshToken, userId } = sessionData;
     const refreshToken = decrypt(encryptedRefreshToken);
 
     // Verify the refresh token
@@ -346,17 +374,19 @@ const refreshToken = async (req, res) => {
     const newEncryptedAccessToken = encrypt(newAccessToken);
     const newEncryptedRefreshToken = encrypt(newRefreshToken);
 
-    // Update Redis with the new tokens
-    await redis.set(
-      `session:${sessionId}`,
-      JSON.stringify({
-        accessToken: newEncryptedAccessToken,
-        refreshToken: newEncryptedRefreshToken,
-        userId: user.UserID,
-        randomCookieName: JSON.parse(sessionData).randomCookieName,
-      }),
-      "EX",
-      7 * 24 * 60 * 60 // 7 days
+    // Update Redis with the new tokens using redisUtils
+    await retryOperation(() =>
+      setWithTracking(
+        `session:${sessionId}`,
+        {
+          accessToken: newEncryptedAccessToken,
+          refreshToken: newEncryptedRefreshToken,
+          userId: user.UserID,
+          randomCookieName: sessionData.randomCookieName,
+        },
+        7 * 24 * 60 * 60, // 7 days in seconds
+        user.UserID
+      )
     );
 
     res.json({
@@ -376,10 +406,12 @@ const logout = async (req, res) => {
   try {
     const sessionId = req.cookies[SESSION_COOKIE_NAME];
     if (sessionId) {
-      const sessionData = await redis.get(`session:${sessionId}`);
+      const sessionData = await retryOperation(() =>
+        get(`session:${sessionId}`)
+      );
       if (sessionData) {
-        const { randomCookieName } = JSON.parse(sessionData);
-        await redis.del(`session:${sessionId}`);
+        const { randomCookieName, userId } = sessionData;
+        await retryOperation(() => del(`session:${sessionId}`, userId));
         console.log(`Deleted session:${sessionId} from Redis`);
 
         // Clear the fixed session ID cookie
@@ -480,12 +512,14 @@ const verifyCode = async (req, res) => {
       { expiresIn: "5m", issuer: "linkup-api" }
     );
 
-    // Store the temporary token in Redis
-    await redis.set(
-      `reset_token:${user.UserID}`,
-      resetToken,
-      "EX",
-      5 * 60 // 5 minutes expiry
+    // Store the temporary token in Redis using redisUtils
+    await retryOperation(() =>
+      setWithTracking(
+        `reset_token:${user.UserID}`,
+        resetToken,
+        5 * 60, // 5 minutes expiry
+        user.UserID
+      )
     );
 
     // Clear the verification code
@@ -523,7 +557,9 @@ const resetPassword = async (req, res) => {
     }
 
     const userId = decoded.userId;
-    const storedToken = await redis.get(`reset_token:${userId}`);
+    const storedToken = await retryOperation(() =>
+      get(`reset_token:${userId}`)
+    );
 
     if (!storedToken || storedToken !== resetToken) {
       return res
@@ -548,8 +584,8 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    // Clear the temporary token from Redis
-    await redis.del(`reset_token:${userId}`);
+    // Clear the temporary token from Redis using redisUtils
+    await retryOperation(() => del(`reset_token:${userId}`, userId));
 
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {

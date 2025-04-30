@@ -141,6 +141,7 @@ const register = async ({
     throw new Error(`Registration failed: ${error.message}`);
   }
 };
+
 /**
  * Authenticates a user, stores tokens in Redis with a session ID, sets session ID as a secure cookie with a fixed name,
  * and adds dummy cookies for obfuscation
@@ -189,7 +190,8 @@ const login = async (usernameOrEmail, password, res) => {
       userId: user.UserID,
       randomCookieName: randomCookieName, // Store the random cookie name for logout
     }),
-    7 * 24 * 60 * 60 // 7 days
+    "EX",
+    7 * 24 * 60 * 60 // 7 days in seconds
   );
 
   // Set session ID as a secure cookie with the fixed name

@@ -2,7 +2,7 @@ const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const cloudinary = require("cloudinary").v2;
-const redis = require("../utils/redis");
+const { del, clearUserCache } = require("../utils/redisUtils");
 
 // Salt rounds for password hashing - recommended value
 const SALT_ROUNDS = 10;
@@ -313,7 +313,7 @@ const updatePrivacySettings = async (req, res) => {
         ? [
             prisma.follower.updateMany({
               where: {
-                UserID: userId, // هذا هو الحقل الصحيح بدلاً من FollowingUserID
+                UserID: userId,
                 Status: "PENDING",
               },
               data: {
@@ -349,9 +349,9 @@ const updatePrivacySettings = async (req, res) => {
         : []),
     ]);
 
-    // Invalidate Redis cache for user's posts and followers using the existing RedisClient
-    await redis.del(`posts:user:${userId}`);
-    await redis.del(`followers:user:${userId}`);
+    // Invalidate Redis cache for user's posts and followers
+    await del(`posts:user:${userId}`, userId);
+    await del(`followers:user:${userId}`, userId);
 
     // Emit privacy update event via Socket.IO if the instance is available
     const io = req.app.get("io");

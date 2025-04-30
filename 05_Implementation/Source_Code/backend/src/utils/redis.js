@@ -1,63 +1,26 @@
-const { createClient } = require("redis");
+const { Redis } = require("@upstash/redis");
 const logger = require("./logger");
 
+// Initialize Upstash Redis client
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || "YOUR_UPSTASH_REDIS_URL",
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || "YOUR_UPSTASH_REDIS_TOKEN",
+});
+
+// Test the connection
+redis
+  .ping()
+  .then(() => {
+    logger.info("Connected to Upstash Redis successfully");
+  })
+  .catch((err) => {
+    logger.error("Failed to connect to Upstash Redis", { error: err.message });
+    throw err; // Ensure connection errors are propagated
+  });
+
 class RedisClient {
-  /**
-   * Initializes a Redis client with reconnection logic and error handling
-   */
   constructor() {
-    this.client = createClient({
-      url: process.env.REDIS_URL,
-      socket: {
-        reconnectStrategy: (retries) => {
-          if (retries > 5) {
-            logger.error("Max Redis retries reached");
-            return new Error("Max retries reached");
-          }
-          return Math.min(retries * 200, 10000); // Adjusted backoff for Upstash
-        },
-        tls: true, // Enable TLS for Upstash
-      },
-    });
-
-    this.client.on("error", (err) => {
-      logger.error(`Redis Client Error: ${err}`);
-    });
-
-    this.client.on("ready", () => {
-      logger.info("Redis client ready");
-    });
-
-    this.client.on("reconnecting", () => {
-      logger.info("Redis client reconnecting...");
-    });
-
-    this.connect();
-  }
-
-  /**
-   * Establishes connection to Redis with error logging
-   */
-  async connect() {
-    try {
-      await this.client.connect();
-      logger.info("Connected to Upstash Redis successfully");
-    } catch (err) {
-      logger.error("Upstash Redis connection failed:", err);
-      throw err; // Ensure connection errors are propagated
-    }
-  }
-
-  /**
-   * Safely disconnects the Redis client
-   */
-  async disconnect() {
-    try {
-      await this.client.quit();
-      logger.info("Disconnected from Upstash Redis");
-    } catch (err) {
-      logger.error("Error disconnecting from Upstash Redis:", err);
-    }
+    this.client = redis;
   }
 
   /**
@@ -90,7 +53,7 @@ class RedisClient {
     try {
       const stringValue =
         typeof value === "string" ? value : JSON.stringify(value);
-      await this.client.set(key, stringValue, { EX: ttl });
+      await this.client.set(key, stringValue, { ex: ttl });
     } catch (err) {
       logger.error(`Redis SET error: ${err}`);
       throw err; // Rethrow to ensure errors are caught upstream
@@ -123,17 +86,27 @@ class RedisClient {
    * @returns {Promise<Array>} Transaction results
    */
   async execMulti(operations) {
-    const multi = this.client.multi();
-    operations.forEach((op) => {
+    const commands = operations.map((op) => {
       if (op.type === "set") {
         const stringValue =
           typeof op.value === "string" ? op.value : JSON.stringify(op.value);
-        multi.set(op.key, stringValue, { EX: op.ttl });
+        return ["set", op.key, stringValue, { ex: op.ttl }];
       } else if (op.type === "del") {
-        multi.del(op.key);
+        return ["del", op.key];
       }
     });
-    return await multi.exec();
+    return await this.client.multi(commands).exec();
+  }
+
+  /**
+   * Safely disconnects the Redis client (optional for Upstash as it's HTTP-based)
+   */
+  async disconnect() {
+    try {
+      logger.info("Disconnected from Upstash Redis (HTTP client)");
+    } catch (err) {
+      logger.error("Error disconnecting from Upstash Redis:", err);
+    }
   }
 }
 

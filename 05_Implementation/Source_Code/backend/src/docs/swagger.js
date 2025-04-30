@@ -3,15 +3,27 @@ const express = require("express");
 const path = require("path");
 const glob = require("glob");
 
+// Define the project root relative to this file (docs/swagger.js)
 const projectRoot = path.resolve(__dirname, "../../");
+console.log("Project root:", projectRoot);
 
-const routeFiles = glob.sync(path.join(projectRoot, "src/routes/*.js"));
-const nestedRouteFiles = glob.sync(
-  path.join(projectRoot, "src/routes/search/*.js")
+// Define paths for routes and controllers
+const routeFilesPattern = path.join(projectRoot, "src/routes/*.js");
+const nestedRouteFilesPattern = path.join(
+  projectRoot,
+  "src/routes/search/*.js"
 );
-const controllerFiles = glob.sync(
-  path.join(projectRoot, "src/controllers/*.js")
-);
+const controllerFilesPattern = path.join(projectRoot, "src/controllers/*.js");
+
+// Log the patterns to debug
+console.log("Route files pattern:", routeFilesPattern);
+console.log("Nested route files pattern:", nestedRouteFilesPattern);
+console.log("Controller files pattern:", controllerFilesPattern);
+
+// Scan for route and controller files
+const routeFiles = glob.sync(routeFilesPattern);
+const nestedRouteFiles = glob.sync(nestedRouteFilesPattern);
+const controllerFiles = glob.sync(controllerFilesPattern);
 
 const allRouteFiles = [...routeFiles, ...nestedRouteFiles];
 

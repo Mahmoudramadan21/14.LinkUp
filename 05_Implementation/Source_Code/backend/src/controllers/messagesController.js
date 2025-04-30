@@ -1,5 +1,5 @@
 const prisma = require("../utils/prisma");
-const redis = require("../utils/redis");
+const { setWithTracking, del } = require("../utils/redisUtils");
 const { handleServerError } = require("../utils/errorHandler");
 const { uploadToCloud } = require("../services/cloudService");
 
@@ -174,9 +174,9 @@ const createConversation = async (req, res) => {
       return newConversation;
     });
 
-    // Invalidate conversation cache for participants
-    await redis.del(`conversations:${UserID}`);
-    await redis.del(`conversations:${participantId}`);
+    // Invalidate conversation cache for participants using redisUtils
+    await del(`conversations:${UserID}`, UserID);
+    await del(`conversations:${participantId}`, participantId);
 
     // Emit Socket.IO event to participants
     if (req.io) {
@@ -383,9 +383,9 @@ const sendMessage = async (req, res) => {
       data: { updatedAt: new Date() },
     });
 
-    // Invalidate conversation cache for participants
+    // Invalidate conversation cache for participants using redisUtils
     for (const participant of conversation.participants) {
-      await redis.del(`conversations:${participant.UserID}`);
+      await del(`conversations:${participant.UserID}`, participant.UserID);
     }
 
     // Emit message via Socket.IO if the instance is available
@@ -472,12 +472,12 @@ const addReaction = async (req, res) => {
       },
     });
 
-    // Invalidate cache for participants
+    // Invalidate cache for participants using redisUtils
     const participantIds = message.conversation.participants.map(
       (p) => p.UserID
     );
     for (const id of participantIds) {
-      await redis.del(`conversations:${id}`);
+      await del(`conversations:${id}`, id);
     }
 
     // Emit Socket.IO event to conversation room
@@ -526,12 +526,12 @@ const handleTyping = async (req, res) => {
         .json({ error: "Conversation not found or access denied" });
     }
 
-    // Update typing status in Redis
+    // Update typing status in Redis using redisUtils
     const cacheKey = `typing:${conversationId}:${UserID}`;
     if (isTyping) {
-      await redis.setEx(cacheKey, 10, "true");
+      await setWithTracking(cacheKey, "true", 10, UserID);
     } else {
-      await redis.del(cacheKey);
+      await del(cacheKey, UserID);
     }
 
     // Emit Socket.IO event to conversation room

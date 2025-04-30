@@ -9,13 +9,13 @@ const {
 const validateDateOfBirth = (value) => {
   const dob = new Date(value);
   const today = new Date();
-  const age = today.getFullYear() - dob.getFullYear();
+  let age = today.getFullYear() - dob.getFullYear(); // Changed to let
   const monthDiff = today.getMonth() - dob.getMonth();
   const dayDiff = today.getDate() - dob.getDate();
 
   // Adjust age if birthday hasn't occurred this year
   if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--;
+    age--; // Now this works because age is defined with let
   }
 
   if (isNaN(dob.getTime())) {

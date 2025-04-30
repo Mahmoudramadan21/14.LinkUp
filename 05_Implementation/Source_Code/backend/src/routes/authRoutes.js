@@ -59,14 +59,14 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           type: string
  *           minLength: 3
  *           maxLength: 50
- *           pattern: '^[a-zA-Z0-9\\s\\-\']+$'
+ *           pattern: ^[a-zA-Z0-9\s\-\']+$  # Fixed escaping
  *           example: John Doe
  *           description: User's profile name (3-50 characters, letters, numbers, spaces, hyphens, apostrophes)
  *         username:
  *           type: string
  *           minLength: 3
  *           maxLength: 30
- *           pattern: '^[a-zA-Z0-9_]+$'
+ *           pattern: ^[a-zA-Z0-9_]+$
  *           example: john_doe
  *           description: Unique username (alphanumeric and underscores only)
  *         email:
@@ -77,6 +77,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *         password:
  *           type: string
  *           minLength: 8
+ *           pattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$
  *           example: P@ssw0rd123
  *           description: Password with minimum 8 characters, must include at least one uppercase letter, one lowercase letter, one number, and one special character
  *         gender:
@@ -127,7 +128,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           description: Email address associated with the account
  *         code:
  *           type: string
- *           pattern: '^[0-9]{4}$'
+ *           pattern: ^[0-9]{4}$
  *           example: "1234"
  *           description: 4-digit verification code received via email
  *     PasswordResetWithToken:

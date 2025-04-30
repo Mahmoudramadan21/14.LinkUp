@@ -1,5 +1,5 @@
 const prisma = require("../utils/prisma");
-const redis = require("../utils/redis");
+const { setWithTracking, get, clearUserCache } = require("../utils/redisUtils");
 const { handleServerError } = require("../utils/errorHandler");
 
 // Constants for configuration
@@ -25,7 +25,7 @@ const getNotifications = async (req, res) => {
 
     // Check cache
     const cacheKey = `notifications:${userId}:${page}:${limit}:${readStatus}`;
-    const cachedNotifications = await redis.get(cacheKey);
+    const cachedNotifications = await get(cacheKey);
     if (cachedNotifications) {
       return res.json(cachedNotifications);
     }
@@ -79,7 +79,7 @@ const getNotifications = async (req, res) => {
     };
 
     // Cache response
-    await redis.set(cacheKey, response, NOTIFICATION_CACHE_TTL);
+    await setWithTracking(cacheKey, response, NOTIFICATION_CACHE_TTL, userId);
 
     res.json(response);
   } catch (error) {
@@ -114,7 +114,7 @@ const markNotificationAsRead = async (req, res) => {
     });
 
     // Clear cache
-    await redis.del(`notifications:${userId}:*`);
+    await clearUserCache(userId);
 
     res.json({ success: true, message: "Notification marked as read" });
   } catch (error) {
@@ -135,7 +135,7 @@ const markAllNotificationsAsRead = async (req, res) => {
     });
 
     // Clear cache
-    await redis.del(`notifications:${userId}:*`);
+    await clearUserCache(userId);
 
     res.json({ success: true, message: "All notifications marked as read" });
   } catch (error) {
@@ -178,7 +178,7 @@ const updateNotificationPreferences = async (req, res) => {
       where: { UserID: userId },
       data: {
         NotificationPreferences: {
-          upsert: {
+          upsertgenerally: {
             create: preferences,
             update: preferences,
           },
@@ -224,7 +224,7 @@ const deleteNotification = async (req, res) => {
     });
 
     // Clear cache
-    await redis.del(`notifications:${userId}:*`);
+    await clearUserCache(userId);
 
     res.json({ success: true, message: "Notification deleted" });
   } catch (error) {

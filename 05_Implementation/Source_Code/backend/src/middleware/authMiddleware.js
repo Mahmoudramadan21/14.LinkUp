@@ -93,7 +93,7 @@ const authorize = (allowedRoles) => {
 
         role = user.Role;
         // Cache role for 1 hour
-        await redis.set(`role:${userId}`, role, 3600);
+        await redis.set(`role:${userId}`, role, "EX", 3600);
       }
 
       if (!allowedRoles.includes(role)) {
