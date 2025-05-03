@@ -18,7 +18,7 @@ interface FormErrors {
 // Define API response type
 interface ForgotPasswordResponse {
   message: string;
-  data: Record<string, never>;
+  codeSent: boolean;
 }
 
 // Validation function
@@ -78,18 +78,13 @@ const ForgotPasswordForm: React.FC = () => {
     try {
       const response = await api.post<ForgotPasswordResponse>(
         API_ENDPOINTS.FORGOT_PASSWORD,
-        { email: formData.email },
-        {
-          headers: {
-            "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
-          },
-        }
+        { email: formData.email }
       );
 
-      // Store the email in sessionStorage for the next step
-      sessionStorage.setItem("resetEmail", formData.email);
+      // Store the email in localStorage for the next step
+      localStorage.setItem("resetEmail", formData.email);
 
-      setServerSuccess("A verification code has been sent to your email address.");
+      setServerSuccess("If the email exists, a verification code has been sent.");
       setFormData({ email: "" }); // Clear the form
 
       // Redirect to the verify-code page
@@ -99,14 +94,12 @@ const ForgotPasswordForm: React.FC = () => {
     } catch (error: any) {
       if (error.status === 400 && error.errors) {
         const newErrors: FormErrors = {};
-        error.errors.forEach((err: { msg: string }) => {
-          newErrors.email = err.msg;
+        error.errors.forEach((err: { field: string; error: string }) => {
+          newErrors.email = err.error;
         });
         setErrors(newErrors);
-      } else if (error.status === 429) {
-        setServerError("Too many requests. Please try again later.");
       } else if (error.status === 500) {
-        setServerError("Internal server error. Please try again later.");
+        setServerError("Error processing request.");
       } else {
         setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
       }

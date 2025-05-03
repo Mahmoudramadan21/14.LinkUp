@@ -2,7 +2,7 @@ import { useState, FormEvent, ChangeEvent } from "react";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import api from "@/utils/api";
-import { setCookie } from "@/utils/cookie";
+import { setAuthData } from "@/utils/auth";
 import { API_ENDPOINTS, ERROR_MESSAGES } from "@/utils/constants";
 import Link from "next/link";
 
@@ -22,8 +22,12 @@ interface FormErrors {
 interface LoginResponse {
   message: string;
   data: {
+    accessToken: string;
+    refreshToken: string;
     userId: number;
     username: string;
+    profileName: string;
+    profilePicture: string;
   };
 }
 
@@ -32,9 +36,8 @@ const validateForm = (formData: FormData): FormErrors => {
   const errors: FormErrors = {};
 
   // Validate usernameOrEmail
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
-  const usernameRegex = /^[a-zA-Z0-9_]{3,}$/; // Username: at least 3 chars, letters, numbers, underscores
-
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const usernameRegex = /^[a-zA-Z0-9_]{3,}$/;
   if (!formData.usernameOrEmail.trim()) {
     errors.usernameOrEmail = "Email or username is required";
   } else if (
@@ -71,11 +74,11 @@ const LoginForm: React.FC = () => {
   const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Validate the entire form
     const updatedFormData = { ...formData, [name]: value };
     const newErrors = validateForm(updatedFormData);
-    setErrors(newErrors); // Update all errors, not just the changed field
+    setErrors(newErrors);
     setServerError("");
   };
 
@@ -88,7 +91,7 @@ const LoginForm: React.FC = () => {
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
-      return; // Stop submission if there are validation errors
+      return;
     }
 
     setIsLoading(true);
@@ -96,17 +99,22 @@ const LoginForm: React.FC = () => {
 
     try {
       const response = await api.post<LoginResponse>(API_ENDPOINTS.LOGIN, formData);
-      const { userId, username } = response.data.data;
+      const { accessToken, refreshToken, userId, username, profileName, profilePicture } = response.data.data;
 
-      // Store userId and username in cookies (if needed)
-      setCookie("userId", userId.toString(), { expires: rememberMe ? 7 : undefined });
-      setCookie("username", username, { expires: rememberMe ? 7 : undefined });
+      // Store auth data in localStorage
+      setAuthData({
+        accessToken,
+        refreshToken,
+        userId,
+        username,
+        profileName,
+        profilePicture,
+      });
 
       console.log("Login successful:", { userId, username });
-      console.log("Response headers:", response.headers); // Check if Set-Cookie is present
 
       // Redirect to feed page
-      // window.location.href = "/feed";
+      window.location.href = "/feed";
     } catch (error: any) {
       setIsLoading(false);
       console.error("Login error:", error);
@@ -175,6 +183,15 @@ const LoginForm: React.FC = () => {
             </div>
           )}
 
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading || hasErrors}
+          >
+            {isLoading ? "Signing in..." : "Sign in"}
+          </Button>
+
           {/* Remember Me and Forgot Password */}
           <div className="auth-form__options">
             <label className="auth-form__checkbox">
@@ -186,19 +203,10 @@ const LoginForm: React.FC = () => {
               />
               <span className="auth-form__checkbox-label">Remember me</span>
             </label>
-            <Link href="/forgot-password" className="auth-form__link">
+            <Link href="/forgot-password" className="auth-form__link auth-form__forgot-password-link">
               Forgot password?
             </Link>
           </div>
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={isLoading || hasErrors}
-          >
-            {isLoading ? "Signing in..." : "Sign in"}
-          </Button>
 
           {/* Sign Up Link */}
           <p className="auth-form__signup">

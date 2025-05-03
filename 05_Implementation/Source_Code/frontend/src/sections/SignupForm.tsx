@@ -2,7 +2,7 @@ import { useState, FormEvent, ChangeEvent } from "react";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import api from "@/utils/api";
-import { setCookie } from "@/utils/cookie";
+import { setAuthData } from "@/utils/auth";
 import { API_ENDPOINTS, ERROR_MESSAGES } from "@/utils/constants";
 import Link from "next/link";
 
@@ -35,12 +35,12 @@ interface FormErrors {
 interface SignupResponse {
   message: string;
   data: {
+    accessToken: string;
+    refreshToken: string;
     userId: number;
-    profileName: string;
     username: string;
-    email: string;
-    gender: "MALE" | "FEMALE";
-    dateOfBirth: string;
+    profileName: string;
+    profilePicture: string;
   };
 }
 
@@ -166,13 +166,13 @@ const SignupForm: React.FC = () => {
     setServerError("");
 
     try {
-      // Format dateOfBirth to YYYY-MM-DD (ensure consistency with backend)
+      // Format dateOfBirth to YYYY-MM-DD
       const formattedDateOfBirth = new Date(formData.dateOfBirth).toISOString().split("T")[0];
 
       const response = await api.post<SignupResponse>(
         API_ENDPOINTS.SIGNUP,
         {
-          profilename: formData.profileName, // Changed to match backend expected key (lowercase)
+          profilename: formData.profileName,
           username: formData.username,
           email: formData.email,
           password: formData.password,
@@ -185,19 +185,24 @@ const SignupForm: React.FC = () => {
           },
         }
       );
-      const { userId, username } = response.data.data;
+      const { accessToken, refreshToken, userId, username, profileName, profilePicture } = response.data.data;
 
-      setCookie("userId", userId.toString(), { expires: 7, secure: true, sameSite: "Strict" });
-      setCookie("username", username, { expires: 7, secure: true, sameSite: "Strict" });
+      // Store auth data in localStorage
+      setAuthData({
+        accessToken,
+        refreshToken,
+        userId,
+        username,
+        profileName,
+        profilePicture,
+      });
 
       window.location.href = "/feed";
     } catch (error: any) {
       setIsLoading(false);
       if (error.status === 400 && error.errors) {
-        // Map server-side validation errors to form fields
         const newErrors: FormErrors = {};
         error.errors.forEach((err: { path: string; msg: string }) => {
-          // Adjust the field name to match the frontend formData keys
           const field = err.path === "profilename" ? "profileName" : err.path;
           newErrors[field as keyof FormErrors] = err.msg;
         });
@@ -209,8 +214,6 @@ const SignupForm: React.FC = () => {
       } else {
         setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -219,8 +222,8 @@ const SignupForm: React.FC = () => {
   return (
     <section className="auth-form signup-form">
       <div className="auth-form__container">
-        <h1 className="auth-form__title">Sign up</h1>
-        <p className="auth-form__subtitle">Sign up with your email address</p>
+        <h1 className="auth-form__title signup-form__title">Sign up</h1>
+        <p className="auth-form__subtitle signup-form__subtitle">Sign up with your email address</p>
 
         <form onSubmit={handleSubmit} className="auth-form__form" aria-label="Signup form" noValidate>
           {/* Profile Name */}
