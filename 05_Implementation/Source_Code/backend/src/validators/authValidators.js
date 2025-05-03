@@ -5,42 +5,19 @@ const {
   validatePassword,
 } = require("../utils/validators");
 
-// Validate date of birth (ensure user is at least 13 years old)
-const validateDateOfBirth = (value) => {
-  const dob = new Date(value);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear(); // Changed to let
-  const monthDiff = today.getMonth() - dob.getMonth();
-  const dayDiff = today.getDate() - dob.getDate();
-
-  // Adjust age if birthday hasn't occurred this year
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--; // Now this works because age is defined with let
-  }
-
-  if (isNaN(dob.getTime())) {
-    throw new Error("Invalid date of birth format");
-  }
-
-  if (age < 13) {
-    throw new Error("You must be at least 13 years old to register");
-  }
-
-  return true;
-};
-
 /**
  * Validation rules for user sign-up
  * Ensures all required fields meet specific criteria
  */
 const signupValidationRules = [
-  body("profilename")
+  body("profileName")
     .notEmpty()
     .withMessage("Profile name is required")
-    .matches(/^[a-zA-Z0-9\s\-']{3,50}$/)
-    .withMessage(
-      "Profile name must be 3-50 characters long and can only contain letters, numbers, spaces, hyphens, or apostrophes"
-    ),
+    .isString()
+    .isLength({ min: 2, max: 50 })
+    .withMessage("Profile name must be between 2 and 50 characters")
+    .matches(/^[a-zA-Z\s]+$/)
+    .withMessage("Profile name must contain only letters and spaces"),
   body("username")
     .notEmpty()
     .withMessage("Username is required")
@@ -51,7 +28,7 @@ const signupValidationRules = [
   body("email")
     .notEmpty()
     .withMessage("Email is required")
-    .isEmail()
+    .custom(validateEmail)
     .withMessage("Please provide a valid email address"),
   body("password")
     .notEmpty()
@@ -64,15 +41,27 @@ const signupValidationRules = [
     .notEmpty()
     .withMessage("Gender is required")
     .isIn(["MALE", "FEMALE", "OTHER"])
-    .withMessage("Gender must be one of: MALE, FEMALE, OTHER"),
+    .withMessage("Gender must be MALE, FEMALE, or OTHER"),
   body("dateOfBirth")
     .notEmpty()
     .withMessage("Date of birth is required")
     .isISO8601()
     .withMessage(
-      "Date of birth must be a valid date in ISO format (e.g., 2000-01-01)"
+      "Date of birth must be a valid ISO 8601 date (e.g., YYYY-MM-DD)"
     )
-    .custom(validateDateOfBirth),
+    .custom((value) => {
+      const dob = new Date(value);
+      const today = new Date();
+      const minAgeDate = new Date(
+        today.getFullYear() - 13,
+        today.getMonth(),
+        today.getDate()
+      );
+      if (dob > minAgeDate) {
+        throw new Error("You must be at least 13 years old to register");
+      }
+      return true;
+    }),
 ];
 
 /**

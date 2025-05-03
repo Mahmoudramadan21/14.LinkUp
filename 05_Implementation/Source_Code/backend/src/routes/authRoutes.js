@@ -6,7 +6,6 @@ const {
   forgotPassword,
   verifyCode,
   resetPassword,
-  logout,
 } = require("../controllers/authController");
 const {
   signupValidationRules,
@@ -25,9 +24,6 @@ const loginLimiter = rateLimit({
   max: 5, // Limit to 5 attempts
   message: "Too many login attempts, please try again after 15 minutes",
 });
-
-// Fixed cookie name for sessionId (obfuscated but constant)
-const SESSION_COOKIE_NAME = "qkz7m4p8v2";
 
 /**
  * @swagger
@@ -57,16 +53,16 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *       properties:
  *         profileName:
  *           type: string
- *           minLength: 3
+ *           minLength: 2
  *           maxLength: 50
- *           pattern: ^[a-zA-Z0-9\s\-\']+$  # Fixed escaping
+ *           pattern: '^[a-zA-Z\s]+$'
  *           example: John Doe
- *           description: User's profile name (3-50 characters, letters, numbers, spaces, hyphens, apostrophes)
+ *           description: User's full name (letters and spaces only)
  *         username:
  *           type: string
  *           minLength: 3
- *           maxLength: 30
- *           pattern: ^[a-zA-Z0-9_]+$
+ *           maxLength: 20
+ *           pattern: '^[a-zA-Z0-9_]+$'
  *           example: john_doe
  *           description: Unique username (alphanumeric and underscores only)
  *         email:
@@ -77,19 +73,18 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *         password:
  *           type: string
  *           minLength: 8
- *           pattern: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$
  *           example: P@ssw0rd123
- *           description: Password with minimum 8 characters, must include at least one uppercase letter, one lowercase letter, one number, and one special character
+ *           description: Password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
  *         gender:
  *           type: string
- *           enum: [MALE, FEMALE]
+ *           enum: [MALE, FEMALE, OTHER]
  *           example: MALE
  *           description: User's gender
  *         dateOfBirth:
  *           type: string
  *           format: date
- *           example: 2000-01-01
- *           description: User's date of birth (ISO format, user must be at least 13 years old)
+ *           example: 1990-01-01
+ *           description: Date of birth in ISO 8601 format (YYYY-MM-DD)
  *     LoginCredentials:
  *       type: object
  *       required:
@@ -105,6 +100,15 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           minLength: 8
  *           example: P@ssw0rd123
  *           description: User password
+ *     RefreshTokenRequest:
+ *       type: object
+ *       required:
+ *         - refreshToken
+ *       properties:
+ *         refreshToken:
+ *           type: string
+ *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *           description: Valid refresh token
  *     PasswordResetRequest:
  *       type: object
  *       required:
@@ -128,7 +132,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           description: Email address associated with the account
  *         code:
  *           type: string
- *           pattern: ^[0-9]{4}$
+ *           pattern: '^[0-9]{4}$'
  *           example: "1234"
  *           description: 4-digit verification code received via email
  *     PasswordResetWithToken:
@@ -145,7 +149,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           type: string
  *           minLength: 8
  *           example: NewP@ssw0rd123
- *           description: New password with minimum 8 characters
+ *           description: New password with minimum 8 characters, including one uppercase, one lowercase, one number, and one special character
  *     SuccessResponse:
  *       type: object
  *       properties:
@@ -178,13 +182,16 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *           items:
  *             type: object
  *             properties:
- *               msg:
+ *               field:
+ *                 type: string
+ *               error:
  *                 type: string
  *           description: Validation errors (optional)
  *       example:
  *         message: Validation failed
  *         errors:
- *           - msg: Invalid date of birth format
+ *           - field: email
+ *             error: Invalid email format
  */
 
 /**
@@ -201,7 +208,7 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *             $ref: '#/components/schemas/UserAuth'
  *     responses:
  *       201:
- *         description: User registered successfully, session ID set as a secure cookie
+ *         description: User registered successfully
  *         content:
  *           application/json:
  *             schema:
@@ -210,19 +217,13 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *               message: User registered successfully
  *               data:
  *                 userId: 1
- *                 profileName: John Doe
  *                 username: john_doe
- *                 email: john@example.com
- *                 gender: MALE
- *                 dateOfBirth: 2000-01-01T00:00:00.000Z
- *         headers:
- *           Set-Cookie:
- *             schema:
- *               type: string
- *               example: qkz7m4p8v2=123e4567-e89b-12d3-a456-426614174000; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
- *             description: Sets session ID as a secure cookie with a fixed name (qkz7m4p8v2), along with dummy cookies for obfuscation
+ *                 profileName: John Doe
+ *                 profilePicture: null
+ *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
- *         description: Validation error or invalid registration data
+ *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
@@ -230,7 +231,8 @@ const SESSION_COOKIE_NAME = "qkz7m4p8v2";
  *             example:
  *               message: Invalid registration data
  *               errors:
- *                 - msg: Invalid date of birth format
+ *                 - field: profilename
+ *                   error: Profile name is required
  *       409:
  *         description: Email or username already exists
  *         content:
@@ -254,7 +256,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Authenticate user and set session ID as a secure cookie
+ *     summary: Authenticate user and get access token
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -264,7 +266,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             $ref: '#/components/schemas/LoginCredentials'
  *     responses:
  *       200:
- *         description: Login successful, session ID set as a secure cookie
+ *         description: Login successful
  *         content:
  *           application/json:
  *             schema:
@@ -272,38 +274,47 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             example:
  *               message: Login successful
  *               data:
+ *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *                 userId: 1
  *                 username: john_doe
- *         headers:
- *           Set-Cookie:
- *             schema:
- *               type: string
- *               example: qkz7m4p8v2=123e4567-e89b-12d3-a456-426614174000; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
- *             description: Sets session ID as a secure cookie with a fixed name (qkz7m4p8v2), along with dummy cookies for obfuscation
+ *                 profileName: John Doe
+ *                 profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Username or email is required
+ *               errors:
+ *                 - field: usernameOrEmail
+ *                   error: Username or email is required
  *       401:
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid credentials
  *       429:
  *         description: Too many login attempts
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Too many login attempts, please try again after 15 minutes
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Authentication failed
  */
 router.post("/login", loginLimiter, loginValidationRules, validate, login);
 
@@ -311,8 +322,14 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  * @swagger
  * /auth/refresh:
  *   post:
- *     summary: Refresh access token using session ID from cookies
+ *     summary: Refresh access token
  *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RefreshTokenRequest'
  *     responses:
  *       200:
  *         description: Token refreshed successfully
@@ -322,78 +339,51 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
  *               message: Token refreshed successfully
- *               data: {}
+ *               data:
+ *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
- *         description: Missing session ID in cookies
+ *         description: Invalid or missing refresh token
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Valid refresh token required
  *       401:
  *         description: Invalid or expired refresh token
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid or expired refresh token
  *       403:
  *         description: User is banned
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: User is banned
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: User not found
  *       503:
  *         description: Service unavailable (Redis or database)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Redis service unavailable
  */
 router.post("/refresh", controllerRefreshToken);
-
-/**
- * @swagger
- * /auth/logout:
- *   post:
- *     summary: Logout user and clear session ID cookie and dummy cookies
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Logged out successfully, session ID cookie and dummy cookies cleared
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: Logged out successfully
- *               data: {}
- *         headers:
- *           Set-Cookie:
- *             schema:
- *               type: string
- *               example: qkz7m4p8v2=; Max-Age=0; HttpOnly; Secure; SameSite=Strict
- *             description: Clears session ID cookie (qkz7m4p8v2) and dummy cookies
- *       401:
- *         description: Unauthorized - No user authenticated
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post("/logout", logout);
 
 /**
  * @swagger
@@ -414,18 +404,28 @@ router.post("/logout", logout);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               message: If the email exists, a verification code has been sent
+ *               codeSent: true
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Email is required
+ *               errors:
+ *                 - field: email
+ *                   error: Email is required
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Error processing request
  */
 router.post(
   "/forgot-password",
@@ -453,18 +453,25 @@ router.post(
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               message: Code verified successfully
+ *               resetToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
  *         description: Invalid or expired verification code
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid or expired verification code
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Error verifying code
  */
 router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
 
@@ -487,57 +494,32 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               message: Password updated successfully
  *       400:
  *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: New password must be at least 8 characters long
  *       401:
- *         description: Invalid or expired reset token, or email mismatch
+ *         description: Invalid or expired reset token
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid or expired reset token
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- */
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     PasswordResetWithToken:
- *       type: object
- *       required:
- *         - resetToken
- *         - newPassword
- *         - email
- *       properties:
- *         resetToken:
- *           type: string
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *           description: Temporary token received after code verification
- *         newPassword:
- *           type: string
- *           minLength: 8
- *           example: NewP@ssw0rd123
- *           description: New password with minimum 8 characters
- *         email:
- *           type: string
- *           format: email
- *           example: john@example.com
- *           description: Email address associated with the account
+ *             example:
+ *               message: Error updating password
  */
 router.post(
   "/reset-password",

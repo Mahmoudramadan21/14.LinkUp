@@ -2,155 +2,27 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
-const { setWithTracking, get, del } = require("../utils/redisUtils"); // Update to use redisUtils
+const redis = require("../utils/redis");
 const { sendResetEmail } = require("../services/emailService");
 const { register, login: serviceLogin } = require("../services/authService");
-const { v4: uuidv4 } = require("uuid");
 
 const SALT_ROUNDS = 10; // Define salt rounds
 
-// Encryption key (same as used in authService.js)
-const ENCRYPTION_KEY =
-  process.env.ENCRYPTION_KEY || "your-32-char-long-secret-key-here";
-const IV_LENGTH = 16;
-
-// Fixed cookie name for sessionId (obfuscated but constant)
-const SESSION_COOKIE_NAME = "qkz7m4p8v2";
-
 /**
- * Utility function to retry an operation with exponential backoff
- * @param {Function} operation - The async operation to retry
- * @param {number} maxRetries - Maximum number of retries
- * @param {number} delay - Delay between retries in milliseconds
- */
-const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      console.log(`Retry ${i + 1}/${maxRetries} after ${delay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-};
-
-/**
- * Encrypts the given text using AES-256-CBC
- * @param {string} text - The text to encrypt
- * @returns {string} The encrypted text with IV
- */
-const encrypt = (text) => {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(
-    "aes-256-cbc",
-    Buffer.from(ENCRYPTION_KEY),
-    iv
-  );
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString("hex") + ":" + encrypted.toString("hex");
-};
-
-/**
- * Decrypts the given encrypted text using AES-256-CBC
- * @param {string} text - The encrypted text with IV
- * @returns {string} The decrypted text
- */
-const decrypt = (text) => {
-  const [iv, encryptedText] = text
-    .split(":")
-    .map((part) => Buffer.from(part, "hex"));
-  const decipher = crypto.createDecipheriv(
-    "aes-256-cbc",
-    Buffer.from(ENCRYPTION_KEY),
-    iv
-  );
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
-};
-
-/**
- * Generates a random string in UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
- * @returns {string} Random string in UUID format
- */
-const generateRandomString = () => {
-  const chars = "0123456789abcdef";
-  const segments = [8, 4, 4, 4, 12]; // UUID segment lengths
-  const randomSegment = (length) =>
-    Array.from({ length }, () => chars[Math.floor(Math.random() * 16)]).join(
-      ""
-    );
-  return segments.map(randomSegment).join("-");
-};
-
-/**
- * Generates a random cookie name (10 characters, lowercase letters and numbers)
- * @returns {string} Random cookie name
- */
-const generateRandomCookieName = () => {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from(
-    { length: 10 },
-    () => chars[Math.floor(Math.random() * chars.length)]
-  ).join("");
-};
-
-/**
- * Handles user registration with profilename, username, email, password, gender, and dateOfBirth
- * and sets session ID as a secure cookie with a fixed name
+ * Handles user registration with email/username availability check
+ * and password hashing
  */
 const signup = async (req, res) => {
   console.log("Signup request received:", req.body);
 
-  const { profilename, username, email, password, gender, dateOfBirth } =
+  const { profileName, username, email, password, gender, dateOfBirth } =
     req.body;
 
   try {
-    // Validate input
-    if (
-      !profilename ||
-      !username ||
-      !email ||
-      !password ||
-      !gender ||
-      !dateOfBirth
-    ) {
-      console.log("Missing required fields:", {
-        profilename,
-        username,
-        email,
-        password,
-        gender,
-        dateOfBirth,
-      });
-      return res.status(400).json({
-        message:
-          "Profile name, username, email, password, gender, and date of birth are required",
-      });
-    }
-
-    // Check for existing user
-    console.log("Checking for existing user:", { email, username });
-    const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ Email: email.toLowerCase() }, { Username: username }] },
-    });
-
-    if (existingUser) {
-      console.log("User already exists:", {
-        email: existingUser.Email,
-        username: existingUser.Username,
-      });
-      return res
-        .status(409)
-        .json({ message: "Email or username already exists" });
-    }
-
     // Register the user using authService
     console.log("Registering new user...");
-    const { user: newUser } = await register({
-      profileName: profilename,
+    const { user: newUser, tokens } = await register({
+      profileName: profileName,
       username,
       email: email.toLowerCase(),
       password,
@@ -169,80 +41,15 @@ const signup = async (req, res) => {
     });
     console.log("User created:", newUser);
 
-    // Generate tokens
-    const accessToken = jwt.sign(
-      { userId: newUser.UserID },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m", issuer: "linkup-api" }
-    );
-    const refreshToken = jwt.sign(
-      { userId: newUser.UserID },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d", issuer: "linkup-api" }
-    );
-
-    // Generate a unique session ID
-    const sessionId = uuidv4();
-
-    // Generate a random cookie name for additional obfuscation
-    const randomCookieName = generateRandomCookieName();
-
-    // Encrypt the tokens before storing in Redis
-    const encryptedAccessToken = encrypt(accessToken);
-    const encryptedRefreshToken = encrypt(refreshToken);
-
-    // Store encrypted tokens and the random cookie name in Redis using redisUtils
-    try {
-      await retryOperation(() =>
-        setWithTracking(
-          `session:${sessionId}`,
-          {
-            accessToken: encryptedAccessToken,
-            refreshToken: encryptedRefreshToken,
-            userId: newUser.UserID,
-            randomCookieName: randomCookieName,
-          },
-          7 * 24 * 60 * 60, // 7 days in seconds
-          newUser.UserID
-        )
-      );
-    } catch (redisError) {
-      console.error("Redis error during signup:", redisError.message);
-      return res.status(503).json({
-        message: "Failed to store session data in Redis",
-        error:
-          process.env.NODE_ENV === "development" ? redisError.message : null,
-      });
-    }
-
-    // Set session ID as a secure cookie with the fixed name
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    };
-
-    res.cookie(SESSION_COOKIE_NAME, sessionId, cookieOptions);
-    res.cookie(randomCookieName, sessionId, cookieOptions);
-
-    const dummyCookieNames = Array.from({ length: 5 }, () =>
-      generateRandomCookieName()
-    );
-    dummyCookieNames.forEach((name) => {
-      const dummyValue = generateRandomString();
-      res.cookie(name, dummyValue, cookieOptions);
-    });
-
     res.status(201).json({
       message: "User registered successfully",
       data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
         userId: newUser.UserID,
-        profileName: newUser.ProfileName,
         username: newUser.Username,
-        email: newUser.Email,
-        gender: newUser.Gender,
-        dateOfBirth: newUser.DateOfBirth.toISOString(),
+        profileName: newUser.ProfileName,
+        profilePicture: newUser.ProfilePicture,
       },
     });
   } catch (error) {
@@ -261,7 +68,8 @@ const signup = async (req, res) => {
 };
 
 /**
- * Authenticates user and sets session ID as a secure cookie with a fixed name
+ * Authenticates user and returns JWT token
+ * Uses constant-time comparison to prevent timing attacks
  */
 const login = async (req, res) => {
   const { usernameOrEmail, password } = req.body;
@@ -274,12 +82,17 @@ const login = async (req, res) => {
         .json({ message: "Username/email and password required" });
     }
 
-    const result = await serviceLogin(usernameOrEmail, password, res);
+    const { user, tokens } = await serviceLogin(usernameOrEmail, password);
+    console.log(user);
     res.json({
       message: "Login successful",
       data: {
-        userId: result.user.UserID,
-        username: result.user.Username,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        userId: user.UserID,
+        username: user.Username,
+        profileName: user.ProfileName,
+        profilePicture: user.ProfilePicture,
       },
     });
   } catch (error) {
@@ -288,7 +101,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (error.message.includes("redis.set")) {
-      return res.status(503).json({ message: "Failed to store session data" });
+      return res.status(503).json({ message: "Failed to store refresh token" });
     }
     res.status(500).json({
       message: "Authentication failed",
@@ -298,28 +111,16 @@ const login = async (req, res) => {
 };
 
 /**
- * Refreshes access token using session ID from cookies
+ * Refreshes access token using a valid refresh token
  */
 const refreshToken = async (req, res) => {
   try {
-    const sessionId = req.cookies[SESSION_COOKIE_NAME];
-    console.log("Received sessionId from cookies:", sessionId);
-    if (!sessionId || typeof sessionId !== "string") {
-      return res
-        .status(400)
-        .json({ message: "Session ID required in cookies" });
+    const { refreshToken } = req.body || {};
+    console.log("Received refreshToken:", refreshToken);
+    if (!refreshToken || typeof refreshToken !== "string") {
+      return res.status(400).json({ error: "Valid refresh token required" });
     }
 
-    // Retrieve session data from Redis using redisUtils
-    const sessionData = await retryOperation(() => get(`session:${sessionId}`));
-    if (!sessionData) {
-      return res.status(401).json({ message: "Invalid session" });
-    }
-
-    const { refreshToken: encryptedRefreshToken, userId } = sessionData;
-    const refreshToken = decrypt(encryptedRefreshToken);
-
-    // Verify the refresh token
     let decoded;
     try {
       if (!process.env.JWT_REFRESH_SECRET) {
@@ -331,35 +132,51 @@ const refreshToken = async (req, res) => {
       console.error("JWT verification error:", jwtError.message);
       return res
         .status(401)
-        .json({ message: "Invalid or expired refresh token" });
+        .json({ error: "Invalid or expired refresh token" });
     }
 
     if (!decoded.userId) {
-      return res.status(400).json({ message: "Invalid token payload" });
+      return res.status(400).json({ error: "Invalid token payload" });
     }
 
-    // Fetch user
+    let storedToken;
+    try {
+      // Retrieve token as plain string
+      storedToken = await redis.get(`refresh_token:${decoded.userId}`);
+      console.log(
+        `Retrieved refresh_token:${decoded.userId} from Redis:`,
+        storedToken
+      );
+    } catch (redisError) {
+      console.error("Redis get error in refreshToken:", redisError.message);
+      return res.status(503).json({ error: "Redis service unavailable" });
+    }
+
+    if (!storedToken || storedToken !== refreshToken) {
+      console.error("Refresh token mismatch or not found in Redis");
+      return res.status(401).json({ error: "Invalid refresh token" });
+    }
+
     let user;
     try {
       user = await prisma.user.findUnique({
-        where: { UserID: userId },
+        where: { UserID: decoded.userId },
         select: { UserID: true, Username: true, IsBanned: true },
       });
     } catch (dbError) {
       console.error("Database error in refreshToken:", dbError.message);
-      return res.status(503).json({ message: "Database connection failed" });
+      return res.status(503).json({ error: "Database connection failed" });
     }
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ error: "User not found" });
     }
 
     if (user.IsBanned) {
-      return res.status(403).json({ message: "User is banned" });
+      return res.status(403).json({ error: "User is banned" });
     }
 
-    // Generate new tokens (rotate refresh token)
-    const newAccessToken = jwt.sign(
+    const accessToken = jwt.sign(
       { userId: user.UserID },
       process.env.JWT_SECRET,
       { expiresIn: "15m", issuer: "linkup-api" }
@@ -370,77 +187,28 @@ const refreshToken = async (req, res) => {
       { expiresIn: "7d", issuer: "linkup-api" }
     );
 
-    // Encrypt the new tokens
-    const newEncryptedAccessToken = encrypt(newAccessToken);
-    const newEncryptedRefreshToken = encrypt(newRefreshToken);
-
-    // Update Redis with the new tokens using redisUtils
-    await retryOperation(() =>
-      setWithTracking(
-        `session:${sessionId}`,
-        {
-          accessToken: newEncryptedAccessToken,
-          refreshToken: newEncryptedRefreshToken,
-          userId: user.UserID,
-          randomCookieName: sessionData.randomCookieName,
-        },
-        7 * 24 * 60 * 60, // 7 days in seconds
-        user.UserID
-      )
-    );
-
-    res.json({
-      message: "Token refreshed successfully",
-      data: {},
-    });
-  } catch (error) {
-    console.error("refreshToken error:", error.message);
-    res.status(500).json({ message: "Failed to refresh token" });
-  }
-};
-
-/**
- * Logs out user by clearing session ID cookie and dummy cookies, and removing session from Redis
- */
-const logout = async (req, res) => {
-  try {
-    const sessionId = req.cookies[SESSION_COOKIE_NAME];
-    if (sessionId) {
-      const sessionData = await retryOperation(() =>
-        get(`session:${sessionId}`)
+    try {
+      // Store new refresh token as plain string
+      await redis.set(
+        `refresh_token:${user.UserID}`,
+        newRefreshToken,
+        7 * 24 * 60 * 60
       );
-      if (sessionData) {
-        const { randomCookieName, userId } = sessionData;
-        await retryOperation(() => del(`session:${sessionId}`, userId));
-        console.log(`Deleted session:${sessionId} from Redis`);
-
-        // Clear the fixed session ID cookie
-        res.clearCookie(SESSION_COOKIE_NAME);
-
-        // Clear the random cookie that also contains the sessionId
-        if (randomCookieName) {
-          res.clearCookie(randomCookieName);
-        }
-
-        // Clear all other cookies (since all other cookie names are random, we assume they are dummy)
-        Object.keys(req.cookies).forEach((cookieName) => {
-          if (
-            cookieName !== SESSION_COOKIE_NAME &&
-            cookieName !== randomCookieName
-          ) {
-            res.clearCookie(cookieName);
-          }
-        });
-      }
+      console.log(`Stored new refresh_token:${user.UserID} in Redis`);
+    } catch (redisError) {
+      console.error("Redis set error in refreshToken:", redisError.message);
+      return res
+        .status(503)
+        .json({ error: "Failed to store new refresh token" });
     }
 
     res.json({
-      message: "Logged out successfully",
-      data: {},
+      message: "Token refreshed successfully",
+      data: { accessToken, refreshToken: newRefreshToken },
     });
   } catch (error) {
-    console.error("Logout error:", error.message);
-    res.status(500).json({ message: "Logout failed" });
+    console.error("refreshToken error:", error.message);
+    res.status(500).json({ error: "Failed to refresh token" });
   }
 };
 
@@ -512,14 +280,11 @@ const verifyCode = async (req, res) => {
       { expiresIn: "5m", issuer: "linkup-api" }
     );
 
-    // Store the temporary token in Redis using redisUtils
-    await retryOperation(() =>
-      setWithTracking(
-        `reset_token:${user.UserID}`,
-        resetToken,
-        5 * 60, // 5 minutes expiry
-        user.UserID
-      )
+    // Store the temporary token in Redis
+    await redis.set(
+      `reset_token:${user.UserID}`,
+      resetToken,
+      5 * 60 // 5 minutes expiry
     );
 
     // Clear the verification code
@@ -542,14 +307,9 @@ const verifyCode = async (req, res) => {
  * Completes password reset flow using a temporary token
  */
 const resetPassword = async (req, res) => {
-  const { resetToken, newPassword, email } = req.body;
+  const { resetToken, newPassword } = req.body;
 
   try {
-    // Validate required fields
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
     // Verify the temporary token
     let decoded;
     try {
@@ -562,35 +322,12 @@ const resetPassword = async (req, res) => {
     }
 
     const userId = decoded.userId;
-    const storedToken = await retryOperation(() =>
-      get(`reset_token:${userId}`)
-    );
+    const storedToken = await redis.get(`reset_token:${userId}`);
 
-    // Since resetToken is stored as a plain string, this comparison should now work
     if (!storedToken || storedToken !== resetToken) {
       return res
         .status(401)
         .json({ message: "Invalid or expired reset token" });
-    }
-
-    // Fetch the user to verify the email
-    const user = await prisma.user.findUnique({
-      where: { UserID: userId },
-      select: { Email: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Verify the email matches the user associated with the resetToken
-    if (user.Email.toLowerCase() !== email.toLowerCase()) {
-      return res
-        .status(401)
-        .json({
-          message:
-            "Email does not match the user associated with this reset token",
-        });
     }
 
     // Validate new password
@@ -610,8 +347,8 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    // Clear the temporary token from Redis using redisUtils
-    await retryOperation(() => del(`reset_token:${userId}`, userId));
+    // Clear the temporary token from Redis
+    await redis.del(`reset_token:${userId}`);
 
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
@@ -623,9 +360,8 @@ const resetPassword = async (req, res) => {
 module.exports = {
   signup,
   login,
-  refreshToken,
-  logout,
   forgotPassword,
+  refreshToken,
   verifyCode,
   resetPassword,
 };
