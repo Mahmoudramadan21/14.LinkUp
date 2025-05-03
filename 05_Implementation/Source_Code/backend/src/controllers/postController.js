@@ -1,14 +1,9 @@
+const logger = require("../utils/logger");
 const prisma = require("../utils/prisma");
-const {
-  setWithTracking,
-  get,
-  clearUserCache,
-  del,
-} = require("../utils/redisUtils");
+const redis = require("../utils/redis");
 const { v4: uuidv4 } = require("uuid");
 const { uploadToCloud } = require("../services/cloudService");
 const { handleServerError } = require("../utils/errorHandler");
-const logger = require("../utils/logger");
 
 // Constants for configuration
 const POST_CACHE_TTL = 300; // 5 minutes cache duration
@@ -17,7 +12,7 @@ const ALLOWED_VIDEO_TYPES = ["mp4", "mov", "avi", "mkv", "webm"];
 
 /**
  * Creates a new post with moderation
- * Supports text and media content
+ * Supports text, image, and video content
  */
 const createPost = async (req, res) => {
   const { content } = req.body;
@@ -31,15 +26,34 @@ const createPost = async (req, res) => {
       select: { IsPrivate: true },
     });
 
-    // Upload image to Cloudinary (if provided)
+    // Upload image or video to Cloudinary (if provided)
     let imageUrl = null;
+    let videoUrl = null;
     if (imageFile) {
+      // Combine ALLOWED_IMAGE_TYPES and ALLOWED_VIDEO_TYPES
+      const ALLOWED_MEDIA_TYPES = [
+        ...ALLOWED_IMAGE_TYPES,
+        ...ALLOWED_VIDEO_TYPES,
+      ];
+      logger.info(
+        `Uploading media: ${imageFile.mimetype}, size: ${
+          imageFile.size
+        }, allowed formats: ${ALLOWED_MEDIA_TYPES.join(", ")}`
+      );
       const uploadResult = await uploadToCloud(imageFile.buffer, {
         folder: "posts",
         resource_type: "auto",
-        allowed_formats: ALLOWED_IMAGE_TYPES,
+        allowed_formats: ALLOWED_MEDIA_TYPES,
       });
-      imageUrl = uploadResult.secure_url;
+
+      // Determine if the uploaded file is an image or video
+      if (uploadResult.resource_type === "video") {
+        videoUrl = uploadResult.secure_url;
+        logger.info(`Video uploaded successfully: ${videoUrl}`);
+      } else {
+        imageUrl = uploadResult.secure_url;
+        logger.info(`Image uploaded successfully: ${imageUrl}`);
+      }
     }
 
     // Create post with privacy based on user's IsPrivate status
@@ -48,6 +62,7 @@ const createPost = async (req, res) => {
         UserID: userId,
         Content: content,
         ImageURL: imageUrl,
+        VideoURL: videoUrl,
         privacy: user.IsPrivate ? "FOLLOWERS_ONLY" : "PUBLIC",
       },
       include: {
@@ -62,11 +77,15 @@ const createPost = async (req, res) => {
       },
     });
 
+    logger.info(
+      `Post created successfully: PostID ${post.PostID} by UserID ${userId}`
+    );
     res.status(201).json({
       message: "Post created successfully",
       post,
     });
   } catch (error) {
+    logger.error(`Error creating post: ${error.message}`);
     res.status(500).json({
       message: "Error creating post",
       error: error.message,
@@ -86,10 +105,10 @@ const getPosts = async (req, res) => {
 
     // Check cache
     const cacheKey = `posts:${userId}:${page}:${limit}`;
-    const cachedPosts = await get(cacheKey);
+    const cachedPosts = await redis.get(cacheKey);
     if (cachedPosts) {
       logger.info(`Cache hit for posts: ${cacheKey}`);
-      return res.json(cachedPosts);
+      return res.json(cachedPosts); // Already parsed by redis.get
     }
     logger.info(`Cache miss for posts: ${cacheKey}`);
 
@@ -112,7 +131,7 @@ const getPosts = async (req, res) => {
     const followingIds = following.map((f) => f.UserID);
 
     if (followingIds.length === 0) {
-      await setWithTracking(cacheKey, [], POST_CACHE_TTL, userId);
+      await redis.set(cacheKey, [], POST_CACHE_TTL);
       logger.info(
         `No followed users for user ${userId}, returning empty posts`
       );
@@ -131,7 +150,7 @@ const getPosts = async (req, res) => {
       },
       orderBy: { CreatedAt: "desc" },
       include: {
-        BCL: {
+        User: {
           select: {
             UserID: true,
             Username: true,
@@ -181,7 +200,7 @@ const getPosts = async (req, res) => {
     }));
 
     // Cache response
-    await setWithTracking(cacheKey, response, POST_CACHE_TTL, userId);
+    await redis.set(cacheKey, response, POST_CACHE_TTL);
     logger.info(`Cached posts for ${cacheKey}`);
 
     res.json(response);
@@ -326,9 +345,8 @@ const updatePost = async (req, res) => {
     });
 
     // Clear cache
-    await clearUserCache(userId);
-    await del(`post:${postId}`);
-
+    await redis.del("posts:*");
+    await redis.del(`post:${postId}`);
     logger.info(`Post ${postId} updated successfully by user ${userId}`);
 
     res.json(updatedPost);
@@ -408,8 +426,8 @@ const deletePost = async (req, res) => {
 
     // Clear cache
     logger.info(`Clearing cache for post ${parsedPostId}`);
-    await clearUserCache(userId);
-    await del(`post:${parsedPostId}`);
+    await redis.del("posts:*");
+    await redis.del(`post:${parsedPostId}`);
 
     res.json({ success: true });
   } catch (error) {
@@ -489,8 +507,8 @@ const likePost = async (req, res) => {
     }
 
     // Clear cache
-    await del(`post:${postId}`);
-    await clearUserCache(userId);
+    await redis.del(`post:${postId}`);
+    await redis.del("posts:*");
 
     res.json({ success: true, action: existingLike ? "unliked" : "liked" });
   } catch (error) {
@@ -582,7 +600,7 @@ const addComment = async (req, res) => {
     }
 
     // Clear cache
-    await del(`post:${postId}`);
+    await redis.del(`post:${postId}`);
     logger.info(
       `Comment added successfully to post ${postId} by user ${userId}`
     );
