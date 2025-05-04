@@ -9,23 +9,15 @@ module.exports = {
   theme: {
     container: {
       center: true,
-      // padding: {
-      //   DEFAULT: "16px",
-      //   sm: "16px",
-      //   md: "24px",
-      //   lg: "32px",
-      // },
     },
     extend: {
-      // screens: {
-      //   sm: "393px",
-      //   md: "744px",
-      //   lg: "1440px",
-      // },
       colors: {
         "linkup-purple": "#6D28D9",
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require("tailwind-scrollbar")({ nocompatible: true }),
+    require("tailwind-scrollbar-hide"),
+  ],
 };
