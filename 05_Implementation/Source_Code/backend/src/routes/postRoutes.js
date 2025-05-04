@@ -8,6 +8,8 @@ const {
   deletePost,
   likePost,
   addComment,
+  likeComment,
+  replyToComment,
   savePost,
   reportPost,
 } = require("../controllers/postController");
@@ -15,6 +17,8 @@ const {
   postCreationRules,
   postUpdateRules,
   reportPostRules,
+  commentLikeRules,
+  commentReplyRules,
 } = require("../validators/postValidators");
 const { validate } = require("../middleware/validationMiddleware");
 const { authMiddleware } = require("../middleware/authMiddleware");
@@ -265,6 +269,83 @@ router.post(
   validate,
   moderateContent,
   addComment
+);
+
+/**
+ * @swagger
+ * /posts/comments/{commentId}/like:
+ *   post:
+ *     summary: Like or unlike a comment
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the comment to like/unlike
+ *     responses:
+ *       200:
+ *         description: Like status toggled successfully
+ *       404:
+ *         description: Comment not found
+ *       403:
+ *         description: Access to private post denied
+ */
+router.post(
+  "/comments/:commentId/like",
+  authMiddleware,
+  postLimiter,
+  commentLikeRules,
+  validate,
+  likeComment
+);
+
+/**
+ * @swagger
+ * /posts/comments/{commentId}/reply:
+ *   post:
+ *     summary: Reply to a comment
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the comment to reply to
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 description: Reply content
+ *     responses:
+ *       201:
+ *         description: Reply added successfully
+ *       400:
+ *         description: Invalid input or content violation
+ *       404:
+ *         description: Comment not found
+ *       403:
+ *         description: Access to private post denied
+ */
+router.post(
+  "/comments/:commentId/reply",
+  authMiddleware,
+  postLimiter,
+  commentReplyRules,
+  validate,
+  moderateContent,
+  replyToComment
 );
 
 /**

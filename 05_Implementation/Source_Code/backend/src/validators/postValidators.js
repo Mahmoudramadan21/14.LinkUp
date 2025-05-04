@@ -66,6 +66,30 @@ const reportPostRules = [
 ];
 
 /**
+ * Validation rules for liking a comment
+ * Ensures valid comment ID
+ * @returns {Array} Express-validator middleware array
+ */
+const commentLikeRules = [
+  param("commentId").isInt().withMessage("Invalid comment ID").toInt(),
+];
+
+/**
+ * Validation rules for replying to a comment
+ * Ensures valid comment ID and content
+ * @returns {Array} Express-validator middleware array
+ */
+const commentReplyRules = [
+  param("commentId").isInt().withMessage("Invalid comment ID").toInt(),
+
+  body("content")
+    .trim()
+    .isLength({ min: 1, max: 1000 })
+    .withMessage("Reply content must be between 1 and 1000 characters")
+    .escape(),
+];
+
+/**
  * Validation rules for querying posts
  * Ensures valid pagination parameters
  * @returns {Array} Express-validator middleware array
@@ -88,5 +112,7 @@ module.exports = {
   postCreationRules,
   postUpdateRules,
   reportPostRules,
+  commentLikeRules,
+  commentReplyRules,
   postQueryRules,
 };
