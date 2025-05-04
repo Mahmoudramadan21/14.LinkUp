@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.post-card {
+  @apply w-96 bg-white rounded-lg p-4 shadow-sm mb-4;
+}
+
+.post-card__header {
+  @apply flex items-start justify-between mb-2;
+}
+
+.post-card__header-info {
+  @apply flex flex-grow flex-col ml-4;
+}
+
+.post-card__username {
+  @apply text-sm font-semibold text-gray-800;
+}
+
+.post-card__meta {
+  @apply flex gap-2 text-xs text-gray-500;
+}
+
+.post-card__privacy {
+  @apply capitalize;
+}
+
+.post-card__time {
+  @apply text-gray-500;
+}
+
+.post-card__actions {
+  @apply flex gap-1;
+}
+
+.post-card__action-button {
+  @apply text-gray-500 hover:text-gray-700;
+}
+
+.post-card__dots {
+  @apply text-lg;
+}
+
+.post-card__close {
+  @apply text-lg;
+}
+
+.post-card__content {
+  @apply mb-2;
+}
+
+.post-card__caption {
+  @apply text-sm text-gray-800 mb-2;
+}
+
+.post-card__media {
+  @apply w-full h-72 object-cover rounded-lg;
+}
+
+.post-card__video-wrapper {
+  @apply relative w-full h-72 rounded-lg overflow-hidden cursor-pointer;
+}
+
+.post-card__video {
+  @apply w-full h-full object-cover shadow-md transition-transform duration-300;
+}
+
+.post-card__video:hover {
+  @apply transform scale-105 brightness-110;
+}
+
+.post-card__video-control {
+  @apply absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 rounded-full p-3 opacity-0 transition-opacity duration-300;
+}
+
+.post-card__video-control.visible {
+  @apply opacity-100;
+}
+
+.post-card__video-control-icon {
+  @apply w-6 h-6 text-white;
+}
+
+.post-card__actions-bar {
+  @apply flex items-center gap-6 mb-2;
+}
+
+.post-card__action {
+  @apply flex items-center gap-1 text-gray-500 hover:text-gray-700;
+}
+
+.post-card__action-icon {
+  @apply w-5 h-5;
+}
+
+.post-card__action-count {
+  @apply text-sm;
+}
+
+.post-card__views {
+  @apply text-sm text-linkup-purple;
+}
+
+.post-card__likes {
+  @apply flex items-center gap-2 mb-2;
+}
+
+.post-card__likes-avatars {
+  @apply flex;
+}
+
+.post-card__likes-avatar {
+  @apply w-6 h-6 rounded-full border-2 border-white;
+}
+
+.post-card__likes-text {
+  @apply text-sm text-gray-600;
+}
+
+.post-card__comments {
+  @apply mt-2;
+}
+
+.post-card__comments-list {
+  @apply max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100;
+}
+
+.post-card__comment {
+  @apply flex gap-2 mb-2;
+}
+
+.post-card__comment-content {
+  @apply flex-1 bg-gray-100 rounded-lg p-2;
+}
+
+.post-card__comment-username {
+  @apply text-sm font-semibold text-gray-800;
+}
+
+.post-card__comment-text {
+  @apply text-sm text-gray-600;
+}
+
+.post-card__comment-actions {
+  @apply flex gap-2 text-xs text-gray-500 mt-1;
+}
+
+.post-card__comment-action {
+  @apply hover:text-gray-700;
+}
+
+.post-card__comment-time {
+  @apply text-gray-500;
+}
+
+.post-card__replies {
+  @apply mt-2 ml-6 border-l-2 border-gray-200 pl-4;
+}
+
+.post-card__reply {
+  @apply flex gap-2 mb-2;
+}
+
+.post-card__reply-content {
+  @apply flex-1 bg-gray-50 rounded-lg p-2;
+}
+
+.post-card__reply-username {
+  @apply text-sm font-semibold text-gray-800;
+}
+
+.post-card__reply-text {
+  @apply text-sm text-gray-600;
+}
+
+.post-card__reply-actions {
+  @apply flex gap-2 text-xs text-gray-500 mt-1;
+}
+
+.post-card__reply-action {
+  @apply hover:text-gray-700;
+}
+
+.post-card__reply-time {
+  @apply text-gray-500;
+}
+
+.post-card__comment-input {
+  @apply flex items-center gap-2 mt-2;
+}
+
+.post-card__comment-input-field {
+  @apply flex-1 p-2 rounded-lg border border-gray-300 text-sm;
+}
+
+.post-card__comment-submit {
+  @apply bg-linkup-purple text-white px-4 py-1 rounded-lg text-sm;
+}
+
+.post-card__comment-avatar {
+  @apply w-5 h-5 rounded-full; /* Smaller size for comment avatars */
+}

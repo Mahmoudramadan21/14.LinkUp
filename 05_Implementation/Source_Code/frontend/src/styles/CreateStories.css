@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.create-stories-container {
+  @apply flex w-full max-w-5xl mx-auto space-x-4;
+}
+
+.create-stories-initial {
+  @apply flex-1 flex flex-col items-center justify-center;
+}
+
+.create-stories-title {
+  @apply text-sm font-semibold text-gray-600 mb-8;
+}
+
+.create-stories-options {
+  @apply flex flex-col space-y-4;
+}
+
+.create-stories-option-btn {
+  @apply w-64 h-32 rounded-lg flex flex-col items-center justify-center text-white font-medium text-sm;
+}
+
+.create-stories-plus {
+  @apply text-4xl mb-2;
+}
+
+.create-stories-settings {
+  @apply w-64 bg-white rounded-lg shadow-lg p-4;
+}
+
+.create-stories-user {
+  @apply flex items-center space-x-3 mb-4;
+}
+
+.create-stories-name {
+  @apply text-sm font-semibold text-gray-700;
+}
+
+.create-stories-username {
+  @apply text-xs text-gray-500;
+}
+
+.create-stories-option {
+  @apply mb-4;
+}
+
+.create-stories-label {
+  @apply text-sm font-medium text-gray-600 mb-2 block;
+}
+
+.create-stories-text-input {
+  @apply w-full p-2 bg-gray-100 rounded-lg text-gray-700 focus:outline-none;
+}
+
+.create-stories-color-options {
+  @apply flex flex-wrap gap-2;
+}
+
+.create-stories-color-btn {
+  @apply w-8 h-8 rounded-full border-2 border-white;
+}
+
+.create-stories-style-options {
+  @apply flex gap-2;
+}
+
+.create-stories-size-options {
+  @apply flex items-center gap-2;
+}
+
+.create-stories-size-btn {
+  @apply px-2 py-1 bg-gray-100 rounded-lg text-gray-700;
+}
+
+.create-stories-size-value {
+  @apply text-gray-700;
+}
+
+.create-stories-style-btn {
+  @apply px-2 py-1 bg-gray-100 rounded-lg text-gray-700;
+}
+
+.create-stories-style-btn.active {
+  @apply bg-gray-300;
+}
+
+.create-stories-actions {
+  @apply flex justify-between mt-4 flex-wrap gap-2;
+}
+
+.create-stories-discard-btn {
+  @apply px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300;
+}
+
+.create-stories-download-btn {
+  @apply px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600;
+}
+
+.create-stories-share-btn {
+  @apply px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600;
+}
+
+.create-stories-preview {
+  @apply flex-1 flex flex-col space-y-4;
+}
+
+.create-stories-preview-title {
+  @apply text-sm font-semibold text-gray-600;
+}
+
+.create-stories-preview-content {
+  @apply w-full aspect-[9/16] rounded-lg flex items-center justify-center relative;
+}
+
+.create-stories-preview-media-container {
+  @apply relative;
+}
+
+.create-stories-preview-media {
+  @apply object-cover rounded-lg;
+}
+
+.create-stories-preview-text {
+  @apply font-medium;
+}
+
+.create-stories-play-btn {
+  @apply absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 rounded-full p-3 z-10;
+}
+
+.create-stories-play-icon {
+  @apply w-8 h-8;
+}
+
+.create-stories-placeholder {
+  @apply w-full h-32 bg-gradient-to-br rounded-lg flex flex-col items-center justify-center text-white;
+}
+
+.create-stories-placeholder-icon {
+  @apply text-2xl;
+}
+
+.create-stories-file-input {
+  @apply hidden;
+}

@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.avatar {
+  @apply flex flex-col items-center gap-1;
+}
+
+/* Default (medium) size */
+.avatar__image-wrapper {
+  @apply relative w-16 h-16 rounded-full border-2 border-purple-500;
+}
+
+.avatar__image {
+  @apply w-full h-full rounded-full object-cover;
+}
+
+.avatar__plus {
+  @apply absolute bottom-0 right-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-lg font-bold;
+}
+
+.avatar__username {
+  @apply text-xs text-gray-600 truncate max-w-[64px];
+}
+
+/* Variant for small size */
+.avatar--small .avatar__image-wrapper {
+  @apply w-10 h-10 border-2;
+}
+
+.avatar--small .avatar__plus {
+  @apply w-4 h-4 text-base;
+}
+
+/* Variant for large size */
+.avatar--large .avatar__image-wrapper {
+  @apply w-24 h-24 border-2;
+}
+
+.avatar--large .avatar__plus {
+  @apply w-8 h-8 text-xl;
+}
+
+.avatar--with-plus .avatar__image-wrapper {
+  @apply border-blue-500;
+}
+
+/* Hide scrollbar for a cleaner look */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.create-post-container {
+  @apply w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-4;
+}
+
+.create-post-header {
+  @apply flex items-center space-x-3;
+}
+
+.create-post-field {
+  @apply flex-1 p-3 bg-gray-100 rounded-full text-gray-700 focus:outline-none;
+}
+
+.create-post-divider {
+  @apply border-t border-gray-200 my-4;
+}
+
+.create-post-actions {
+  @apply flex justify-between;
+}
+
+.create-post-action {
+  @apply flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-gray-900;
+}
+
+.create-post-action-icon {
+  @apply w-5 h-5;
+}
+
+.create-post-live {
+  @apply text-red-500 hover:text-red-600;
+}
+
+.create-post-image-video {
+  @apply text-green-500 hover:text-green-600;
+}
+
+.create-post-activity {
+  @apply text-yellow-500 hover:text-yellow-600;
+}
+
+.create-post-options {
+  @apply flex justify-between mt-4;
+}
+
+.create-post-option {
+  @apply flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-gray-900;
+}
+
+.create-post-option-icon {
+  @apply w-5 h-5;
+}
+
+.create-post-file-input {
+  @apply hidden;
+}
+
+.create-post-submit {
+  @apply px-4 py-1 bg-blue-500 text-white rounded-full hover:bg-blue-600;
+}

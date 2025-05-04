@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.follow-requests-container {
+  @apply w-full max-w-md mx-auto p-4 bg-white;
+}
+
+.follow-requests-title {
+  @apply text-lg font-bold mb-4 text-gray-800;
+}
+
+.follow-requests-list {
+  @apply space-y-4;
+}
+
+.follow-request-item {
+  @apply flex items-center justify-between p-4 rounded-lg shadow transition-all duration-200 hover:shadow-md;
+}
+
+.follow-request-details {
+  @apply flex items-center space-x-4;
+}
+
+.follow-request-username {
+  @apply text-sm font-semibold text-gray-500;
+}
+
+.follow-request-time {
+  @apply text-xs text-gray-500;
+}
+
+.follow-request-actions {
+  @apply space-x-2;
+}
+
+.follow-request-confirm {
+  @apply px-5 py-1 bg-[rgba(140,103,246,1)] text-white rounded-3xl hover:bg-[rgba(120,83,226,1)];
+}
+
+.follow-request-delete {
+  @apply px-5 py-1 bg-[rgba(240,242,245,1)] text-[rgba(143,143,143,1)] rounded-3xl hover:bg-[rgba(220,222,225,1)];
+}

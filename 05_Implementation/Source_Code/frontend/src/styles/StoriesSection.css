@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.stories-section {
+  @apply flex flex-col gap-2 px-4 py-2 bg-white;
+}
+
+.stories-section__title {
+  @apply text-lg font-semibold text-gray-800;
+}
+
+.stories-section__list {
+  @apply flex gap-4 overflow-x-auto scrollbar-hide;
+}
+
+@layer utilities {
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none; /* IE and Edge */
+      scrollbar-width: none; /* Firefox */
+    }
+  }

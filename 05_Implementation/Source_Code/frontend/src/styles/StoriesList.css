@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.stories-list-container {
+  @apply w-64 bg-white rounded-lg shadow-lg p-4;
+}
+
+.stories-list-title {
+  @apply text-sm font-semibold text-gray-600 mb-4;
+}
+
+.stories-list-items {
+  @apply space-y-3;
+}
+
+.story-item {
+  @apply flex items-center space-x-3 cursor-pointer hover:bg-gray-100 p-1 rounded;
+}
+
+.story-avatar-active {
+  @apply ring-2 ring-red-500;
+}
+
+.story-details {
+  @apply flex-1;
+}
+
+.story-username {
+  @apply text-xs text-gray-600;
+}
+
+.story-active {
+  @apply text-xs text-green-500 ml-1;
+}

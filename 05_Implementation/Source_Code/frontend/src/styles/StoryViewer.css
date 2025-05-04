@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.story-viewer-container {
+    @apply relative max-w-[600px] h-auto;
+  }
+  
+  .story-viewer-image {
+    @apply w-full h-full object-cover rounded-lg;
+  }
+
+
+.story-viewer-header {
+  @apply flex items-center space-x-2 absolute top-4 left-4;
+}
+
+.story-viewer-username {
+  @apply text-sm font-semibold text-white;
+}
+
+.story-viewer-active {
+  @apply text-xs text-green-400;
+}
+
+.story-viewer-actions {
+  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between;
+}
+
+.story-viewer-stats {
+  @apply flex space-x-4 text-white text-sm;
+}
+
+.story-viewer-interactions {
+  @apply flex items-center space-x-4 w-full;
+}
+
+.story-viewer-like-btn {
+  @apply bg-transparent border-none;
+}
+
+.story-viewer-icon {
+  @apply w-6 h-6;
+}
+
+.story-viewer-reply {
+  @apply flex-1 flex items-center border border-white rounded-full px-3 py-1;
+}
+
+.story-viewer-reply-input {
+  @apply flex-1 bg-transparent text-white focus:outline-none text-sm;
+}
+
+.story-viewer-reply-input::placeholder {
+    @apply text-white;
+
+}
+
+.story-viewer-reply-btn {
+  @apply bg-transparent border-none;
+}
