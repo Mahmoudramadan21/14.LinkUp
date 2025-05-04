@@ -1,60 +1,62 @@
-import { useState, useRef, useEffect, ChangeEvent, KeyboardEvent } from "react";
+import React, { useState, useRef, useEffect, ChangeEvent, KeyboardEvent } from 'react';
 
-// Define props type
+/*
+ * CodeInput Component
+ * A multi-input field for entering verification codes or PINs.
+ * Used in authentication flows to collect digit-based codes.
+ */
 interface CodeInputProps {
-  length: number;
-  onChange: (code: string) => void;
-  error?: string;
+  length: number; // Number of input fields for the code
+  onChange: (code: string) => void; // Callback with the combined code
+  error?: string; // Error message to display
 }
 
 const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
-  const [digits, setDigits] = useState<string[]>(Array(length).fill(""));
+  const [digits, setDigits] = useState<string[]>(Array(length).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Focus the first input on mount
+  // Focus the first input when the component mounts
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
-  // Handle input change
+  // Update digit and manage focus on input change
   const handleChange = (index: number, value: string) => {
-    if (!/^[0-9]?$/.test(value)) return; // Allow only numbers or empty
+    if (!/^[0-9]?$/.test(value)) return;
 
     const newDigits = [...digits];
     newDigits[index] = value;
     setDigits(newDigits);
 
-    // Call onChange with the combined code
-    const code = newDigits.join("");
+    const code = newDigits.join('');
     onChange(code);
 
-    // Move focus to the next input if a digit is entered
     if (value && index < length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle backspace and arrow key navigation
+  // Handle navigation with backspace and arrow keys
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !digits[index] && index > 0) {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
-    } else if (e.key === "ArrowLeft" && index > 0) {
+    } else if (e.key === 'ArrowLeft' && index > 0) {
       inputRefs.current[index - 1]?.focus();
-    } else if (e.key === "ArrowRight" && index < length - 1) {
+    } else if (e.key === 'ArrowRight' && index < length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle paste event
+  // Handle paste event for multi-digit input
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pastedData = e.clipboardData.getData("text").trim();
-    if (!/^\d{4}$/.test(pastedData)) return; // Ensure pasted data is 4 digits
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim();
+    if (!/^\d{4}$/.test(pastedData)) return;
 
-    const newDigits = pastedData.split("").slice(0, length);
+    const newDigits = pastedData.split('').slice(0, length);
     setDigits(newDigits);
-    onChange(newDigits.join(""));
+    onChange(newDigits.join(''));
 
-    // Focus the last input after paste
     inputRefs.current[length - 1]?.focus();
   };
 
@@ -68,20 +70,16 @@ const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
             inputMode="numeric"
             maxLength={1}
             value={digit}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              handleChange(index, e.target.value)
-            }
-            onKeyDown={(e: KeyboardEvent<HTMLInputElement>) =>
-              handleKeyDown(index, e)
-            }
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange(index, e.target.value)}
+            onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => handleKeyDown(index, e)}
             onPaste={handlePaste}
             ref={(el) => {
-                inputRefs.current[index] = el;
-              }}
-            className={`code-input__digit ${error ? "code-input__digit--error" : ""}`}
+              inputRefs.current[index] = el;
+            }}
+            className={`code-input__digit ${error ? 'error' : ''}`}
             aria-label={`Verification code digit ${index + 1}`}
-            aria-invalid={error ? "true" : "false"}
-            aria-describedby={error ? "code-error" : undefined}
+            aria-invalid={error ? 'true' : 'false'}
+            aria-describedby={error ? 'code-error' : undefined}
           />
         ))}
       </div>

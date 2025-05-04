@@ -1,22 +1,25 @@
-// Reusable Input component with Tailwind and BEM
-import { ChangeEvent, InputHTMLAttributes, useState } from "react";
-import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
+import React, { ChangeEvent, InputHTMLAttributes, useState } from 'react';
+import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 
-// Define props type
-interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
-  id: string;
-  type?: string;
-  placeholder?: string;
-  label?: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  error?: string;
-  required?: boolean;
+/*
+ * Input Component
+ * A reusable input field with support for labels, error messages, and password visibility toggle.
+ * Used in forms for user input, such as login, signup, or profile editing.
+ */
+interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  id: string; // Unique identifier for the input
+  type?: string; // Input type (e.g., text, password)
+  placeholder?: string; // Placeholder text for the input
+  label?: string; // Label for the input field
+  value: string; // Current value of the input
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void; // Callback for input changes
+  error?: string; // Optional error message to display
+  required?: boolean; // Indicates if the input is required
 }
 
 const Input: React.FC<InputProps> = ({
   id,
-  type = "text",
+  type = 'text',
   placeholder,
   label,
   value,
@@ -25,20 +28,17 @@ const Input: React.FC<InputProps> = ({
   required = false,
   ...props
 }) => {
-  // State to toggle password visibility
   const [showPassword, setShowPassword] = useState(false);
 
-  // Determine the input type based on password visibility
-  const inputType = type === "password" && showPassword ? "text" : type;
-
-  // Toggle password visibility
+  // Toggle password visibility for password inputs
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
   };
 
+  const inputType = type === 'password' && showPassword ? 'text' : type;
+
   return (
-    <div className="input-block">
-      {/* Label and Password Toggle Container */}
+    <div className="input-block" data-testid="input">
       <div className="input-block__header">
         {label && (
           <label htmlFor={id} className="input-block__label">
@@ -50,40 +50,30 @@ const Input: React.FC<InputProps> = ({
             )}
           </label>
         )}
-        {type === "password" && (
+        {type === 'password' && (
           <button
             type="button"
             onClick={togglePasswordVisibility}
             className="input-block__toggle-password"
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
-            {showPassword ? (
-              <AiOutlineEyeInvisible size={20} />
-            ) : (
-              <AiOutlineEye size={20} />
-            )}
-            <span className="input-block__toggle-text">
-              {showPassword ? "Hide" : "Show"}
-            </span>
+            {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
+            <span className="input-block__toggle-text">{showPassword ? 'Hide' : 'Show'}</span>
           </button>
         )}
       </div>
-
-      {/* Input Field */}
       <input
         id={id}
         type={inputType}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className={`input-block__input ${error ? "input-block__input--error" : ""}`}
+        className={`input-block__input ${error ? 'error' : ''}`}
         required={required}
-        aria-invalid={error ? "true" : "false"}
+        aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${id}-error` : undefined}
         {...props}
       />
-
-      {/* Error Message */}
       {error && (
         <span id={`${id}-error`} className="input-block__error" role="alert">
           {error}
