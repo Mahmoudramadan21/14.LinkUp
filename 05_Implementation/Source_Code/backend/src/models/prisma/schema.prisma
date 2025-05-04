@@ -42,6 +42,8 @@ enum NotificationType {
   ADMIN_WARNING
   WELCOME
   REPORT
+  COMMENT_LIKE
+  COMMENT_REPLY
 }
 
 enum ReportStatus {
@@ -67,16 +69,16 @@ model AuditLog {
 model User {
   UserID             Int              @id @default(autoincrement())
   Username           String           @unique
-  ProfileName        String           // Added ProfileName
+  ProfileName        String
   Email              String           @unique
   Password           String
-  Gender             Gender           // Added Gender
+  Gender             Gender
   ProfilePicture     String?
   CoverPicture       String?
   Bio                String?
   Address            String?
   JobTitle           String?
-  DateOfBirth        DateTime         // Made DateOfBirth required
+  DateOfBirth        DateTime
   IsPrivate          Boolean          @default(false)
   Role               Role             @default(USER)
   CreatedAt          DateTime         @default(now())
@@ -88,6 +90,7 @@ model User {
   StoryViews         StoryView[]      @relation("StoryViewUser")
   StoryLikes         StoryLike[]      @relation("StoryLikeUser")
   Comments           Comment[]
+  CommentLikes       CommentLike[]    @relation("CommentLikeUser")
   Likes              Like[]
   lastActive         DateTime?        @updatedAt
   conversations      Conversation[]   @relation("ParticipantConversations")
@@ -196,6 +199,33 @@ model Post {
   @@index([UserID, CreatedAt])
 }
 
+model Comment {
+  CommentID      Int           @id @default(autoincrement())
+  PostID         Int
+  Post           Post          @relation(fields: [PostID], references: [PostID])
+  UserID         Int
+  User           User          @relation(fields: [UserID], references: [UserID])
+  Content        String
+  CreatedAt      DateTime      @default(now())
+  ParentCommentID Int?          @map("parentCommentId")
+  ParentComment   Comment?      @relation("CommentReplies", fields: [ParentCommentID], references: [CommentID], onDelete: Cascade)
+  Replies        Comment[]     @relation("CommentReplies")
+  CommentLikes   CommentLike[] @relation("CommentLikes")
+  @@index([PostID, CreatedAt])
+  @@index([ParentCommentID])
+}
+
+model CommentLike {
+  LikeID    Int      @id @default(autoincrement())
+  CommentID Int
+  Comment   Comment  @relation("CommentLikes", fields: [CommentID], references: [CommentID], onDelete: Cascade)
+  UserID    Int
+  User      User     @relation("CommentLikeUser", fields: [UserID], references: [UserID])
+  CreatedAt DateTime @default(now())
+  @@unique([UserID, CommentID])
+  @@index([CommentID])
+}
+
 model Story {
   StoryID       Int              @id @default(autoincrement())
   UserID        Int
@@ -260,17 +290,6 @@ model SavedPost {
   PostID      Int
   Post        Post     @relation(fields: [PostID], references: [PostID])
   CreatedAt   DateTime @default(now())
-}
-
-model Comment {
-  CommentID Int      @id @default(autoincrement())
-  PostID    Int
-  Post      Post     @relation(fields: [PostID], references: [PostID])
-  UserID    Int
-  User      User     @relation(fields: [UserID], references: [UserID])
-  Content   String
-  CreatedAt DateTime @default(now())
-  @@index([PostID, CreatedAt])
 }
 
 model Like {

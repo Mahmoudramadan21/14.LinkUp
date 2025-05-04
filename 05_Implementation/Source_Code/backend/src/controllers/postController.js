@@ -96,6 +96,7 @@ const createPost = async (req, res) => {
 /**
  * Fetches recent posts from followed users in random order
  * Respects privacy settings for private accounts
+ * Includes comment likes and replies
  */
 const getPosts = async (req, res) => {
   try {
@@ -171,6 +172,56 @@ const getPosts = async (req, res) => {
             },
           },
         },
+        Comments: {
+          where: { ParentCommentID: null }, // Only top-level comments
+          take: 3,
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+            CommentLikes: {
+              take: 3,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+              },
+            },
+            Replies: {
+              take: 3,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+                CommentLikes: {
+                  take: 3,
+                  orderBy: { CreatedAt: "desc" },
+                  include: {
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            _count: { select: { CommentLikes: true, Replies: true } },
+          },
+        },
         _count: { select: { Likes: true, Comments: true } },
       },
     });
@@ -187,7 +238,7 @@ const getPosts = async (req, res) => {
       .map(({ post }) => post)
       .slice(0, parseInt(limit));
 
-    // Format response
+    // Format response with defensive checks
     const response = shuffledPosts.map((post) => ({
       ...post,
       isLiked: post.Likes.some((like) => like.UserID === userId),
@@ -196,6 +247,30 @@ const getPosts = async (req, res) => {
       likedBy: post.Likes.map((like) => ({
         username: like.User.Username,
         profilePicture: like.User.ProfilePicture,
+      })),
+      Comments: (post.Comments || []).map((comment) => ({
+        ...comment,
+        isLiked: (comment.CommentLikes || []).some(
+          (like) => like.UserID === userId
+        ),
+        likeCount: comment._count?.CommentLikes || 0,
+        replyCount: comment._count?.Replies || 0,
+        likedBy: (comment.CommentLikes || []).map((like) => ({
+          username: like.User.Username,
+          profilePicture: like.User.ProfilePicture,
+        })),
+        Replies: (comment.Replies || []).map((reply) => ({
+          ...reply,
+          isLiked: (reply.CommentLikes || []).some(
+            (like) => like.UserID === userId
+          ),
+          likeCount: reply._count?.CommentLikes || 0,
+          replyCount: reply._count?.Replies || 0,
+          likedBy: (reply.CommentLikes || []).map((like) => ({
+            username: like.User.Username,
+            profilePicture: like.User.ProfilePicture,
+          })),
+        })),
       })),
     }));
 
@@ -214,7 +289,7 @@ const getPosts = async (req, res) => {
 
 /**
  * Fetches a single post
- * Includes privacy checks
+ * Includes privacy checks, comment likes, and replies
  */
 const getPostById = async (req, res) => {
   const { postId } = req.params;
@@ -232,7 +307,68 @@ const getPostById = async (req, res) => {
             IsPrivate: true,
           },
         },
-        Likes: { select: { UserID: true } },
+        Likes: {
+          take: 3,
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+          },
+        },
+        Comments: {
+          where: { ParentCommentID: null }, // Only top-level comments
+          take: 10,
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+            CommentLikes: {
+              take: 3,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+              },
+            },
+            Replies: {
+              take: 5,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+                CommentLikes: {
+                  take: 3,
+                  orderBy: { CreatedAt: "desc" },
+                  include: {
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            _count: { select: { CommentLikes: true, Replies: true } },
+          },
+        },
         _count: { select: { Likes: true, Comments: true } },
       },
     });
@@ -249,7 +385,7 @@ const getPostById = async (req, res) => {
       const isFollower = await prisma.follower.findFirst({
         where: {
           FollowerUserID: viewerId,
-          FollowingUserID: post.UserID,
+          UserID: post.UserID,
           Status: "ACCEPTED",
         },
       });
@@ -258,15 +394,49 @@ const getPostById = async (req, res) => {
       }
     }
 
-    // Add computed fields
-    post.isLiked = viewerId
-      ? post.Likes.some((like) => like.UserID === viewerId)
-      : false;
-    post.likeCount = post._count.Likes;
-    post.commentCount = post._count.Comments;
-    post.likedBy = post.Likes.map((like) => like.UserID);
+    // Format response with defensive checks
+    const response = {
+      ...post,
+      isLiked: viewerId
+        ? post.Likes.some((like) => like.UserID === viewerId)
+        : false,
+      likeCount: post._count.Likes,
+      commentCount: post._count.Comments,
+      likedBy: post.Likes.map((like) => ({
+        username: like.User.Username,
+        profilePicture: like.User.ProfilePicture,
+      })),
+      Comments: (post.Comments || []).map((comment) => ({
+        ...comment,
+        isLiked: viewerId
+          ? (comment.CommentLikes || []).some(
+              (like) => like.UserID === viewerId
+            )
+          : false,
+        likeCount: comment._count?.CommentLikes || 0,
+        replyCount: comment._count?.Replies || 0,
+        likedBy: (comment.CommentLikes || []).map((like) => ({
+          username: like.User.Username,
+          profilePicture: like.User.ProfilePicture,
+        })),
+        Replies: (comment.Replies || []).map((reply) => ({
+          ...reply,
+          isLiked: viewerId
+            ? (reply.CommentLikes || []).some(
+                (like) => like.UserID === viewerId
+              )
+            : false,
+          likeCount: reply._count?.CommentLikes || 0,
+          replyCount: reply._count?.Replies || 0,
+          likedBy: (reply.CommentLikes || []).map((like) => ({
+            username: like.User.Username,
+            profilePicture: like.User.ProfilePicture,
+          })),
+        })),
+      })),
+    };
 
-    res.status(200).json(post);
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       message: "Error retrieving post",
@@ -405,6 +575,9 @@ const deletePost = async (req, res) => {
     // Delete post and related data in a transaction
     logger.info(`Deleting post ${parsedPostId} and related data`);
     await prisma.$transaction([
+      prisma.commentLike.deleteMany({
+        where: { Comment: { PostID: parsedPostId } },
+      }),
       prisma.comment.deleteMany({ where: { PostID: parsedPostId } }),
       prisma.like.deleteMany({ where: { PostID: parsedPostId } }),
       prisma.savedPost.deleteMany({ where: { PostID: parsedPostId } }),
@@ -520,6 +693,102 @@ const likePost = async (req, res) => {
 };
 
 /**
+ * Toggles like status on a comment
+ * Creates notifications, restricts for private accounts
+ */
+const likeComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user.UserID;
+
+    // Verify comment exists and get post and owner details
+    const comment = await prisma.comment.findUnique({
+      where: { CommentID: parseInt(commentId) },
+      select: {
+        UserID: true,
+        Post: {
+          select: {
+            UserID: true,
+            User: {
+              select: {
+                IsPrivate: true,
+                Username: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!comment) {
+      logger.info(`Comment ${commentId} not found for like by user ${userId}`);
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Check access for private accounts
+    logger.info(
+      `Checking privacy for like on comment ${commentId} by user ${userId}`
+    );
+    if (comment.Post.User.IsPrivate && comment.Post.UserID !== userId) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: comment.Post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      logger.info(
+        `Is user ${userId} following ${comment.Post.UserID}? ${isFollowing}`
+      );
+      if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to like comment ${commentId} on private post`
+        );
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${comment.Post.User.Username} to like comments on their posts`,
+        });
+      }
+    }
+
+    // Toggle like
+    const existingLike = await prisma.commentLike.findFirst({
+      where: { CommentID: parseInt(commentId), UserID: userId },
+    });
+
+    if (existingLike) {
+      await prisma.commentLike.delete({
+        where: { LikeID: existingLike.LikeID },
+      });
+      logger.info(`User ${userId} unliked comment ${commentId}`);
+    } else {
+      await prisma.commentLike.create({
+        data: { CommentID: parseInt(commentId), UserID: userId },
+      });
+      await createCommentLikeNotification(commentId, userId, req.user.Username);
+      logger.info(`User ${userId} liked comment ${commentId}`);
+    }
+
+    // Clear cache
+    const postId = (
+      await prisma.comment.findUnique({
+        where: { CommentID: parseInt(commentId) },
+        select: { PostID: true },
+      })
+    ).PostID;
+    await redis.del(`post:${postId}`);
+    await redis.del("posts:*");
+
+    res.json({ success: true, action: existingLike ? "unliked" : "liked" });
+  } catch (error) {
+    logger.error(
+      `Error toggling like for comment ${req.params.commentId}: ${error.message}`
+    );
+    handleServerError(res, error, "Failed to toggle like");
+  }
+};
+
+/**
  * Adds a comment to a post
  * Notifies post owner, restricts for private accounts
  */
@@ -611,6 +880,123 @@ const addComment = async (req, res) => {
       `Error adding comment to post ${req.params.postId}: ${error.message}`
     );
     handleServerError(res, error, "Failed to add comment");
+  }
+};
+
+/**
+ * Adds a reply to a comment
+ * Notifies comment owner, restricts for private accounts
+ */
+const replyToComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { content } = req.body;
+    const userId = req.user.UserID;
+
+    // Verify comment exists and get post and owner details
+    const parentComment = await prisma.comment.findUnique({
+      where: { CommentID: parseInt(commentId) },
+      select: {
+        UserID: true,
+        Post: {
+          select: {
+            UserID: true,
+            User: {
+              select: {
+                IsPrivate: true,
+                Username: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!parentComment) {
+      logger.info(`Comment ${commentId} not found for reply by user ${userId}`);
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Check access for private accounts
+    logger.info(
+      `Checking privacy for reply on comment ${commentId} by user ${userId}`
+    );
+    if (
+      parentComment.Post.User.IsPrivate &&
+      parentComment.Post.UserID !== userId
+    ) {
+      const isFollowing = await prisma.follower.count({
+        where: {
+          UserID: parentComment.Post.UserID,
+          FollowerUserID: userId,
+          Status: "ACCEPTED",
+        },
+      });
+      logger.info(
+        `Is user ${userId} following ${parentComment.Post.UserID}? ${isFollowing}`
+      );
+      if (!isFollowing) {
+        logger.info(
+          `User ${userId} denied access to reply to comment ${commentId} on private post`
+        );
+        return res.status(403).json({
+          error: "Private account",
+          message: `You must follow @${parentComment.Post.User.Username} to reply to comments on their posts`,
+        });
+      }
+    }
+
+    // Create reply
+    const reply = await prisma.comment.create({
+      data: {
+        PostID: (
+          await prisma.comment.findUnique({
+            where: { CommentID: parseInt(commentId) },
+            select: { PostID: true },
+          })
+        ).PostID,
+        UserID: userId,
+        Content: content || null,
+        ParentCommentID: parseInt(commentId),
+      },
+      include: {
+        User: {
+          select: { UserID: true, Username: true, ProfilePicture: true },
+        },
+      },
+    });
+
+    // Notify parent comment owner
+    if (parentComment.UserID !== userId) {
+      await createCommentReplyNotification(
+        commentId,
+        userId,
+        parentComment.UserID,
+        req.user.Username
+      );
+      logger.info(
+        `Notification sent for reply to comment ${commentId} by user ${userId}`
+      );
+    }
+
+    // Clear cache
+    const postId = (
+      await prisma.comment.findUnique({
+        where: { CommentID: parseInt(commentId) },
+        select: { PostID: true },
+      })
+    ).PostID;
+    await redis.del(`post:${postId}`);
+    logger.info(
+      `Reply added successfully to comment ${commentId} by user ${userId}`
+    );
+
+    res.status(201).json(reply);
+  } catch (error) {
+    logger.error(
+      `Error adding reply to comment ${req.params.commentId}: ${error.message}`
+    );
+    handleServerError(res, error, "Failed to add reply");
   }
 };
 
@@ -891,6 +1277,105 @@ async function createCommentNotification(
 }
 
 /**
+ * Creates notification for comment like
+ */
+async function createCommentLikeNotification(
+  commentId,
+  likerId,
+  likerUsername
+) {
+  const comment = await prisma.comment.findUnique({
+    where: { CommentID: parseInt(commentId) },
+    select: { UserID: true, PostID: true },
+  });
+
+  if (!comment || comment.UserID === likerId) return;
+
+  // Check recipient's notification preferences
+  const recipient = await prisma.user.findUnique({
+    where: { UserID: comment.UserID },
+    select: { NotificationPreferences: true },
+  });
+
+  const shouldNotify =
+    !recipient.NotificationPreferences ||
+    !recipient.NotificationPreferences.NotificationTypes ||
+    recipient.NotificationPreferences.NotificationTypes.includes(
+      "COMMENT_LIKE"
+    );
+
+  if (shouldNotify) {
+    await prisma.notification.create({
+      data: {
+        UserID: comment.UserID,
+        SenderID: likerId,
+        Type: "COMMENT_LIKE",
+        Content: `${likerUsername} liked your comment`,
+        Metadata: {
+          commentId: parseInt(commentId),
+          postId: comment.PostID,
+          likerId,
+          likerUsername,
+        },
+      },
+    });
+    logger.info(
+      `Comment like notification created for comment ${commentId} by user ${likerId}`
+    );
+  }
+}
+
+/**
+ * Creates notification for comment reply
+ */
+async function createCommentReplyNotification(
+  commentId,
+  replierId,
+  commentOwnerId,
+  replierUsername
+) {
+  const comment = await prisma.comment.findUnique({
+    where: { CommentID: parseInt(commentId) },
+    select: { PostID: true },
+  });
+
+  if (!comment || commentOwnerId === replierId) return;
+
+  // Check recipient's notification preferences
+  const recipient = await prisma.user.findUnique({
+    where: { UserID: commentOwnerId },
+    select: { NotificationPreferences: true },
+  });
+
+  const shouldNotify =
+    !recipient.NotificationPreferences ||
+    !recipient.NotificationPreferences.NotificationTypes ||
+    recipient.NotificationPreferences.NotificationTypes.includes(
+      "COMMENT_REPLY"
+    );
+
+  if (shouldNotify) {
+    await prisma.notification.create({
+      data: {
+        UserID: commentOwnerId,
+        SenderID: replierId,
+        Type: "COMMENT_REPLY",
+        Content: `${replierUsername} replied to your comment`,
+        Metadata: {
+          commentId: parseInt(commentId),
+          postId: comment.PostID,
+          replierId,
+          replierUsername,
+        },
+      },
+    });
+    logger.info(
+      `Comment reply notification created for comment ${commentId} by user ${replierId}`
+    );
+  }
+}
+
+/**
  * Notifies admins about reported post
  */
 async function notifyAdminsAboutReport(
@@ -942,6 +1427,8 @@ module.exports = {
   deletePost,
   likePost,
   addComment,
+  likeComment,
+  replyToComment,
   savePost,
   reportPost,
 };

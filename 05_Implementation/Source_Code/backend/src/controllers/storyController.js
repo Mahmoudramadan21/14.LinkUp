@@ -175,8 +175,8 @@ const getStoryViews = async (req, res) => {
 
 /**
  * Fetches story feed for followed users
+ * Includes user details, story IDs, and view status
  * Prioritizes unviewed stories
- * Includes user details (username, profilePicture)
  */
 const getStoryFeed = async (req, res) => {
   const { UserID } = req.user;
@@ -197,7 +197,7 @@ const getStoryFeed = async (req, res) => {
     });
 
     const followingIds = following.map((f) => f.UserID);
-    followingIds.push(UserID);
+    followingIds.push(UserID); // Include current user's stories
 
     // Fetch user details for followed users
     const users = await prisma.user.findMany({
@@ -228,8 +228,9 @@ const getStoryFeed = async (req, res) => {
         ExpiresAt: { gt: new Date() },
       },
       select: {
-        UserID: true,
         StoryID: true,
+        UserID: true,
+        CreatedAt: true,
         StoryViews: {
           where: { UserID: UserID },
           select: { ViewID: true },
@@ -243,27 +244,36 @@ const getStoryFeed = async (req, res) => {
       if (!acc[story.UserID]) {
         acc[story.UserID] = {
           userId: story.UserID,
-          storyIds: [],
-          viewedStoryIds: [],
+          stories: [],
         };
       }
-      acc[story.UserID].storyIds.push(story.StoryID);
-      if (story.StoryViews.length > 0) {
-        acc[story.UserID].viewedStoryIds.push(story.StoryID);
-      }
+      acc[story.UserID].stories.push({
+        storyId: story.StoryID,
+        createdAt: story.CreatedAt,
+        isViewed: story.StoryViews.length > 0,
+      });
       return acc;
     }, {});
 
-    // Format response with user details
+    // Format response with user details and stories
     const result = Object.values(usersWithStories)
       .map((user) => {
         const userDetails = userMap[user.userId];
         if (!userDetails) return null; // Skip if user details not found
+        const storyIds = user.stories.map((s) => s.storyId);
+        const viewedStoryIds = user.stories
+          .filter((s) => s.isViewed)
+          .map((s) => s.storyId);
         return {
           userId: user.userId,
           username: userDetails.username,
           profilePicture: userDetails.profilePicture,
-          hasUnviewedStories: user.storyIds.length > user.viewedStoryIds.length,
+          hasUnviewedStories: storyIds.length > viewedStoryIds.length,
+          stories: user.stories.map((s) => ({
+            storyId: s.storyId,
+            createdAt: s.createdAt,
+            isViewed: s.isViewed,
+          })),
         };
       })
       .filter((user) => user !== null); // Remove any null entries
