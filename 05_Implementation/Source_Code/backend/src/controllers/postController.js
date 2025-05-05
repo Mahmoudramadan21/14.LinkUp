@@ -231,6 +231,19 @@ const getPosts = async (req, res) => {
       (post) => !post.User.IsPrivate || followingIds.includes(post.User.UserID)
     );
 
+    // Fetch like status for the current user for all posts
+    const postIds = filteredPosts.map((post) => post.PostID);
+    const userLikes = await prisma.like.findMany({
+      where: {
+        PostID: { in: postIds },
+        UserID: userId,
+      },
+      select: {
+        PostID: true,
+      },
+    });
+    const likedPostIds = new Set(userLikes.map((like) => like.PostID));
+
     // Shuffle posts randomly
     const shuffledPosts = filteredPosts
       .map((post) => ({ post, sort: Math.random() }))
@@ -241,7 +254,7 @@ const getPosts = async (req, res) => {
     // Format response with defensive checks
     const response = shuffledPosts.map((post) => ({
       ...post,
-      isLiked: post.Likes.some((like) => like.UserID === userId),
+      isLiked: likedPostIds.has(post.PostID),
       likeCount: post._count.Likes,
       commentCount: post._count.Comments,
       likedBy: post.Likes.map((like) => ({
