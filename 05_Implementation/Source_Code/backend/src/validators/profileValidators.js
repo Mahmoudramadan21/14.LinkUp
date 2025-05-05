@@ -1,4 +1,4 @@
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
 const { isValidUserId } = require("../utils/validators");
 
 /**
@@ -96,10 +96,38 @@ const followActionValidator = [
   }),
 ];
 
+/**
+ * Validation rules for suggestions query parameters
+ * Ensures limit is valid
+ * @returns {Array} Express-validator middleware array
+ */
+const suggestionsQueryValidator = [
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage("Limit must be an integer between 1 and 50"),
+];
+
+/**
+ * Validation rules for username parameter
+ * Ensures username is valid
+ * @returns {Array} Express-validator middleware array
+ */
+const usernameParamValidator = [
+  param("username")
+    .trim()
+    .isLength({ min: 3, max: 20 })
+    .withMessage("Username must be between 3 and 20 characters")
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage("Username can only contain letters, numbers, and underscores"),
+];
+
 module.exports = {
   updateProfileValidationRules,
   changePasswordValidationRules,
   updatePrivacySettingsValidationRules,
   userIdParamValidator,
   followActionValidator,
+  suggestionsQueryValidator,
+  usernameParamValidator,
 };

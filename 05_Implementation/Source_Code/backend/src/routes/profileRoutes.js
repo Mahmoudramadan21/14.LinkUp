@@ -15,6 +15,8 @@ const {
   getPendingFollowRequests,
   getUserPosts,
   getUserStories,
+  getUserSuggestions,
+  getProfileByUsername,
 } = require("../controllers/profileController");
 const { validate } = require("../middleware/validationMiddleware");
 const {
@@ -23,6 +25,8 @@ const {
   updatePrivacySettingsValidationRules,
   userIdParamValidator,
   followActionValidator,
+  suggestionsQueryValidator,
+  usernameParamValidator,
 } = require("../validators/profileValidators");
 const { authMiddleware } = require("../middleware/authMiddleware");
 const multer = require("multer");
@@ -721,6 +725,105 @@ router.get(
 
 /**
  * @swagger
+ * /profile/suggestions:
+ *   get:
+ *     tags: [Profile]
+ *     summary: Get user suggestions
+ *     description: Retrieve a list of random users that the current user is not following, for follow suggestions.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 5
+ *         description: Number of user suggestions to retrieve
+ *     responses:
+ *       200:
+ *         description: List of user suggestions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                 suggestions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: integer
+ *                       username:
+ *                         type: string
+ *                       profilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                       bio:
+ *                         type: string
+ *                         nullable: true
+ *       400:
+ *         description: Invalid limit parameter
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/suggestions",
+  authMiddleware,
+  suggestionsQueryValidator,
+  validate,
+  getUserSuggestions
+);
+
+/**
+ * @swagger
+ * /profile/{username}:
+ *   get:
+ *     tags: [Profile]
+ *     summary: Get user profile by username
+ *     description: Retrieve the profile of a user by their username, with privacy checks for private accounts.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Username of the user whose profile to retrieve
+ *     responses:
+ *       200:
+ *         description: Profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 profile:
+ *                   $ref: '#/components/schemas/User'
+ *       403:
+ *         description: Private account - access denied
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  "/:username",
+  authMiddleware,
+  usernameParamValidator,
+  validate,
+  getProfileByUsername
+);
+
+/**
+ * @swagger
  * components:
  *   schemas:
  *     Post:
@@ -753,6 +856,25 @@ router.get(
  *           type: integer
  *         commentCount:
  *           type: integer
+ *     FollowRequest:
+ *       type: object
+ *       properties:
+ *         requestId:
+ *           type: integer
+ *         user:
+ *           type: object
+ *           properties:
+ *             UserID:
+ *               type: integer
+ *             Username:
+ *               type: string
+ *             ProfilePicture:
+ *               type: string
+ *             Bio:
+ *               type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
  */
 
 module.exports = router;

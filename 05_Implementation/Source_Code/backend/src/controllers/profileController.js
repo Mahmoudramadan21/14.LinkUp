@@ -2,10 +2,28 @@ const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const cloudinary = require("cloudinary").v2;
-const { del, clearUserCache } = require("../utils/redisUtils");
+const {
+  setWithTracking,
+  get,
+  del,
+  clearUserCache,
+} = require("../utils/redisUtils");
 
 // Salt rounds for password hashing - recommended value
 const SALT_ROUNDS = 10;
+
+/**
+ * Fisher-Yates Shuffle algorithm to randomize an array in place
+ * @param {Array} array - Array to shuffle
+ * @returns {Array} Shuffled array
+ */
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
 
 /**
  * Retrieves user profile with counts and additional details
@@ -1007,9 +1025,11 @@ const getFollowers = async (req, res) => {
 
     res.status(200).json({
       count: followers.length,
-      followers: followers.map((f) => ({
-        ...f.FollowerUser,
-        followedAt: f.CreatedAt,
+      followers: users.map((user) => ({
+        userId: user.UserID,
+        username: user.Username,
+        profilePicture: user.ProfilePicture,
+        bio: user.Bio,
       })),
     });
   } catch (error) {
@@ -1086,6 +1106,216 @@ const getFollowing = async (req, res) => {
   }
 };
 
+/**
+ * Retrieves random user suggestions that the current user is not following
+ * Excludes the current user and banned users
+ * Caches results in Redis for performance
+ */
+const getUserSuggestions = async (req, res) => {
+  try {
+    const currentUserId = req.user.UserID;
+    const limit = parseInt(req.query.limit) || 5;
+
+    if (limit < 1 || limit > 50) {
+      return res.status(400).json({ error: "Limit must be between 1 and 50" });
+    }
+
+    // Check Redis cache
+    const cacheKey = `suggestions:user:${currentUserId}:limit:${limit}`;
+    const cachedSuggestions = await get(cacheKey);
+    if (cachedSuggestions) {
+      return res.status(200).json(cachedSuggestions);
+    }
+
+    // Get IDs of users the current user is following
+    const following = await prisma.follower.findMany({
+      where: {
+        FollowerUserID: currentUserId,
+        Status: "ACCEPTED",
+      },
+      select: {
+        UserID: true,
+      },
+    });
+    const followingIds = following.map((f) => f.UserID);
+
+    // Get all eligible user IDs (excluding current user, banned users, and followed users)
+    const eligibleUsers = await prisma.user.findMany({
+      where: {
+        UserID: {
+          notIn: [currentUserId, ...followingIds],
+        },
+        IsBanned: false,
+      },
+      select: {
+        UserID: true,
+      },
+    });
+
+    if (eligibleUsers.length === 0) {
+      return res.status(200).json({
+        count: 0,
+        suggestions: [],
+      });
+    }
+
+    // Shuffle user IDs to ensure true randomness
+    const shuffledUserIds = shuffleArray(
+      eligibleUsers.map((user) => user.UserID)
+    );
+    const selectedUserIds = shuffledUserIds.slice(0, limit);
+
+    // Fetch user details for the selected IDs
+    const users = await prisma.user.findMany({
+      where: {
+        UserID: {
+          in: selectedUserIds,
+        },
+      },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+        Bio: true,
+      },
+    });
+
+    // Ensure the response order matches the shuffled order
+    const orderedUsers = selectedUserIds
+      .map((id) => users.find((user) => user.UserID === id))
+      .filter((user) => user); // Remove any undefined entries
+
+    const response = {
+      count: orderedUsers.length,
+      suggestions: orderedUsers.map((user) => ({
+        userId: user.UserID,
+        username: user.Username,
+        profilePicture: user.ProfilePicture,
+        bio: user.Bio,
+      })),
+    };
+
+    // Cache the result in Redis for 5 minutes
+    await setWithTracking(cacheKey, response, 300, currentUserId.toString());
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("getUserSuggestions error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Retrieves user profile by username with privacy checks
+ * Returns profile if account is public or if private and followed by current user
+ */
+const getProfileByUsername = async (req, res) => {
+  try {
+    const { username } = req.params;
+    const currentUserId = req.user?.UserID;
+
+    // Check Redis cache
+    const cacheKey = `profile:username:${username}`;
+    const cachedProfile = await get(cacheKey);
+    if (cachedProfile) {
+      return res.status(200).json(cachedProfile);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { Username: username },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+        CoverPicture: true,
+        Bio: true,
+        Address: true,
+        JobTitle: true,
+        DateOfBirth: true,
+        IsPrivate: true,
+        Role: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        IsBanned: true,
+        _count: {
+          select: {
+            Posts: true,
+            Followers: { where: { Status: "ACCEPTED" } },
+            Following: { where: { Status: "ACCEPTED" } },
+            Likes: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.IsBanned) {
+      return res.status(403).json({ error: "User is banned" });
+    }
+
+    const isOwner = currentUserId === user.UserID;
+    let hasAccess = !user.IsPrivate || isOwner;
+
+    if (user.IsPrivate && !isOwner && currentUserId) {
+      const followRelationship = await prisma.follower.findFirst({
+        where: {
+          UserID: user.UserID,
+          FollowerUserID: currentUserId,
+          Status: "ACCEPTED",
+        },
+      });
+      hasAccess = followRelationship !== null;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: "Private account",
+        message: `You must follow @${user.Username} to view their profile`,
+      });
+    }
+
+    const response = {
+      profile: {
+        userId: user.UserID,
+        username: user.Username,
+        profilePicture: user.ProfilePicture,
+        coverPicture: user.CoverPicture,
+        bio: user.Bio,
+        address: user.Address,
+        jobTitle: user.JobTitle,
+        dateOfBirth: user.DateOfBirth,
+        isPrivate: user.IsPrivate,
+        role: user.Role,
+        createdAt: user.CreatedAt,
+        updatedAt: user.UpdatedAt,
+        postCount: user._count.Posts,
+        followerCount: user._count.Followers,
+        followingCount: user._count.Following,
+        likeCount: user._count.Likes,
+      },
+    };
+
+    // Cache the result in Redis for 5 minutes
+    await setWithTracking(cacheKey, response, 300, currentUserId?.toString());
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("getProfileByUsername error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -1102,4 +1332,6 @@ module.exports = {
   acceptFollowRequest,
   rejectFollowRequest,
   getPendingFollowRequests,
+  getUserSuggestions,
+  getProfileByUsername,
 };
