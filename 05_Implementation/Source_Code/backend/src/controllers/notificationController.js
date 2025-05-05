@@ -1,9 +1,8 @@
-const prisma = require("../utils/prisma");
-const { setWithTracking, get, clearUserCache } = require("../utils/redisUtils");
+const NotificationService = require("../services/notificationService");
 const { handleServerError } = require("../utils/errorHandler");
+const logger = require("../utils/logger");
 
 // Constants for configuration
-const NOTIFICATION_CACHE_TTL = 300; // 5 minutes cache duration
 const DEFAULT_PAGE_SIZE = 20;
 
 /**
@@ -15,7 +14,6 @@ const getNotifications = async (req, res) => {
     const { page = 1, readStatus = "ALL" } = req.query;
     const userId = req.user.UserID;
     const limit = parseInt(req.query.limit) || DEFAULT_PAGE_SIZE;
-    const offset = (page - 1) * limit;
 
     // Validate readStatus
     const validStatuses = ["ALL", "READ", "UNREAD"];
@@ -23,66 +21,23 @@ const getNotifications = async (req, res) => {
       return res.status(400).json({ error: "Invalid read status" });
     }
 
-    // Check cache
-    const cacheKey = `notifications:${userId}:${page}:${limit}:${readStatus}`;
-    const cachedNotifications = await get(cacheKey);
-    if (cachedNotifications) {
-      return res.json(cachedNotifications);
-    }
-
-    // Build where clause
-    const where = { UserID: userId };
-    if (readStatus !== "ALL") {
-      where.IsRead = readStatus === "READ";
-    }
-
-    // Fetch notifications
-    const [notifications, totalCount] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        skip: offset,
-        take: limit,
-        orderBy: { CreatedAt: "desc" },
-        include: {
-          Sender: {
-            select: {
-              UserID: true,
-              Username: true,
-              ProfilePicture: true,
-            },
-          },
-        },
-      }),
-      prisma.notification.count({ where }),
-    ]);
-
-    // Format response
-    const response = {
-      notifications: notifications.map((n) => ({
-        notificationId: n.NotificationID,
-        type: n.Type,
-        content: n.Content,
-        isRead: n.IsRead,
-        createdAt: n.CreatedAt,
-        sender: n.Sender
-          ? {
-              userId: n.Sender.UserID,
-              username: n.Sender.Username,
-              profilePicture: n.Sender.ProfilePicture,
-            }
-          : null,
-        metadata: n.Metadata,
-      })),
-      totalCount,
+    const response = await NotificationService.getNotifications({
+      userId,
       page: parseInt(page),
-      totalPages: Math.ceil(totalCount / limit),
-    };
+      limit,
+      readStatus,
+    });
 
-    // Cache response
-    await setWithTracking(cacheKey, response, NOTIFICATION_CACHE_TTL, userId);
-
-    res.json(response);
+    res.json({
+      notifications: response.notifications,
+      totalCount: response.total,
+      page: response.currentPage,
+      totalPages: response.pages,
+    });
   } catch (error) {
+    logger.error(
+      `Error fetching notifications for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to fetch notifications");
   }
 };
@@ -95,29 +50,14 @@ const markNotificationAsRead = async (req, res) => {
     const { notificationId } = req.params;
     const userId = req.user.UserID;
 
-    const notification = await prisma.notification.findUnique({
-      where: { NotificationID: parseInt(notificationId) },
-      select: { UserID: true },
-    });
-
-    if (!notification) {
-      return res.status(404).json({ error: "Notification not found" });
-    }
-
-    if (notification.UserID !== userId) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    await prisma.notification.update({
-      where: { NotificationID: parseInt(notificationId) },
-      data: { IsRead: true },
-    });
-
-    // Clear cache
-    await clearUserCache(userId);
-
+    await NotificationService.markNotificationsRead(userId, [
+      parseInt(notificationId),
+    ]);
     res.json({ success: true, message: "Notification marked as read" });
   } catch (error) {
+    logger.error(
+      `Error marking notification as read for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to mark notification as read");
   }
 };
@@ -129,16 +69,12 @@ const markAllNotificationsAsRead = async (req, res) => {
   try {
     const userId = req.user.UserID;
 
-    await prisma.notification.updateMany({
-      where: { UserID: userId, IsRead: false },
-      data: { IsRead: true },
-    });
-
-    // Clear cache
-    await clearUserCache(userId);
-
+    await NotificationService.markAllNotificationsRead(userId);
     res.json({ success: true, message: "All notifications marked as read" });
   } catch (error) {
+    logger.error(
+      `Error marking all notifications as read for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to mark all notifications as read");
   }
 };
@@ -163,37 +99,32 @@ const updateNotificationPreferences = async (req, res) => {
     ];
     if (
       (notificationTypes && !Array.isArray(notificationTypes)) ||
-      notificationTypes.some((type) => !validTypes.includes(type))
+      (notificationTypes &&
+        notificationTypes.some((type) => !validTypes.includes(type)))
     ) {
       return res.status(400).json({ error: "Invalid notification types" });
     }
 
     const preferences = {
-      EmailNotifications: emailNotifications ?? undefined,
-      PushNotifications: pushNotifications ?? undefined,
-      NotificationTypes: notificationTypes ?? undefined,
+      EmailNotifications: emailNotifications,
+      PushNotifications: pushNotifications,
+      NotificationTypes: notificationTypes,
     };
 
-    const updatedUser = await prisma.user.update({
-      where: { UserID: userId },
-      data: {
-        NotificationPreferences: {
-          upsertgenerally: {
-            create: preferences,
-            update: preferences,
-          },
-        },
-      },
-      select: {
-        NotificationPreferences: true,
-      },
-    });
+    const updatedPreferences =
+      await NotificationService.updateNotificationPreferences(
+        userId,
+        preferences
+      );
 
     res.json({
       success: true,
-      preferences: updatedUser.NotificationPreferences,
+      preferences: updatedPreferences,
     });
   } catch (error) {
+    logger.error(
+      `Error updating notification preferences for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to update notification preferences");
   }
 };
@@ -206,29 +137,35 @@ const deleteNotification = async (req, res) => {
     const { notificationId } = req.params;
     const userId = req.user.UserID;
 
-    const notification = await prisma.notification.findUnique({
-      where: { NotificationID: parseInt(notificationId) },
-      select: { UserID: true },
-    });
-
-    if (!notification) {
-      return res.status(404).json({ error: "Notification not found" });
-    }
-
-    if (notification.UserID !== userId) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    await prisma.notification.delete({
-      where: { NotificationID: parseInt(notificationId) },
-    });
-
-    // Clear cache
-    await clearUserCache(userId);
-
+    await NotificationService.deleteNotification(
+      userId,
+      parseInt(notificationId)
+    );
     res.json({ success: true, message: "Notification deleted" });
   } catch (error) {
+    logger.error(
+      `Error deleting notification for user ${req.user.UserID}: ${error.message}`
+    );
     handleServerError(res, error, "Failed to delete notification");
+  }
+};
+
+/**
+ * Gets the count of unread notifications for a user
+ */
+const getUnreadNotificationsCount = async (req, res) => {
+  try {
+    const userId = req.user.UserID;
+    const count = await NotificationService.getUnreadNotificationsCount(userId);
+    logger.info(
+      `Fetched unread notifications count for user ${userId}: ${count}`
+    );
+    res.json({ count });
+  } catch (error) {
+    logger.error(
+      `Error fetching unread notifications count for user ${req.user.UserID}: ${error.message}`
+    );
+    handleServerError(res, error, "Failed to fetch unread notifications count");
   }
 };
 
@@ -238,4 +175,5 @@ module.exports = {
   markAllNotificationsAsRead,
   updateNotificationPreferences,
   deleteNotification,
+  getUnreadNotificationsCount,
 };
