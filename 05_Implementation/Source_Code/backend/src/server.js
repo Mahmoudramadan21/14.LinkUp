@@ -1,19 +1,26 @@
 const { Server } = require("socket.io");
 const prisma = require("./utils/prisma");
 const { verifyToken } = require("./middleware/authMiddleware");
+const NotificationService = require("./services/notificationService");
+const logger = require("./utils/logger");
+const { handleServerError } = require("./utils/errorHandler");
 
+// Configure Socket.IO and inject into NotificationService
 const configureSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: process.env.FRONTEND_URL || "http://localhost:3001",
       methods: ["GET", "POST"],
-      credentials: true, // Allow cookies to be sent
+      credentials: true,
     },
     connectionStateRecovery: {
       maxDisconnectionDuration: 2 * 60 * 1000,
       skipMiddlewares: false,
     },
   });
+
+  // Inject Socket.IO instance into NotificationService
+  NotificationService.setSocketInstance(io);
 
   io.use(async (socket, next) => {
     try {
@@ -52,30 +59,42 @@ const configureSocket = (server) => {
       socket.user = user;
       next();
     } catch (err) {
-      console.error("Socket auth error:", err.message);
+      logger.error("Socket auth error:", err.message);
       next(new Error("Authentication failed"));
     }
   });
 
   io.on("connection", async (socket) => {
     const userId = socket.user.UserID;
-    console.log(`User connected: ${socket.user.Username} (ID: ${userId})`);
+    logger.info(`User connected: ${socket.user.Username} (ID: ${userId})`);
 
     socket.join(`user_${userId}`);
 
-    await prisma.user.update({
-      where: { UserID: userId },
-      data: { lastActive: new Date() },
-    });
-
-    socket.broadcast.emit("userStatus", {
-      userId,
-      status: "online",
-      username: socket.user.Username,
-      lastActive: new Date(),
-    });
-
     try {
+      // Update user's last active status
+      await prisma.user.update({
+        where: { UserID: userId },
+        data: { lastActive: new Date() },
+      });
+
+      // Get and send unread notifications count
+      const unreadCount = await NotificationService.getUnreadNotificationsCount(
+        userId
+      );
+      socket.emit("unreadNotificationsCount", { count: unreadCount });
+      logger.info(
+        `Sent unread notifications count to user ${userId}: ${unreadCount}`
+      );
+
+      // Broadcast user status
+      socket.broadcast.emit("userStatus", {
+        userId,
+        status: "online",
+        username: socket.user.Username,
+        lastActive: new Date(),
+      });
+
+      // Join user's conversations
       const conversations = await prisma.conversation.findMany({
         where: { participants: { some: { UserID: userId } } },
         select: { id: true },
@@ -83,10 +102,13 @@ const configureSocket = (server) => {
 
       conversations.forEach((conv) => {
         socket.join(conv.id);
-        console.log(`User ${userId} joined conversation ${conv.id}`);
+        logger.info(`User ${userId} joined conversation ${conv.id}`);
       });
     } catch (error) {
-      console.error("Error joining conversations:", error);
+      logger.error(
+        `Error during socket connection for user ${userId}: ${error.message}`
+      );
+      socket.emit("error", { message: "Failed to initialize connection" });
     }
 
     socket.on("typing", async ({ conversationId, isTyping }) => {
@@ -100,7 +122,7 @@ const configureSocket = (server) => {
           !conversation ||
           !conversation.participants.some((p) => p.UserID === userId)
         ) {
-          console.warn(
+          logger.warn(
             `User ${userId} attempted to send typing event to unauthorized conversation ${conversationId}`
           );
           return;
@@ -113,7 +135,7 @@ const configureSocket = (server) => {
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error("Error handling typing event:", error);
+        logger.error("Error handling typing event:", error);
       }
     });
 
@@ -138,14 +160,22 @@ const configureSocket = (server) => {
             });
           }
         });
+
+        // Update unread notifications count after marking messages as read
+        const unreadCount =
+          await NotificationService.getUnreadNotificationsCount(userId);
+        socket.emit("unreadNotificationsCount", { count: unreadCount });
+        logger.info(
+          `Updated unread notifications count for user ${userId}: ${unreadCount}`
+        );
       } catch (error) {
-        console.error("Read receipt error:", error);
+        logger.error("Read receipt error:", error);
         socket.emit("error", { message: "Failed to mark messages as read" });
       }
     });
 
     socket.on("disconnect", async () => {
-      console.log(`User disconnected: ${socket.user.Username} (ID: ${userId})`);
+      logger.info(`User disconnected: ${socket.user.Username} (ID: ${userId})`);
       try {
         await prisma.user.update({
           where: { UserID: userId },
@@ -159,7 +189,7 @@ const configureSocket = (server) => {
           lastActive: new Date(),
         });
       } catch (error) {
-        console.error("Error updating last active:", error);
+        logger.error("Error updating last active:", error);
       }
     });
   });
