@@ -6,6 +6,7 @@ const {
   markAllNotificationsAsRead,
   updateNotificationPreferences,
   deleteNotification,
+  getUnreadNotificationsCount,
 } = require("../controllers/notificationController");
 const { authMiddleware } = require("../middleware/authMiddleware");
 const { validate } = require("../middleware/validationMiddleware");
@@ -14,6 +15,7 @@ const {
   markNotificationAsReadValidator,
   updateNotificationPreferencesValidator,
   deleteNotificationValidator,
+  getUnreadNotificationsCountValidator,
 } = require("../validators/notificationValidator");
 
 // Apply auth middleware to all routes
@@ -279,6 +281,37 @@ router.delete(
   deleteNotificationValidator,
   validate,
   deleteNotification
+);
+
+/**
+ * @swagger
+ * /notifications/unread-count:
+ *   get:
+ *     summary: Get unread notifications count
+ *     tags: [Notifications]
+ *     description: Retrieves the count of unread notifications for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread notifications count retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/ErrorResponse'
+ */
+router.get(
+  "/unread-count",
+  getUnreadNotificationsCountValidator,
+  validate,
+  getUnreadNotificationsCount
 );
 
 module.exports = router;

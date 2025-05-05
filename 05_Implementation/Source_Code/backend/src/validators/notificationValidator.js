@@ -56,9 +56,14 @@ const deleteNotificationValidator = [
     .withMessage("notificationId must be a positive integer"),
 ];
 
+const getUnreadNotificationsCountValidator = [
+  // No parameters needed since userId is taken from req.user.UserID
+];
+
 module.exports = {
   getNotificationsValidator,
   markNotificationAsReadValidator,
   updateNotificationPreferencesValidator,
   deleteNotificationValidator,
+  getUnreadNotificationsCountValidator,
 };
