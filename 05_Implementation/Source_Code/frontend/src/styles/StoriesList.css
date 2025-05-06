@@ -21,7 +21,7 @@
 .story-avatar-active {
   @apply ring-2 ring-red-500;
 }
-
+zzz
 .story-details {
   @apply flex-1;
 }

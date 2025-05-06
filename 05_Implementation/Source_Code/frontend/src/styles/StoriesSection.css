@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .stories-section {
-  @apply flex flex-col gap-2 px-4 py-2 bg-white;
+  @apply flex flex-col gap-2 px-4 py-2 rounded-xl bg-white;
 }
 
 .stories-section__title {

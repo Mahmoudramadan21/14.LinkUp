@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .story-viewer-container {
-    @apply relative max-w-[600px] h-auto;
+    @applyz relative max-w-[600px] h-auto;
   }
   
   .story-viewer-image {
