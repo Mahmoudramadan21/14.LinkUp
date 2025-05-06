@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.feed-page-container {
+  @apply flex flex-col min-h-screen bg-gray-50;
+}
+
+.feed-page-main {
+  @apply flex flex-col lg:flex-row 
+    w-full mx-auto;
+}
+
+.feed-page-sidebar {
+  @apply hidden lg:flex lg:flex-col
+    w-full lg:w-fit p-4;
+}
+
+.feed-page-content {
+  @apply flex flex-col
+    w-full lg:w-3/4 p-4;
+}
+
+.feed-page-posts {
+  @apply flex flex-col
+    gap-6 mt-6;
+}
+
+.feed-page-loading {
+  @apply
+    text-center text-base
+    text-gray-500;
+}
+
+.feed-page-error {
+  @apply
+    text-center text-base
+    text-red-500;
+}
+
+.feed-page-end {
+  @apply
+    text-center text-base
+    text-gray-500;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+  .feed-page-main {
+    @apply flex-col;
+  }
+
+  .feed-page-sidebar {
+    @apply hidden; /* Hide sidebar on smaller screens */
+  }
+
+  .feed-page-content {
+    @apply w-full;
+  }
+}
+
+@media (max-width: 640px) {
+  .feed-page-content {
+    @apply p-2;
+  }
+
+  .feed-page-posts {
+    @apply gap-4;
+  }
+}
