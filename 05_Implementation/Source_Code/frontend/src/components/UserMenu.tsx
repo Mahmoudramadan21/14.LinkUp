@@ -1,5 +1,7 @@
+'use client';
 import React, { useState } from 'react';
 import Avatar from '../components/Avatar';
+import { removeAuthData } from '@/utils/auth';
 
 /*
  * UserMenu Component
@@ -12,20 +14,11 @@ interface UserMenuProps {
     username: string; // User's unique handle
     profilePicture: string; // URL of the user's profile picture
   };
-  notifications?: number; // Optional count of notifications
   onLogout: () => void; // Callback for logging out the user
 }
 
-const UserMenu: React.FC<UserMenuProps> = ({
-  user = {
-    name: 'Noor Ahmad',
-    username: 'noor_ahmed',
-    profilePicture: '/avatars/placeholder.jpg',
-  },
-  notifications = 2,
-  onLogout,
-}) => {
-  const [isOpen, setIsOpen] = useState(true);
+const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
+  const [isOpen, setIsOpen] = useState(false);
 
   // Toggle the menu visibility
   const toggleMenu = () => {
@@ -81,11 +74,6 @@ const UserMenu: React.FC<UserMenuProps> = ({
                 loading="lazy"
               />
               <span>Explore</span>
-              {notifications > 0 && (
-                <span className="user-menu-notification" aria-hidden="true">
-                  {notifications}
-                </span>
-              )}
             </li>
             <li className="user-menu-item">
               <img

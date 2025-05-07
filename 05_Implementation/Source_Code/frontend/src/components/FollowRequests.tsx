@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+'use client';
+import React, { useState, useEffect } from 'react';
 import Avatar from '../components/Avatar';
 
 /*
@@ -7,36 +8,46 @@ import Avatar from '../components/Avatar';
  * Used in user profile or notification sections to manage incoming follow requests.
  */
 interface User {
-  UserID: number; // Unique identifier for the user
-  Username: string; // User's unique handle
-  ProfilePicture: string; // URL of the user's profile picture
-  Bio: string | null; // User's bio, if available
+  UserID: number;
+  Username: string;
+  ProfilePicture: string | null;
+  Bio: string | null;
 }
 
 interface FollowRequest {
-  requestId: number; // Unique identifier for the follow request
-  user: User; // User who sent the request
-  createdAt: string; // Timestamp of when the request was created
+  requestId: number;
+  user: User;
+  createdAt: string;
 }
 
 interface FollowRequestsProps {
   initialData: {
-    count: number; // Total number of follow requests
-    followRequests: FollowRequest[]; // List of follow requests
+    count: number;
+    followRequests: FollowRequest[];
   };
+  onAccept: (requestId: number) => void;
+  onReject: (requestId: number) => void;
 }
 
-const FollowRequests: React.FC<FollowRequestsProps> = ({ initialData }) => {
+const FollowRequests: React.FC<FollowRequestsProps> = ({ initialData, onAccept, onReject }) => {
   const [requests, setRequests] = useState(initialData.followRequests);
+
+  // Sync local state with prop changes
+  useEffect(() => {
+    console.log('FollowRequests updated with:', initialData.followRequests); // Debug log
+    setRequests(initialData.followRequests);
+  }, [initialData.followRequests]);
 
   // Confirm a follow request and remove it from the list
   const handleConfirm = (requestId: number) => {
-    setRequests(requests.filter((req) => req.requestId !== requestId));
+    onAccept(requestId);
+    setRequests((prev) => prev.filter((req) => req.requestId !== requestId));
   };
 
   // Delete a follow request and remove it from the list
   const handleDelete = (requestId: number) => {
-    setRequests(requests.filter((req) => req.requestId !== requestId));
+    onReject(requestId);
+    setRequests((prev) => prev.filter((req) => req.requestId !== requestId));
   };
 
   // Format the time since the request was created
@@ -55,40 +66,44 @@ const FollowRequests: React.FC<FollowRequestsProps> = ({ initialData }) => {
   return (
     <div className="follow-requests-container" data-testid="follow-requests">
       <h2 className="follow-requests-title">Follow Requests ({requests.length})</h2>
-      <div className="follow-requests-list">
-        {requests.map((request) => (
-          <div key={request.requestId} className="follow-request-item">
-            <div className="follow-request-details">
-              <Avatar
-                imageSrc={request.user.ProfilePicture}
-                username={request.user.Username}
-                size="medium"
-                showUsername={false}
-              />
-              <div>
-                <p className="follow-request-username">@{request.user.Username}</p>
-                <p className="follow-request-time">{formatTimeAgo(request.createdAt)}</p>
+      {requests.length === 0 ? (
+        <p className="follow-requests-empty">No pending follow requests.</p>
+      ) : (
+        <div className="follow-requests-list">
+          {requests.map((request) => (
+            <div key={request.requestId} className="follow-request-item">
+              <div className="follow-request-details">
+                <Avatar
+                  imageSrc={request.user.ProfilePicture || '/avatars/placeholder.png'}
+                  username={request.user.Username}
+                  size="medium"
+                  showUsername={false}
+                />
+                <div>
+                  <p className="follow-request-username">@{request.user.Username}</p>
+                  <p className="follow-request-time">{formatTimeAgo(request.createdAt)}</p>
+                </div>
+              </div>
+              <div className="follow-request-actions">
+                <button
+                  onClick={() => handleConfirm(request.requestId)}
+                  className="follow-request-confirm"
+                  aria-label={`Confirm follow request from ${request.user.Username}`}
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => handleDelete(request.requestId)}
+                  className="follow-request-delete"
+                  aria-label={`Delete follow request from ${request.user.Username}`}
+                >
+                  Delete
+                </button>
               </div>
             </div>
-            <div className="follow-request-actions">
-              <button
-                onClick={() => handleConfirm(request.requestId)}
-                className="follow-request-confirm"
-                aria-label={`Confirm follow request from ${request.user.Username}`}
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => handleDelete(request.requestId)}
-                className="follow-request-delete"
-                aria-label={`Delete follow request from ${request.user.Username}`}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

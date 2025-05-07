@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .follow-requests-container {
-  @apply w-full max-w-md mx-auto p-4 bg-white;
+  @apply w-full mx-auto p-4 bg-white;
 }
 
 .follow-requests-title {
@@ -15,7 +15,7 @@
 }
 
 .follow-request-item {
-  @apply flex items-center justify-between p-4 rounded-lg shadow transition-all duration-200 hover:shadow-md;
+  @apply flex items-center justify-between rounded-lg transition-all duration-200;
 }
 
 .follow-request-details {
@@ -31,7 +31,7 @@
 }
 
 .follow-request-actions {
-  @apply space-x-2;
+  @apply flex items-center ml-4 space-x-2;
 }
 
 .follow-request-confirm {
