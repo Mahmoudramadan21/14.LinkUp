@@ -2,12 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+.notifications-dialog {
+  @apply relative w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all h-full;
+}
+
 .notifications-container {
-  @apply w-full max-w-md mx-auto bg-white rounded-lg shadow-lg p-4;
+  @apply w-full bg-white rounded-lg max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar;
 }
 
 .notification-item {
   @apply flex items-start space-x-3 p-2 hover:bg-gray-100 rounded;
+}
+
+.notification-link {
+  @apply flex items-start space-x-3 w-full p-2 hover:bg-gray-100 rounded no-underline text-current;
 }
 
 .notification-content {
@@ -24,4 +32,47 @@
 
 .notification-time {
   @apply text-xs text-gray-500;
+}
+
+.dialog-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50;
+}
+
+.dialog-wrapper {
+  @apply fixed inset-0 overflow-y-auto;
+}
+
+.dialog-content {
+  @apply flex min-h-full justify-end mt-4 mr-8;
+}
+
+.dialog-title {
+  @apply text-lg font-semibold text-gray-900 mb-4 relative;
+}
+
+.close-button {
+  @apply absolute top-4 right-4 text-gray-500 hover:text-gray-700;
+}
+
+.close-icon {
+  @apply w-6 h-6;
+}
+
+.empty-message {
+  @apply text-center text-gray-500;
+}
+
+.loading-text {
+  @apply text-center py-4;
+}
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
 }
