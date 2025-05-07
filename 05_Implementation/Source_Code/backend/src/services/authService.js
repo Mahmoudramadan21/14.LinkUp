@@ -66,6 +66,7 @@ const register = async ({
       select: {
         UserID: true,
         Username: true,
+        Email: true, // Fixed: Removed user.Email reference
         ProfileName: true,
         ProfilePicture: true,
       },
@@ -106,6 +107,7 @@ const login = async (usernameOrEmail, password) => {
     select: {
       UserID: true,
       Username: true,
+      Email: true,
       ProfileName: true,
       ProfilePicture: true,
       Password: true,
@@ -133,6 +135,7 @@ const login = async (usernameOrEmail, password) => {
     user: {
       UserID: user.UserID,
       Username: user.Username,
+      Email: user.Email,
       ProfileName: user.ProfileName,
       ProfilePicture: user.ProfilePicture,
     },

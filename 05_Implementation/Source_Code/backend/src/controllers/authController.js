@@ -20,7 +20,13 @@ const signup = async (req, res) => {
 
   try {
     // Register the user using authService
-    console.log("Registering new user...");
+    console.log("Registering new user with data:", {
+      profileName,
+      username,
+      email,
+      gender,
+      dateOfBirth,
+    });
     const { user: newUser, tokens } = await register({
       profileName: profileName,
       username,
@@ -29,6 +35,10 @@ const signup = async (req, res) => {
       gender,
       dateOfBirth,
     });
+
+    if (!newUser || !tokens) {
+      throw new Error("Registration failed: Invalid response from register");
+    }
 
     // Create welcome notification
     await prisma.notification.create({
@@ -50,10 +60,11 @@ const signup = async (req, res) => {
         username: newUser.Username,
         profileName: newUser.ProfileName,
         profilePicture: newUser.ProfilePicture,
+        email: newUser.Email,
       },
     });
   } catch (error) {
-    console.error("Signup error:", error.message);
+    console.error("Signup error:", error.message, error.stack);
     if (error.message.includes("Registration failed")) {
       return res.status(400).json({
         message: "Invalid registration data",
@@ -62,7 +73,7 @@ const signup = async (req, res) => {
     }
     res.status(500).json({
       message: "Error registering user",
-      error: process.env.NODE_ENV === "development" ? error.message : null,
+      error: process.env.NODE_ENV === "development" ? error.stack : null,
     });
   }
 };
@@ -93,6 +104,7 @@ const login = async (req, res) => {
         username: user.Username,
         profileName: user.ProfileName,
         profilePicture: user.ProfilePicture,
+        email: user.Email, // Added email in the response
       },
     });
   } catch (error) {

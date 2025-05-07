@@ -212,16 +212,38 @@ const loginLimiter = rateLimit({
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: User registered successfully
- *               data:
- *                 userId: 1
- *                 username: john_doe
- *                 profileName: John Doe
- *                 profilePicture: null
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     profileName:
+ *                       type: string
+ *                     profilePicture:
+ *                       type: string
+ *                       nullable: true
+ *                     email:
+ *                       type: string
+ *                     accessToken:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *               example:
+ *                 message: User registered successfully
+ *                 data:
+ *                   userId: 1
+ *                   username: john_doe
+ *                   profileName: John Doe
+ *                   profilePicture: null
+ *                   email: john.doe@example.com
+ *                   accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                   refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
  *         description: Validation error
  *         content:
@@ -270,16 +292,38 @@ router.post("/signup", signupValidationRules, validate, signup);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               message: Login successful
- *               data:
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 userId: 1
- *                 username: john_doe
- *                 profileName: John Doe
- *                 profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     profileName:
+ *                       type: string
+ *                     profilePicture:
+ *                       type: string
+ *                       nullable: true
+ *                     email:
+ *                       type: string
+ *                     accessToken:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *               example:
+ *                 message: Login successful
+ *                 data:
+ *                   accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                   refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                   userId: 1
+ *                   username: john_doe
+ *                   profileName: John Doe
+ *                   profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
+ *                   email: john.doe@example.com
  *       400:
  *         description: Validation error
  *         content:
