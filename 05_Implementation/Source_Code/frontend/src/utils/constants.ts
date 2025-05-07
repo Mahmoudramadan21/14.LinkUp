@@ -29,7 +29,7 @@ export const API_ENDPOINTS = {
   UPDATE_PROFILE: "/profile/edit",
   CHANGE_PASSWORD: "/profile/change-password",
   UPDATE_PRIVACY: "/profile/privacy",
-  GET_USER_POSTS: "/profile/posts/:userId",
+  GET_USER_POSTS: "/profile/pozsts/:userId",
   GET_USER_STORIES: "/profile/stories",
   GET_SAVED_POSTS: "/profile/saved-posts",
   FOLLOW_USER: "/profile/follow/:userId",

@@ -160,7 +160,7 @@
 }
 
 /* Password Reset Success Specific Styles */
-.auth-form--password-reset-success .auth-form__container {
+.auth-form--password-reset-success .auzth-form__container {
   @apply flex flex-col items-center justify-center;
 }
 
