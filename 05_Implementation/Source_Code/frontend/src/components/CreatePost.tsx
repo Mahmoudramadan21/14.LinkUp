@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import Avatar from '../components/Avatar';
 
@@ -8,21 +9,14 @@ import Avatar from '../components/Avatar';
  */
 interface CreatePostProps {
   user: {
-    name: string; // User's display name
-    username: string; // User's unique handle
-    profilePicture: string; // URL of the user's profile picture
+    name: string;
+    username: string;
+    profilePicture: string;
   };
-  onPostSubmit: (content: string, image?: File, video?: File) => void; // Callback for submitting the post
+  onPostSubmit: (content: string, image?: File, video?: File) => void;
 }
 
-const CreatePost: React.FC<CreatePostProps> = ({
-  user = {
-    name: 'Noor Ahmad',
-    username: 'noor_ahmed',
-    profilePicture: 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746144265/profile_pictures/user_1_profile.webp',
-  },
-  onPostSubmit,
-}) => {
+const CreatePost: React.FC<CreatePostProps> = ({ user, onPostSubmit }) => {
   const [content, setContent] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .post-card {
-  @apply w-96 bg-white rounded-lg p-4 shadow-sm mb-4;
+  @apply w-full bg-white rounded-xl p-4 shadow-sm mb-4;
 }
 
 .post-card__header {
@@ -55,7 +55,7 @@
 }
 
 .post-card__media {
-  @apply w-full h-72 object-cover rounded-lg;
+  @apply w-full h-auto object-cover rounded-lg;
 }
 
 .post-card__video-wrapper {
@@ -130,6 +130,10 @@
   @apply flex gap-2 mb-2;
 }
 
+.post-card__comment--pending {
+  @apply opacity-50 transition-opacity duration-300;
+}
+
 .post-card__comment-content {
   @apply flex-1 bg-gray-100 rounded-lg p-2;
 }
@@ -160,6 +164,10 @@
 
 .post-card__reply {
   @apply flex gap-2 mb-2;
+}
+
+.post-card__reply--pending {
+  @apply opacity-50 transition-opacity duration-300;
 }
 
 .post-card__reply-content {
@@ -199,5 +207,5 @@
 }
 
 .post-card__comment-avatar {
-  @apply w-5 h-5 rounded-full; /* Smaller size for comment avatars */
+  @apply w-5 h-5 rounded-full;
 }

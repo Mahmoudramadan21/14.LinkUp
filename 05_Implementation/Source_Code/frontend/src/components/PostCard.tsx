@@ -1,5 +1,9 @@
+'use client';
 import React, { useState } from 'react';
 import Avatar from '../components/Avatar';
+import api from '@/utils/api';
+import { useAppStore } from '@/store/feedStore';
+import { v4 as uuidv4 } from 'uuid';
 
 /*
  * PostCard Component
@@ -7,113 +11,169 @@ import Avatar from '../components/Avatar';
  * Used in feeds to showcase user-generated content with nested comments and replies.
  */
 interface Comment {
-  username: string; // Commenter's username
-  content: string; // Comment text
-  createdAt: string; // Timestamp of when the comment was created
-  profilePicture?: string; // URL of the commenter's profile picture
-  isLiked: boolean; // Whether the comment is liked by the user
-  likeCount: number; // Number of likes on the comment
-  replies?: Comment[]; // Nested replies to the comment
+  commentId: number | string; // Allow string for temporary IDs
+  username: string;
+  content: string;
+  createdAt: string;
+  profilePicture?: string;
+  isLiked: boolean;
+  likeCount: number;
+  replies?: Comment[];
+  isPending?: boolean; // Track pending comments
 }
 
 interface PostCardProps {
-  postId: number; // Unique ID of the post
-  userId: number; // ID of the user who created the post
-  username: string; // Username of the post creator
-  profilePicture: string; // URL of the post creator's profile picture
-  privacy: string; // Privacy setting of the post (e.g., PUBLIC)
-  content: string; // Text content of the post
-  imageUrl?: string | null; // URL of the post image (optional)
-  videoUrl?: string | null; // URL of the post video (optional)
-  createdAt: string; // Timestamp of when the post was created
-  likeCount: number; // Number of likes on the post
-  commentCount: number; // Number of comments on the post
-  isLiked: boolean; // Whether the post is liked by the user
-  likedBy: { username: string; profilePicture: string }[]; // List of users who liked the post
-  comments?: Comment[]; // List of comments on the post
+  postId: number;
+  userId: number;
+  username: string;
+  profilePicture: string;
+  privacy: string;
+  content: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
+  likedBy: { username: string; profilePicture: string }[];
+  comments: Comment[];
+  onPostUpdate: (postId: number, updatedFields: Partial<PostCardProps>) => void;
 }
 
 const PostCard: React.FC<PostCardProps> = ({
-  postId = 26,
-  userId = 42,
-  username = 'mahmoud10',
-  profilePicture = 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746179840/profile_pictures/user_2_profile.jpg',
-  privacy = 'PUBLIC',
-  content = 'اللهم صل وسلم على سيدنا محمد',
-  imageUrl = null,
-  videoUrl = 'https://res.cloudinary.com/duw4x8iqq/video/upload/v1746362228/posts/a7xpedjjrgwxbidadojd.mp4',
-  createdAt = '2025-05-04T12:37:09.195Z',
-  likeCount = 1,
-  commentCount = 3,
-  isLiked = true,
-  likedBy = [
-    {
-      username: 'mahmoud',
-      profilePicture: 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746179840/profile_pictures/user_2_profile.jpg',
-    },
-  ],
-  comments = [
-    {
-      username: 'mahmoud',
-      content: 'Hello',
-      createdAt: '2025-05-04T12:38:32.673Z',
-      profilePicture: 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746179840/profile_pictures/user_2_profile.jpg',
-      isLiked: false,
-      likeCount: 0,
-      replies: [
-        {
-          username: 'mahmoud10',
-          content: 'string',
-          createdAt: '2025-05-04T12:38:54.086Z',
-          profilePicture: 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746179840/profile_pictures/user_2_profile.jpg',
-          isLiked: false,
-          likeCount: 0,
-        },
-        {
-          username: 'mahmoud10',
-          content: 'string',
-          createdAt: '2025-05-04T12:39:03.754Z',
-          profilePicture: 'https://res.cloudinary.com/duw4x8iqq/image/upload/v1746179840/profile_pictures/user_2_profile.jpg',
-          isLiked: false,
-          likeCount: 0,
-        },
-      ],
-    },
-  ],
+  postId,
+  userId,
+  username,
+  profilePicture,
+  privacy,
+  content,
+  imageUrl,
+  videoUrl,
+  createdAt,
+  likeCount: initialLikeCount,
+  commentCount: initialCommentCount,
+  isLiked: initialIsLiked,
+  likedBy: initialLikedBy,
+  comments: initialComments,
+  onPostUpdate,
 }) => {
+  const { currentUser } = useAppStore(); // Assume useAppStore provides currentUser with username and profilePicture
   const [showComments, setShowComments] = useState(false);
-  const [liked, setLiked] = useState(isLiked);
-  const [likes, setLikes] = useState(likeCount);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [localIsLiked, setLocalIsLiked] = useState(initialIsLiked);
+  const [localLikeCount, setLocalLikeCount] = useState(initialLikeCount);
+  const [localLikedBy, setLocalLikedBy] = useState(initialLikedBy);
+  const [localComments, setLocalComments] = useState<Comment[]>(initialComments);
+  const [localCommentCount, setLocalCommentCount] = useState(initialCommentCount);
   const [commentLikes, setCommentLikes] = useState<{ [key: string]: { isLiked: boolean; likeCount: number } }>(
-    comments.reduce((acc, _, index) => {
-      acc[`comment-${index}`] = { isLiked: comments[index].isLiked, likeCount: comments[index].likeCount };
-      comments[index].replies?.forEach((_, replyIndex) => {
-        acc[`reply-${index}-${replyIndex}`] = {
-          isLiked: comments[index].replies![replyIndex].isLiked,
-          likeCount: comments[index].replies![replyIndex].likeCount,
+    initialComments.reduce((acc, comment) => {
+      acc[`comment-${comment.commentId}`] = { isLiked: comment.isLiked, likeCount: comment.likeCount };
+      comment.replies?.forEach((reply) => {
+        acc[`reply-${comment.commentId}-${reply.commentId}`] = {
+          isLiked: reply.isLiked,
+          likeCount: reply.likeCount,
         };
       });
       return acc;
     }, {} as { [key: string]: { isLiked: boolean; likeCount: number } })
   );
 
-  // Toggle like state for the post
-  const handleLikeToggle = () => {
-    setLiked(!liked);
-    setLikes(liked ? likes - 1 : likes + 1);
+  // Toggle like state for the post (Optimistic Update)
+  const handleLikeToggle = async () => {
+    const previousIsLiked = localIsLiked;
+    const previousLikeCount = localLikeCount;
+    const previousLikedBy = localLikedBy;
+
+    // Optimistically update the UI
+    const newIsLiked = !localIsLiked;
+    const newLikeCount = newIsLiked ? localLikeCount + 1 : localLikeCount - 1;
+    const currentUserData = {
+      username: currentUser?.username || 'you',
+      profilePicture: currentUser?.profilePicture || '/avatars/placeholder.jpg',
+    };
+    const newLikedBy = newIsLiked
+      ? [...localLikedBy, currentUserData]
+      : localLikedBy.filter((user) => user.username !== currentUserData.username);
+
+    setLocalIsLiked(newIsLiked);
+    setLocalLikeCount(newLikeCount);
+    setLocalLikedBy(newLikedBy);
+    onPostUpdate(postId, {
+      isLiked: newIsLiked,
+      likeCount: newLikeCount,
+      likedBy: newLikedBy,
+    });
+
+    try {
+      const response = await api.post(`/posts/${postId}/like`);
+      const action = response.data.action;
+      if (action !== (newIsLiked ? 'liked' : 'unliked')) {
+        throw new Error('Server response does not match optimistic update');
+      }
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+      // Revert optimistic update
+      setLocalIsLiked(previousIsLiked);
+      setLocalLikeCount(previousLikeCount);
+      setLocalLikedBy(previousLikedBy);
+      onPostUpdate(postId, {
+        isLiked: previousIsLiked,
+        likeCount: previousLikeCount,
+        likedBy: previousLikedBy,
+      });
+    }
   };
 
   // Toggle like state for a comment or reply
-  const handleCommentLikeToggle = (key: string) => {
+  const handleCommentLikeToggle = async (key: string, commentId: number, isReply: boolean) => {
+    const previousState = commentLikes[key];
+    const newIsLiked = !previousState.isLiked;
+    const newLikeCount = newIsLiked ? previousState.likeCount + 1 : previousState.likeCount - 1;
+
+    // Optimistically update comment like
     setCommentLikes((prev) => ({
       ...prev,
-      [key]: {
-        isLiked: !prev[key].isLiked,
-        likeCount: prev[key].isLiked ? prev[key].likeCount - 1 : prev[key].likeCount + 1,
-      },
+      [key]: { isLiked: newIsLiked, likeCount: newLikeCount },
     }));
+
+    const updateComments = (commentsToUpdate: Comment[]): Comment[] =>
+      commentsToUpdate.map((comment) =>
+        comment.commentId === commentId
+          ? { ...comment, isLiked: newIsLiked, likeCount: newLikeCount }
+          : {
+              ...comment,
+              replies: comment.replies && isReply ? updateComments(comment.replies) : comment.replies,
+            }
+      );
+
+    const newComments = updateComments(localComments);
+    setLocalComments(newComments);
+    onPostUpdate(postId, { comments: newComments });
+
+    try {
+      const response = await api.post(`/posts/comments/${commentId}/like`);
+      const action = response.data.action;
+      if (action !== (newIsLiked ? 'liked' : 'unliked')) {
+        throw new Error('Server response does not match optimistic update');
+      }
+    } catch (error) {
+      console.error('Failed to toggle comment like:', error);
+      // Revert optimistic update
+      setCommentLikes((prev) => ({
+        ...prev,
+        [key]: previousState,
+      }));
+      const revertComments = updateComments(localComments.map((c) =>
+        c.commentId === commentId
+          ? { ...c, isLiked: previousState.isLiked, likeCount: previousState.likeCount }
+          : c
+      ));
+      setLocalComments(revertComments);
+      onPostUpdate(postId, { comments: revertComments });
+    }
   };
 
   // Toggle comments visibility
@@ -131,6 +191,201 @@ const PostCard: React.FC<PostCardProps> = ({
         video.play().catch((error) => console.error('Video playback failed:', error));
       }
       setIsPlaying(!isPlaying);
+    }
+  };
+
+  // Handle comment submission (Optimistic Update)
+  const handleCommentSubmit = async () => {
+    if (!newComment.trim()) return;
+
+    const tempCommentId = `temp-${uuidv4()}`;
+    const commentContent = newComment;
+    const currentUserData = {
+      username: currentUser?.username || 'you',
+      profilePicture: currentUser?.profilePicture || '/avatars/placeholder.jpg',
+    };
+
+    // Optimistically add comment
+    const newCommentObj: Comment = {
+      commentId: tempCommentId,
+      username: currentUserData.username,
+      content: commentContent,
+      createdAt: new Date().toISOString(),
+      profilePicture: currentUserData.profilePicture,
+      isLiked: false,
+      likeCount: 0,
+      replies: [],
+      isPending: true,
+    };
+
+    setLocalComments([...localComments, newCommentObj]);
+    setLocalCommentCount(localCommentCount + 1);
+    setCommentLikes((prev) => ({
+      ...prev,
+      [`comment-${tempCommentId}`]: { isLiked: false, likeCount: 0 },
+    }));
+    onPostUpdate(postId, {
+      comments: [...localComments, newCommentObj],
+      commentCount: localCommentCount + 1,
+    });
+    setNewComment('');
+
+    try {
+      const response = await api.post(`/posts/${postId}/comment`, { content: commentContent });
+      const newCommentData = response.data;
+
+      // Replace temporary comment with server response
+      const updatedComment: Comment = {
+        commentId: newCommentData.CommentID,
+        username: newCommentData.User.Username,
+        content: newCommentData.Content,
+        createdAt: newCommentData.CreatedAt,
+        profilePicture: newCommentData.User.ProfilePicture,
+        isLiked: false,
+        likeCount: 0,
+        replies: [],
+        isPending: false,
+      };
+
+      setLocalComments((prev) =>
+        prev.map((c) => (c.commentId === tempCommentId ? updatedComment : c))
+      );
+      setCommentLikes((prev) => {
+        const newLikes = { ...prev, [`comment-${newCommentData.CommentID}`]: { isLiked: false, likeCount: 0 } };
+        delete newLikes[`comment-${tempCommentId}`];
+        return newLikes;
+      });
+      onPostUpdate(postId, {
+        comments: localComments.map((c) => (c.commentId === tempCommentId ? updatedComment : c)),
+        commentCount: localCommentCount + 1,
+      });
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      // Remove optimistic comment
+      setLocalComments((prev) => prev.filter((c) => c.commentId !== tempCommentId));
+      setLocalCommentCount(localCommentCount);
+      setCommentLikes((prev) => {
+        const newLikes = { ...prev };
+        delete newLikes[`comment-${tempCommentId}`];
+        return newLikes;
+      });
+      onPostUpdate(postId, {
+        comments: localComments.filter((c) => c.commentId !== tempCommentId),
+        commentCount: localCommentCount,
+      });
+    }
+  };
+
+  // Handle reply submission (Optimistic Update)
+  const handleReplySubmit = async (parentCommentId: number) => {
+    if (!newComment.trim()) return;
+
+    const tempReplyId = `temp-${uuidv4()}`;
+    const currentUserData = {
+      username: currentUser?.username || 'you',
+      profilePicture: currentUser?.profilePicture || '/avatars/placeholder.jpg',
+    };
+
+    // Optimistically add reply
+    const newReplyObj: Comment = {
+      commentId: tempReplyId,
+      username: currentUserData.username,
+      content: newComment,
+      createdAt: new Date().toISOString(),
+      profilePicture: currentUserData.profilePicture,
+      isLiked: false,
+      likeCount: 0,
+      isPending: true,
+    };
+
+    const updatedComments = localComments.map((comment) =>
+      comment.commentId === parentCommentId
+        ? { ...comment, replies: [...(comment.replies || []), newReplyObj] }
+        : comment
+    );
+
+    setLocalComments(updatedComments);
+    setLocalCommentCount(localCommentCount + 1);
+    setCommentLikes((prev) => ({
+      ...prev,
+      [`reply-${parentCommentId}-${tempReplyId}`]: { isLiked: false, likeCount: 0 },
+    }));
+    onPostUpdate(postId, {
+      comments: updatedComments,
+      commentCount: localCommentCount + 1,
+    });
+    setNewComment('');
+    setReplyingTo(null);
+
+    try {
+      const response = await api.post(`/posts/comments/${parentCommentId}/reply`, { content: newComment });
+      const newReplyData = response.data;
+
+      // Replace temporary reply with server response
+      const updatedReply: Comment = {
+        commentId: newReplyData.CommentID,
+        username: newReplyData.User.Username,
+        content: newReplyData.Content,
+        createdAt: newReplyData.CreatedAt,
+        profilePicture: newReplyData.User.ProfilePicture,
+        isLiked: false,
+        likeCount: 0,
+        isPending: false,
+      };
+
+      const finalComments = localComments.map((comment) =>
+        comment.commentId === parentCommentId
+          ? {
+              ...comment,
+              replies: (comment.replies || []).map((r) =>
+                r.commentId === tempReplyId ? updatedReply : r
+              ),
+            }
+          : comment
+      );
+
+      setLocalComments(finalComments);
+      setCommentLikes((prev) => {
+        const newLikes = {
+          ...prev,
+          [`reply-${parentCommentId}-${newReplyData.CommentID}`]: { isLiked: false, likeCount: 0 },
+        };
+        delete newLikes[`reply-${parentCommentId}-${tempReplyId}`];
+        return newLikes;
+      });
+      onPostUpdate(postId, {
+        comments: finalComments,
+        commentCount: localCommentCount + 1,
+      });
+    } catch (error) {
+      console.error('Failed to add reply:', error);
+      // Remove optimistic reply
+      const revertComments = localComments.map((comment) =>
+        comment.commentId === parentCommentId
+          ? { ...comment, replies: (comment.replies || []).filter((r) => r.commentId !== tempReplyId) }
+          : comment
+      );
+      setLocalComments(revertComments);
+      setLocalCommentCount(localCommentCount);
+      setCommentLikes((prev) => {
+        const newLikes = { ...prev };
+        delete newLikes[`reply-${parentCommentId}-${tempReplyId}`];
+        return newLikes;
+      });
+      onPostUpdate(postId, {
+        comments: revertComments,
+        commentCount: localCommentCount,
+      });
+    }
+  };
+
+  // Handle save/unsave post
+  const handleSaveToggle = async () => {
+    try {
+      const response = await api.post(`/posts/${postId}/save`);
+      console.log('Save action:', response.data.action);
+    } catch (error) {
+      console.error('Failed to toggle save:', error);
     }
   };
 
@@ -155,6 +410,21 @@ const PostCard: React.FC<PostCardProps> = ({
     return count.toString();
   };
 
+  // Handle clicking the Reply button
+  const handleReplyClick = (commentId: number, username: string) => {
+    setReplyingTo(commentId);
+    setNewComment(`@${username} `);
+  };
+
+  // Handle form submission (comment or reply)
+  const handleSubmit = () => {
+    if (replyingTo !== null) {
+      handleReplySubmit(replyingTo);
+    } else {
+      handleCommentSubmit();
+    }
+  };
+
   return (
     <article className="post-card" data-testid="post-card">
       <div className="post-card__header">
@@ -167,7 +437,7 @@ const PostCard: React.FC<PostCardProps> = ({
         <div className="post-card__header-info">
           <span className="post-card__username">@{username}</span>
           <div className="post-card__meta">
-            <span className="post-card__privacy">{privacy.substring(0, 1)}{privacy.slice(1).toLocaleLowerCase()}</span>
+            <span className="post-card__privacy">{privacy.charAt(0) + privacy.slice(1).toLowerCase()}</span>
             <span className="post-card__time">{formatTimeAgo(createdAt)}</span>
           </div>
         </div>
@@ -178,7 +448,7 @@ const PostCard: React.FC<PostCardProps> = ({
         </div>
       </div>
       <div className="post-card__content">
-        <p className="post-card__caption">{content}</p>
+        {content && <p className="post-card__caption">{content}</p>}
         {imageUrl && (
           <img
             src={imageUrl}
@@ -219,15 +489,15 @@ const PostCard: React.FC<PostCardProps> = ({
         <button
           className="post-card__action like"
           onClick={handleLikeToggle}
-          aria-label={liked ? 'Unlike post' : 'Like post'}
+          aria-label={localIsLiked ? 'Unlike post' : 'Like post'}
         >
           <img
-            src={liked ? '/icons/liked.svg' : '/icons/like.svg'}
-            alt={liked ? 'Unlike' : 'Like'}
+            src={localIsLiked ? '/icons/liked.svg' : '/icons/like.svg'}
+            alt={localIsLiked ? 'Unlike' : 'Like'}
             className="post-card__action-icon"
             loading="lazy"
           />
-          <span className="post-card__action-count">{formatCount(likes)}</span>
+          <span className="post-card__action-count">{formatCount(localLikeCount)}</span>
         </button>
         <button
           className="post-card__action comment"
@@ -240,9 +510,13 @@ const PostCard: React.FC<PostCardProps> = ({
             className="post-card__action-icon"
             loading="lazy"
           />
-          <span className="post-card__action-count">{formatCount(commentCount)}</span>
+          <span className="post-card__action-count">{formatCount(localCommentCount)}</span>
         </button>
-        <button className="post-card__action share" aria-label="Share post">
+        <button
+          className="post-card__action share"
+          onClick={handleSaveToggle}
+          aria-label="Save post"
+        >
           <img
             src="/icons/share.svg"
             alt="Share"
@@ -251,10 +525,10 @@ const PostCard: React.FC<PostCardProps> = ({
           />
         </button>
       </div>
-      {likedBy.length > 0 && (
+      {localLikedBy.length > 0 && (
         <div className="post-card__likes">
           <div className="post-card__likes-avatars">
-            {likedBy.slice(0, 3).map((user, index) => (
+            {localLikedBy.slice(0, 3).map((user, index) => (
               <img
                 key={index}
                 src={user.profilePicture}
@@ -266,19 +540,22 @@ const PostCard: React.FC<PostCardProps> = ({
             ))}
           </div>
           <span className="post-card__likes-text">
-            Liked by {likedBy[0].username} and {likes - 1} others
+            Liked by {localLikedBy[0].username} {localLikeCount > 1 ? `and ${localLikeCount - 1} others` : ''}
           </span>
         </div>
       )}
       {showComments && (
         <div className="post-card__comments">
           <div className="post-card__comments-list">
-            {comments.map((comment, index) => (
-              <div key={index} className="post-card__comment">
+            {localComments.map((comment) => (
+              <div
+                key={comment.commentId}
+                className={`post-card__comment ${comment.isPending ? 'post-card__comment--pending' : ''}`}
+              >
                 <Avatar
                   imageSrc={comment.profilePicture || '/avatars/placeholder.jpg'}
                   username={comment.username}
-                  size="small"
+                  size="xsmall"
                   showUsername={false}
                 />
                 <div className="post-card__comment-content">
@@ -287,27 +564,34 @@ const PostCard: React.FC<PostCardProps> = ({
                   <div className="post-card__comment-actions">
                     <button
                       className="post-card__comment-action like"
-                      onClick={() => handleCommentLikeToggle(`comment-${index}`)}
-                      aria-label={commentLikes[`comment-${index}`].isLiked ? 'Unlike comment' : 'Like comment'}
+                      onClick={() => handleCommentLikeToggle(`comment-${comment.commentId}`, comment.commentId as number, false)}
+                      aria-label={commentLikes[`comment-${comment.commentId}`]?.isLiked ? 'Unlike comment' : 'Like comment'}
                     >
-                      {commentLikes[`comment-${index}`].isLiked ? 'Unlike' : 'Like'}
-                      {commentLikes[`comment-${index}`].likeCount > 0 && (
-                        <span> ({formatCount(commentLikes[`comment-${index}`].likeCount)})</span>
+                      {commentLikes[`comment-${comment.commentId}`]?.isLiked ? 'Unlike' : 'Like'}
+                      {commentLikes[`comment-${comment.commentId}`]?.likeCount > 0 && (
+                        <span> ({formatCount(commentLikes[`comment-${comment.commentId}`].likeCount)})</span>
                       )}
                     </button>
-                    <button className="post-card__comment-action reply" aria-label="Reply to comment">
+                    <button
+                      className="post-card__comment-action reply"
+                      onClick={() => handleReplyClick(comment.commentId as number, comment.username)}
+                      aria-label="Reply to comment"
+                    >
                       Reply
                     </button>
                     <span className="post-card__comment-time">{formatTimeAgo(comment.createdAt)}</span>
                   </div>
                   {comment.replies && comment.replies.length > 0 && (
                     <div className="post-card__replies">
-                      {comment.replies.map((reply, replyIndex) => (
-                        <div key={replyIndex} className="post-card__reply">
+                      {comment.replies.map((reply) => (
+                        <div
+                          key={reply.commentId}
+                          className={`post-card__reply ${reply.isPending ? 'post-card__reply--pending' : ''}`}
+                        >
                           <Avatar
                             imageSrc={reply.profilePicture || '/avatars/placeholder.jpg'}
                             username={reply.username}
-                            size="small"
+                            size="xsmall"
                             showUsername={false}
                           />
                           <div className="post-card__reply-content">
@@ -316,12 +600,12 @@ const PostCard: React.FC<PostCardProps> = ({
                             <div className="post-card__reply-actions">
                               <button
                                 className="post-card__reply-action like"
-                                onClick={() => handleCommentLikeToggle(`reply-${index}-${replyIndex}`)}
-                                aria-label={commentLikes[`reply-${index}-${replyIndex}`].isLiked ? 'Unlike reply' : 'Like reply'}
+                                onClick={() => handleCommentLikeToggle(`reply-${comment.commentId}-${reply.commentId}`, reply.commentId as number, true)}
+                                aria-label={commentLikes[`reply-${comment.commentId}-${reply.commentId}`]?.isLiked ? 'Unlike reply' : 'Like reply'}
                               >
-                                {commentLikes[`reply-${index}-${replyIndex}`].isLiked ? 'Unlike' : 'Like'}
-                                {commentLikes[`reply-${index}-${replyIndex}`].likeCount > 0 && (
-                                  <span> ({formatCount(commentLikes[`reply-${index}-${replyIndex}`].likeCount)})</span>
+                                {commentLikes[`reply-${comment.commentId}-${reply.commentId}`]?.isLiked ? 'Unlike' : 'Like'}
+                                {commentLikes[`reply-${comment.commentId}-${reply.commentId}`]?.likeCount > 0 && (
+                                  <span> ({formatCount(commentLikes[`reply-${comment.commentId}-${reply.commentId}`].likeCount)})</span>
                                 )}
                               </button>
                               <span className="post-card__reply-time">{formatTimeAgo(reply.createdAt)}</span>
@@ -338,12 +622,18 @@ const PostCard: React.FC<PostCardProps> = ({
           <div className="post-card__comment-input">
             <input
               type="text"
-              placeholder="Post a comment..."
+              placeholder={replyingTo !== null ? 'Write a reply...' : 'Post a comment...'}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
               className="post-card__comment-input-field"
-              aria-label="Write a comment"
+              aria-label={replyingTo !== null ? 'Write a reply' : 'Write a comment'}
             />
-            <button className="post-card__comment-submit" aria-label="Submit comment">
-              Post
+            <button
+              className="post-card__comment-submit"
+              onClick={handleSubmit}
+              aria-label={replyingTo !== null ? 'Submit reply' : 'Submit comment'}
+            >
+              {replyingTo !== null ? 'Reply' : 'Post'}
             </button>
           </div>
         </div>
