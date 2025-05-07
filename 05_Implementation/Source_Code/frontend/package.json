@@ -25,9 +25,11 @@
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@headlessui/react": "^2.2.2",
     "axios": "^1.9.0",
     "ffmpeg.js": "^4.2.9003",
     "html2canvas": "^1.4.1",
+    "intersection-observer": "^0.12.2",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.446.0",
     "next": "^15.3.1",
@@ -35,7 +37,10 @@
     "react-dom": "^19.1.0",
     "react-draggable": "^4.4.6",
     "react-icons": "^5.5.0",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.6.0",
-    "tailwind-scrollbar-hide": "^2.0.0"
+    "tailwind-scrollbar-hide": "^2.0.0",
+    "uuid": "^11.1.0",
+    "zustand": "^5.0.4"
   }
 }
