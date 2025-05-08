@@ -128,7 +128,7 @@ router.post(
  *         description: ID of the user whose highlights to retrieve
  *     responses:
  *       200:
- *         description: List of user highlights
+ *         description: List of user highlights with stories
  *         content:
  *           application/json:
  *             schema:
@@ -136,17 +136,32 @@ router.post(
  *               items:
  *                 type: object
  *                 properties:
- *                   HighlightID:
+ *                   highlightId:
  *                     type: integer
- *                   Title:
+ *                   title:
  *                     type: string
- *                   CoverImage:
+ *                   coverImage:
  *                     type: string
- *                   _count:
- *                     type: object
- *                     properties:
- *                       StoryHighlights:
- *                         type: integer
+ *                   storyCount:
+ *                     type: integer
+ *                   stories:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         storyId:
+ *                           type: integer
+ *                         mediaUrl:
+ *                           type: string
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                         expiresAt:
+ *                           type: string
+ *                           format: date-time
+ *                         assignedAt:
+ *                           type: string
+ *                           format: date-time
  *       403:
  *         description: Private account - cannot view highlights
  *       404:

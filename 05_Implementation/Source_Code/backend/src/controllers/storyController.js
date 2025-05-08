@@ -221,7 +221,7 @@ const getStoryFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // Fetch stories with view status
+    // Fetch stories with view status and additional details
     const stories = await prisma.story.findMany({
       where: {
         UserID: { in: followingIds },
@@ -231,6 +231,8 @@ const getStoryFeed = async (req, res) => {
         StoryID: true,
         UserID: true,
         CreatedAt: true,
+        MediaURL: true,
+        ExpiresAt: true,
         StoryViews: {
           where: { UserID: UserID },
           select: { ViewID: true },
@@ -250,6 +252,8 @@ const getStoryFeed = async (req, res) => {
       acc[story.UserID].stories.push({
         storyId: story.StoryID,
         createdAt: story.CreatedAt,
+        mediaUrl: story.MediaURL,
+        expiresAt: story.ExpiresAt,
         isViewed: story.StoryViews.length > 0,
       });
       return acc;
@@ -272,6 +276,8 @@ const getStoryFeed = async (req, res) => {
           stories: user.stories.map((s) => ({
             storyId: s.storyId,
             createdAt: s.createdAt,
+            mediaUrl: s.mediaUrl,
+            expiresAt: s.expiresAt,
             isViewed: s.isViewed,
           })),
         };

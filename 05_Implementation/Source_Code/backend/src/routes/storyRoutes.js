@@ -184,6 +184,28 @@ router.get("/:storyId/views", authMiddleware, getStoryViews);
  *                   hasUnviewedStories:
  *                     type: boolean
  *                     example: true
+ *                   stories:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         storyId:
+ *                           type: integer
+ *                           example: 101
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2025-05-12T10:00:00Z"
+ *                         mediaUrl:
+ *                           type: string
+ *                           example: "https://res.cloudinary.com/example/story.jpg"
+ *                         expiresAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2025-05-13T10:00:00Z"
+ *                         isViewed:
+ *                           type: boolean
+ *                           example: false
  *       401:
  *         description: Unauthorized
  */

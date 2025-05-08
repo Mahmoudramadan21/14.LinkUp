@@ -111,6 +111,7 @@ const createHighlight = async (req, res) => {
  * Gets highlights with privacy considerations:
  * - Full access for owner
  * - Restricted based on account privacy and follow status
+ * - Returns highlights with associated stories
  */
 const getUserHighlights = async (req, res) => {
   try {
@@ -126,9 +127,34 @@ const getUserHighlights = async (req, res) => {
           Title: true,
           CoverImage: true,
           _count: { select: { StoryHighlights: true } },
+          StoryHighlights: {
+            include: {
+              Story: {
+                select: {
+                  StoryID: true,
+                  MediaURL: true,
+                  CreatedAt: true,
+                  ExpiresAt: true,
+                },
+              },
+            },
+          },
         },
       });
-      return res.json(highlights);
+      const response = highlights.map((highlight) => ({
+        highlightId: highlight.HighlightID,
+        title: highlight.Title,
+        coverImage: highlight.CoverImage,
+        storyCount: highlight._count.StoryHighlights,
+        stories: highlight.StoryHighlights.map((sh) => ({
+          storyId: sh.Story.StoryID,
+          mediaUrl: sh.Story.MediaURL,
+          createdAt: sh.Story.CreatedAt,
+          expiresAt: sh.Story.ExpiresAt,
+          assignedAt: sh.AssignedAt,
+        })),
+      }));
+      return res.json(response);
     }
 
     // Privacy check for non-owners
@@ -136,7 +162,9 @@ const getUserHighlights = async (req, res) => {
       where: { UserID: userId },
       select: {
         IsPrivate: true,
-        Followers: { where: { FollowerUserID: currentUserId } },
+        Followers: {
+          where: { FollowerUserID: currentUserId, Status: "ACCEPTED" },
+        },
       },
     });
 
@@ -152,10 +180,36 @@ const getUserHighlights = async (req, res) => {
         Title: true,
         CoverImage: true,
         _count: { select: { StoryHighlights: true } },
+        StoryHighlights: {
+          include: {
+            Story: {
+              select: {
+                StoryID: true,
+                MediaURL: true,
+                CreatedAt: true,
+                ExpiresAt: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    res.json(highlights);
+    const response = highlights.map((highlight) => ({
+      highlightId: highlight.HighlightID,
+      title: highlight.Title,
+      coverImage: highlight.CoverImage,
+      storyCount: highlight._count.StoryHighlights,
+      stories: highlight.StoryHighlights.map((sh) => ({
+        storyId: sh.Story.StoryID,
+        mediaUrl: sh.Story.MediaURL,
+        createdAt: sh.Story.CreatedAt,
+        expiresAt: sh.Story.ExpiresAt,
+        assignedAt: sh.AssignedAt,
+      })),
+    }));
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({
       error: "Failed to fetch highlights",
