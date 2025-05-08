@@ -1,29 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Avatar from '../components/Avatar';
 import html2canvas from 'html2canvas';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { useAppStore } from '@/store/feedStore';
+import { Transition } from '@headlessui/react';
 
-/*
- * CreateStories Component
- * Allows users to create and customize stories with text, media, and styling options.
- * Used for sharing ephemeral content with draggable text and media overlays.
- */
 interface CreateStoriesProps {
-  user: {
-    name: string; // User's display name
-    username: string; // User's unique handle
-    profilePicture: string; // URL of the user's profile picture
+  user?: {
+    name: string;
+    username: string;
+    profilePicture?: string;
   };
-  onShare: (story: {
-    text: string;
-    media?: File;
-    backgroundColor?: string;
-    textColor: string;
-    position: { x: number; y: number };
-    fontSize: number;
-  }) => void; // Callback for sharing the story
-  onDiscard: () => void; // Callback for discarding the story
+  onDiscard: () => void;
 }
 
 const CreateStories: React.FC<CreateStoriesProps> = ({
@@ -32,29 +19,25 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
     username: 'noor_ahmed',
     profilePicture: '/avatars/placeholder.jpg',
   },
-  onShare,
   onDiscard,
 }) => {
-  const [mode, setMode] = useState<'initial' | 'text' | 'media'>('initial');
+  const [mode, setMode] = useState<'initial' | 'preview'>('initial');
   const [text, setText] = useState('');
   const [media, setMedia] = useState<File | null>(null);
   const [backgroundColor, setBackgroundColor] = useState('linear-gradient(135deg, #ff6f61, #8b5cf6)');
   const [textColor, setTextColor] = useState('#ffffff');
   const [fontStyle, setFontStyle] = useState('normal');
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [fontSize, setFontSize] = useState(18);
+  const [textPosition, setTextPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [mediaPosition, setMediaPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
-  const [positionMedia, setPositionMedia] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+  const [previewDimensions, setPreviewDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const textRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  const currentTimeRef = useRef<number>(0);
-  const ffmpegRef = useRef<FFmpeg | null>(null);
-  const videoFrameRef = useRef<HTMLCanvasElement | null>(null);
+  const { handlePostStory, setError } = useAppStore();
 
   const backgroundColors = [
     'linear-gradient(135deg, #ff6f61, #8b5cf6)',
@@ -77,257 +60,164 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
 
   const fontStyles = ['normal', 'bold', 'italic', 'bold italic'];
 
-  // Load FFmpeg for video processing on component mount
+  // Update preview dimensions dynamically
   useEffect(() => {
-    const loadFFmpeg = async () => {
-      const ffmpeg = new FFmpeg();
-      await ffmpeg.load();
-      ffmpegRef.current = ffmpeg;
-    };
-    loadFFmpeg();
-  }, []);
-
-  // Handle media file selection and reset related states
-  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setMedia(e.target.files[0]);
-      setIsPlaying(false);
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-        currentTimeRef.current = 0;
+    const updateDimensions = () => {
+      if (previewRef.current) {
+        const rect = previewRef.current.getBoundingClientRect();
+        setPreviewDimensions({ width: rect.width, height: rect.height });
       }
-      setPositionMedia({ x: 0, y: 0 });
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [mode]);
+
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && e.target.files[0].type.startsWith('image/')) {
+      setMedia(e.target.files[0]);
+      setMediaPosition({ x: 0, y: 0 });
+      setMode('preview');
     }
   };
 
-  // Share the story and reset the form
-  const handleShare = () => {
-    if ((mode === 'text' && text) || (mode === 'media' && (text || media))) {
-      onShare({
-        text,
-        media: mode === 'media' ? media || undefined : undefined,
-        backgroundColor,
-        textColor,
-        position,
-        fontSize,
-      });
-      setText('');
-      setMedia(null);
-      setBackgroundColor('linear-gradient(135deg, #ff6f61, #8b5cf6)');
-      setTextColor('#ffffff');
-      setFontStyle('normal');
-      setPosition({ x: 0, y: 0 });
-      setFontSize(18);
-      setPositionMedia({ x: 0, y: 0 });
-      setMode('initial');
+  const handleAddText = () => {
+    setMode('preview');
+  };
+
+  const handleConfirm = async () => {
+    if (previewRef.current && (text || media) && !isLoading) {
+      setIsLoading(true);
+      try {
+        const canvas = await html2canvas(previewRef.current, {
+          useCORS: true,
+          backgroundColor: null,
+          scale: 2,
+          width: previewDimensions.width,
+          height: previewDimensions.height,
+        });
+
+        // Create a new canvas with the desired Instagram story dimensions (1080x1920)
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = 1080;
+        finalCanvas.height = 1920;
+        const ctx = finalCanvas.getContext('2d');
+
+        if (ctx) {
+          // Calculate scaling to fit the content into 1080x1920 while maintaining aspect ratio
+          const scale = Math.min(
+            finalCanvas.width / canvas.width,
+            finalCanvas.height / canvas.height
+          );
+          const scaledWidth = canvas.width * scale;
+          const scaledHeight = canvas.height * scale;
+          const offsetX = (finalCanvas.width - scaledWidth) / 2;
+          const offsetY = (finalCanvas.height - scaledHeight) / 2;
+
+          // Draw the scaled content onto the final canvas
+          ctx.drawImage(canvas, offsetX, offsetY, scaledWidth, scaledHeight);
+
+          const imageDataUrl = finalCanvas.toDataURL('image/png');
+          const blob = await (await fetch(imageDataUrl)).blob();
+          const file = new File([blob], 'story.png', { type: 'image/png' });
+
+          await handlePostStory(file);
+          onDiscard();
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to post story');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  // Start dragging the text element
   const handleMouseDownText = (e: React.MouseEvent) => {
     setIsDraggingText(true);
   };
 
-  // Update position of text or media while dragging
+  const handleMouseDownMedia = (e: React.MouseEvent) => {
+    setIsDraggingMedia(true);
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDraggingText && textRef.current) {
-      const newX = position.x + e.movementX;
-      const newY = position.y + e.movementY;
-      setPosition({ x: newX, y: newY });
-    } else if (isDraggingMedia && mediaRef.current) {
-      const newX = positionMedia.x + e.movementX;
-      const newY = positionMedia.y + e.movementY;
-      setPositionMedia({ x: newX, y: newY });
+      const newX = textPosition.x + e.movementX;
+      const newY = textPosition.y + e.movementY;
+      setTextPosition({ x: newX, y: newY });
+    }
+    if (isDraggingMedia && mediaRef.current) {
+      const newX = mediaPosition.x + e.movementX;
+      const newY = mediaPosition.y + e.movementY;
+      setMediaPosition({ x: newX, y: newY });
     }
   };
 
-  // Stop dragging on mouse up or leave
   const handleMouseUp = () => {
     setIsDraggingText(false);
     setIsDraggingMedia(false);
   };
 
-  // Start dragging the media element
-  const handleMouseDownMedia = (e: React.MouseEvent) => {
-    setIsDraggingMedia(true);
+  const increaseFontSize = () => {
+    setFontSize((prev) => Math.min(prev + 2, 48));
   };
 
-  // Toggle video playback
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        currentTimeRef.current = videoRef.current.currentTime;
-        videoRef.current.pause();
-      } else {
-        videoRef.current.currentTime = currentTimeRef.current;
-        videoRef.current.play().catch((error) => {
-          console.error('Video playback failed:', error);
-        });
-      }
-      setIsPlaying(!isPlaying);
-    }
+  const decreaseFontSize = () => {
+    setFontSize((prev) => Math.max(prev - 2, 12));
   };
 
-  // Handle preview click to toggle video playback
-  const handlePreviewClick = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        currentTimeRef.current = videoRef.current.currentTime;
-        videoRef.current.pause();
-      } else {
-        videoRef.current.currentTime = currentTimeRef.current;
-        videoRef.current.play().catch((error) => {
-          console.error('Video playback failed:', error);
-        });
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  // Capture a frame from the video for overlay
-  const captureVideoFrame = async () => {
-    if (!videoRef.current || !previewRef.current) return null;
-
-    const video = videoRef.current;
-    video.currentTime = 1; // Capture frame at 1 second
-    await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for seek
-
-    const canvas = document.createElement('canvas');
-    canvas.width = videoDimensions.width;
-    canvas.height = videoDimensions.height;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    }
-    videoFrameRef.current = canvas;
-    return canvas.toDataURL('image/png');
-  };
-
-  // Download the story as an image or video
-  const handleDownload = async () => {
-    if (!media || !previewRef.current) return;
-
-    if (media.type.startsWith('video/')) {
-      if (!ffmpegRef.current || !videoRef.current) return;
-
-      const ffmpeg = ffmpegRef.current;
-      const videoFrameDataUrl = await captureVideoFrame();
-      if (!videoFrameDataUrl) return;
-
-      const videoElement = videoRef.current;
-      videoElement.style.display = 'none';
-      const frameImg = document.createElement('img');
-      frameImg.src = videoFrameDataUrl;
-      frameImg.style.width = `${videoDimensions.width}px`;
-      frameImg.style.height = `${videoDimensions.height}px`;
-      mediaRef.current?.appendChild(frameImg);
-
-      const canvas = await html2canvas(previewRef.current, {
-        useCORS: true,
-        backgroundColor: null,
-        scale: 2,
-      });
-
-      frameImg.remove();
-      videoElement.style.display = 'block';
-
-      const overlayDataUrl = canvas.toDataURL('image/png');
-
-      await ffmpeg.writeFile('input.mp4', await fetchFile(media));
-      await ffmpeg.writeFile('overlay.png', await fetchFile(overlayDataUrl));
-
-      await ffmpeg.exec([
-        '-i', 'input.mp4',
-        '-i', 'overlay.png',
-        '-filter_complex', '[0:v][1:v]overlay=0:0,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
-        '-c:a', 'copy',
-        'output.mp4',
-      ]);
-
-      const data = await ffmpeg.readFile('output.mp4');
-      const blob = new Blob([data], { type: 'video/mp4' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'story.mp4';
-      link.click();
-    } else {
-      const canvas = await html2canvas(previewRef.current, {
-        useCORS: true,
-        backgroundColor: null,
-        scale: 2,
-      });
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = 'story.png';
-      link.click();
-    }
-  };
-
-  // Pause video when playback state changes
-  useEffect(() => {
-    if (videoRef.current && !isPlaying) {
-      videoRef.current.pause();
-    }
-  }, [isPlaying]);
-
-  // Center text on the preview when it changes
   useEffect(() => {
     if (text && previewRef.current && textRef.current) {
       const previewRect = previewRef.current.getBoundingClientRect();
       const textRect = textRef.current.getBoundingClientRect();
       const centerX = (previewRect.width - textRect.width) / 2;
       const centerY = (previewRect.height - textRect.height) / 2;
-      setPosition({ x: centerX, y: centerY });
+      setTextPosition({ x: centerX, y: centerY });
     }
   }, [text]);
 
-  // Update video dimensions when metadata is loaded
-  const handleVideoMetadata = () => {
-    if (videoRef.current) {
-      setVideoDimensions({
-        width: videoRef.current.videoWidth,
-        height: videoRef.current.videoHeight,
-      });
+  useEffect(() => {
+    if (media && previewRef.current && mediaRef.current) {
+      const previewRect = previewRef.current.getBoundingClientRect();
+      const mediaRect = mediaRef.current.getBoundingClientRect();
+      const centerX = (previewRect.width - mediaRect.width) / 2;
+      const centerY = (previewRect.height - mediaRect.height) / 2;
+      setMediaPosition({ x: centerX, y: centerY });
     }
-  };
-
-  // Increase the font size up to a maximum of 48px
-  const increaseFontSize = () => {
-    setFontSize((prev) => Math.min(prev + 2, 48));
-  };
-
-  // Decrease the font size down to a minimum of 12px
-  const decreaseFontSize = () => {
-    setFontSize((prev) => Math.max(prev - 2, 12));
-  };
+  }, [media]);
 
   if (mode === 'initial') {
     return (
-      <div className="create-stories-container" data-testid="create-stories">
-        <div className="create-stories-initial">
-          <h2 className="create-stories-title">Create Stories</h2>
-          <div className="create-stories-options">
-            <button className="create-stories-option-btn media-btn" onClick={() => setMode('media')}>
-              <span className="create-stories-plus">+</span>
-              <span>Add Media</span>
-            </button>
-            <button className="create-stories-option-btn text-btn" onClick={() => setMode('text')}>
-              <span className="create-stories-plus">+</span>
-              <span>Add Text</span>
-            </button>
-          </div>
+      <div className="create-stories-initial-content">
+        <h2 className="create-stories-title">Create Stories</h2>
+        <div className="create-stories-options">
+          <label className="create-stories-option-btn media-btn">
+            <span className="create-stories-plus">+</span>
+            <span>Add Image</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleMediaChange}
+              className="create-stories-file-input"
+              aria-label="Add image"
+            />
+          </label>
+          <button className="create-stories-option-btn text-btn" onClick={handleAddText}>
+            <span className="create-stories-plus">+</span>
+            <span>Add Text</span>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="create-stories-container" data-testid="create-stories">
+    <div className="create-stories-dialog-content">
       <div className="create-stories-settings">
         <div className="create-stories-user">
           <Avatar
-            imageSrc={user.profilePicture}
+            imageSrc={user.profilePicture || '/avatars/placeholder.jpg'}
             username={user.username}
             size="medium"
             showUsername={false}
@@ -406,11 +296,13 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
           <button className="create-stories-discard-btn" onClick={onDiscard} aria-label="Discard story">
             Discard
           </button>
-          <button className="create-stories-download-btn" onClick={handleDownload} aria-label="Download story">
-            Download
-          </button>
-          <button className="create-stories-share-btn" onClick={handleShare} aria-label="Share story">
-            Share
+          <button
+            className="create-stories-confirm-btn"
+            onClick={handleConfirm}
+            disabled={isLoading}
+            aria-label="Confirm and upload story"
+          >
+            {isLoading ? 'Uploading...' : 'Confirm'}
           </button>
         </div>
       </div>
@@ -419,45 +311,24 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
         <div
           className="create-stories-preview-content"
           ref={previewRef}
-          onClick={handlePreviewClick}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           style={{ background: backgroundColor }}
         >
-          {mode === 'media' && media && (
+          {media && (
             <div
               ref={mediaRef}
               className="create-stories-preview-media-container"
               onMouseDown={handleMouseDownMedia}
+              style={{ transform: `translate(${mediaPosition.x}px, ${mediaPosition.y}px)` }}
             >
-              {media.type.startsWith('video/') ? (
-                <>
-                  <video
-                    ref={videoRef}
-                    src={URL.createObjectURL(media)}
-                    className="create-stories-preview-media"
-                    autoPlay
-                    loop
-                    onLoadedMetadata={handleVideoMetadata}
-                  />
-                  <button className="create-stories-play-btn" onClick={togglePlay} aria-label={isPlaying ? 'Pause video' : 'Play video'}>
-                    <img
-                      src="/icons/play.svg"
-                      alt={isPlaying ? 'Pause' : 'Play'}
-                      className="create-stories-play-icon"
-                      loading="lazy"
-                    />
-                  </button>
-                </>
-              ) : (
-                <img
-                  src={URL.createObjectURL(media)}
-                  alt="Story media"
-                  className="create-stories-preview-media"
-                  loading="lazy"
-                />
-              )}
+              <img
+                src={URL.createObjectURL(media)}
+                alt="Story media"
+                className="create-stories-preview-media"
+                loading="lazy"
+              />
             </div>
           )}
           {text && (
@@ -465,35 +336,31 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
               ref={textRef}
               className={`create-stories-preview-text ${fontStyle.replace(' ', '-')}`}
               onMouseDown={handleMouseDownText}
-              style={{ color: textColor, left: position.x, top: position.y, fontSize: `${fontSize}px` }}
+              style={{
+                color: textColor,
+                transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
+                fontSize: `${fontSize}px`,
+                position: 'absolute',
+                userSelect: 'none',
+              }}
             >
               {text}
             </div>
           )}
         </div>
-        {mode === 'media' && (
-          <div className="create-stories-preview-placeholder">
-            <label className="create-stories-placeholder">
-              <span className="create-stories-placeholder-icon">+</span>
-              <span>{media ? 'Change Media' : 'Add Media'}</span>
-              <input
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleMediaChange}
-                className="create-stories-file-input"
-                aria-label={media ? 'Change media' : 'Add media'}
-              />
-            </label>
-          </div>
-        )}
-        {mode === 'text' && !media && (
-          <div className="create-stories-preview-placeholder">
-            <div className="create-stories-placeholder">
-              <span className="create-stories-placeholder-icon">+</span>
-              <span>Add Media</span>
-            </div>
-          </div>
-        )}
+        <div className="create-stories-preview-placeholder">
+          <label className="create-stories-placeholder">
+            <span className="create-stories-placeholder-icon">+</span>
+            <span>{media ? 'Change Image' : 'Add Image'}</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleMediaChange}
+              className="create-stories-file-input"
+              aria-label={media ? 'Change image' : 'Add image'}
+            />
+          </label>
+        </div>
       </div>
     </div>
   );

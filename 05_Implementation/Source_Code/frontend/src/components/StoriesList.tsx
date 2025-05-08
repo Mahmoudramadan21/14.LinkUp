@@ -1,38 +1,49 @@
 import React from 'react';
 import Avatar from '../components/Avatar';
 
-/*
- * StoriesList Component
- * Displays a list of user stories with avatars indicating unviewed stories.
- * Used in a stories feed to allow users to navigate to story viewers.
- */
 interface Story {
-  storyId: number; // Unique ID of the story
-  createdAt: string; // Timestamp of when the story was created
-  isViewed: boolean; // Whether the story has been viewed by the user
+  storyId: number;
+  createdAt: string;
+  mediaUrl: string;
+  expiresAt: string;
+  isViewed: boolean;
 }
 
 interface UserStory {
-  userId: number; // Unique ID of the user
-  username: string; // User's username
-  profilePicture: string; // URL of the user's profile picture
-  hasUnviewedStories: boolean; // Whether the user has unviewed stories
-  stories: Story[]; // List of the user's stories
+  userId: number;
+  username: string;
+  profilePicture: string;
+  hasUnviewedStories: boolean;
+  stories: Story[];
 }
 
 interface StoriesListProps {
-  data: UserStory[]; // List of user stories to display
+  data: UserStory[];
+  onStorySelect: (storyId: number) => void;
+  activeUserId?: number;
 }
 
-const StoriesList: React.FC<StoriesListProps> = ({ data }) => {
+const StoriesList: React.FC<StoriesListProps> = ({ data, onStorySelect, activeUserId }) => {
+  const handleStoryClick = (user: UserStory) => {
+    const firstUnviewedStory = user.stories.find((story) => !story.isViewed);
+    const storyToSelect = firstUnviewedStory || user.stories[0];
+    if (storyToSelect) {
+      onStorySelect(storyToSelect.storyId);
+    }
+  };
+
   return (
     <div className="stories-list-container" data-testid="stories-list">
       <h2 className="stories-list-title">Stories</h2>
       <div className="stories-list-items">
         {data.map((user) => (
-          <div key={user.userId} className="story-item">
+          <div
+            key={user.userId}
+            className={`story-item cursor-pointer hover:bg-gray-100 p-1 rounded ${activeUserId === user.userId ? 'bg-blue-100' : ''}`}
+            onClick={() => handleStoryClick(user)}
+          >
             <Avatar
-              imageSrc={user.profilePicture}
+              imageSrc={user.profilePicture || '/avatars/placeholder.jpg'}
               username={user.username}
               size="medium"
               showUsername={false}
