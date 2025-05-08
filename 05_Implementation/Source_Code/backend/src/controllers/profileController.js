@@ -49,6 +49,7 @@ const getProfile = async (req, res) => {
         Role: true,
         CreatedAt: true,
         UpdatedAt: true,
+        ProfileName: true,
         _count: {
           select: {
             Posts: true,
@@ -83,6 +84,7 @@ const getProfile = async (req, res) => {
       followerCount: user._count.Followers,
       followingCount: user._count.Following,
       likeCount: user._count.Likes,
+      profileName: user.ProfileName,
     };
 
     res.status(200).json({ profile: response });
@@ -94,12 +96,36 @@ const getProfile = async (req, res) => {
 };
 
 /**
+ * Normalizes email for uniqueness check while preserving the original email
+ * Removes dots from the local part for Gmail addresses
+ * @param {string} email - The email to normalize
+ * @returns {string} - Normalized email for uniqueness check
+ */
+const normalizeEmailForCheck = (email) => {
+  const [localPart, domain] = email.split("@");
+  if (domain.toLowerCase().includes("gmail.com")) {
+    return `${localPart.replace(/\./g, "")}@${domain.toLowerCase()}`;
+  }
+  return email.toLowerCase();
+};
+
+/**
  * Updates user profile with validation for duplicates and new fields
  * Supports profile and cover picture uploads
  * Returns updated profile data
  */
 const updateProfile = async (req, res) => {
-  const { username, email, bio, address, jobTitle, dateOfBirth } = req.body;
+  const {
+    username,
+    email: originalEmail, // Renamed to distinguish from normalized email
+    bio,
+    address,
+    jobTitle,
+    dateOfBirth,
+    isPrivate,
+    firstName,
+    lastName,
+  } = req.body;
   const userId = req.user.UserID;
   let profilePictureUrl, coverPictureUrl;
 
@@ -111,6 +137,18 @@ const updateProfile = async (req, res) => {
   const coverPictureFile = files.coverPicture ? files.coverPicture[0] : null;
 
   try {
+    // Fetch current user data to get the old username for cache invalidation
+    const currentUser = await prisma.user.findUnique({
+      where: { UserID: userId },
+      select: { Username: true },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const oldUsername = currentUser.Username;
+
     // Upload profile picture if provided
     if (profilePictureFile) {
       const uploadResult = await new Promise((resolve, reject) => {
@@ -163,10 +201,14 @@ const updateProfile = async (req, res) => {
     }
 
     // Validate email uniqueness if provided
-    if (email) {
+    if (originalEmail) {
+      // Normalize email only for uniqueness check
+      const normalizedEmail = normalizeEmailForCheck(originalEmail);
       const existingEmail = await prisma.user.findFirst({
         where: {
-          Email: email,
+          Email: {
+            in: [normalizedEmail, originalEmail], // Check both normalized and original to cover all cases
+          },
           UserID: { not: userId },
         },
       });
@@ -183,18 +225,43 @@ const updateProfile = async (req, res) => {
       }
     }
 
-    // Update the user's profile
+    // Validate isPrivate if provided
+    let parsedIsPrivate;
+    if (typeof isPrivate !== "undefined") {
+      parsedIsPrivate = isPrivate === "true" || isPrivate === true;
+      if (typeof parsedIsPrivate !== "boolean") {
+        return res
+          .status(400)
+          .json({ message: "isPrivate must be a boolean (true or false)" });
+      }
+    }
+
+    // Generate profileName from firstName and lastName if provided
+    let profileName;
+    if (firstName || lastName) {
+      profileName = `${firstName || ""} ${lastName || ""}`.trim();
+      if (profileName === "") {
+        return res.status(400).json({
+          message:
+            "First name or last name must be provided to generate profileName",
+        });
+      }
+    }
+
+    // Update the user's profile, preserving the original email
     const updatedUser = await prisma.user.update({
       where: { UserID: userId },
       data: {
         Username: username,
-        Email: email,
+        Email: originalEmail, // Save the original email as provided
         Bio: bio,
         Address: address,
         JobTitle: jobTitle,
         DateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         ProfilePicture: profilePictureUrl,
         CoverPicture: coverPictureUrl,
+        IsPrivate: parsedIsPrivate,
+        ProfileName: profileName,
       },
       select: {
         UserID: true,
@@ -210,8 +277,21 @@ const updateProfile = async (req, res) => {
         Role: true,
         CreatedAt: true,
         UpdatedAt: true,
+        ProfileName: true,
       },
     });
+
+    // Invalidate Redis cache for both old and new username (if changed)
+    const newUsername = updatedUser.Username;
+    const oldCacheKey = `profile:username:${oldUsername}`;
+    await del(oldCacheKey, userId?.toString());
+    console.log(`Cache invalidated for old profile: ${oldCacheKey}`);
+
+    if (oldUsername !== newUsername) {
+      const newCacheKey = `profile:username:${newUsername}`;
+      await del(newCacheKey, userId?.toString());
+      console.log(`Cache invalidated for new profile: ${newCacheKey}`);
+    }
 
     // Respond with the updated profile
     res.status(200).json({
@@ -230,6 +310,7 @@ const updateProfile = async (req, res) => {
         role: updatedUser.Role,
         createdAt: updatedUser.CreatedAt,
         updatedAt: updatedUser.UpdatedAt,
+        profileName: updatedUser.ProfileName,
       },
     });
   } catch (error) {
@@ -287,10 +368,8 @@ const updatePrivacySettings = async (req, res) => {
   const userId = req.user.UserID;
 
   try {
-    // Convert string "true"/"false" to boolean
     const isPrivateBoolean = isPrivate === "true";
 
-    // Fetch current user data to detect transition and get username
     const currentUser = await prisma.user.findUnique({
       where: { UserID: userId },
       select: { IsPrivate: true, Username: true },
@@ -300,14 +379,10 @@ const updatePrivacySettings = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Start a transaction to ensure atomicity
     const [updatedUser] = await prisma.$transaction([
-      // Update user privacy
       prisma.user.update({
         where: { UserID: userId },
-        data: {
-          IsPrivate: isPrivateBoolean,
-        },
+        data: { IsPrivate: isPrivateBoolean },
         select: {
           Username: true,
           Email: true,
@@ -319,46 +394,28 @@ const updatePrivacySettings = async (req, res) => {
           UpdatedAt: true,
         },
       }),
-      // Update privacy of all posts
       prisma.post.updateMany({
         where: { UserID: userId },
-        data: {
-          privacy: isPrivateBoolean ? "FOLLOWERS_ONLY" : "PUBLIC",
-        },
+        data: { privacy: isPrivateBoolean ? "FOLLOWERS_ONLY" : "PUBLIC" },
       }),
-      // Approve pending follow requests if transitioning to public
       ...(currentUser.IsPrivate && !isPrivateBoolean
         ? [
             prisma.follower.updateMany({
-              where: {
-                UserID: userId,
-                Status: "PENDING",
-              },
-              data: {
-                Status: "ACCEPTED",
-                UpdatedAt: new Date(),
-              },
+              where: { UserID: userId, Status: "PENDING" },
+              data: { Status: "ACCEPTED", UpdatedAt: new Date() },
             }),
-            // Create notifications for approved followers
             prisma.notification.createMany({
               data: await prisma.follower
                 .findMany({
-                  where: {
-                    UserID: userId,
-                    Status: "ACCEPTED",
-                  },
-                  select: {
-                    FollowerUserID: true,
-                  },
+                  where: { UserID: userId, Status: "ACCEPTED" },
+                  select: { FollowerUserID: true },
                 })
                 .then((followers) =>
                   followers.map((follower) => ({
                     UserID: follower.FollowerUserID,
                     Type: "FOLLOW_ACCEPTED",
                     Content: `Your follow request to ${currentUser.Username} has been automatically approved.`,
-                    Metadata: {
-                      FollowedUserID: userId,
-                    },
+                    Metadata: { FollowedUserID: userId },
                     CreatedAt: new Date(),
                   }))
                 ),
@@ -367,9 +424,12 @@ const updatePrivacySettings = async (req, res) => {
         : []),
     ]);
 
-    // Invalidate Redis cache for user's posts and followers
+    // Invalidate Redis caches
     await del(`posts:user:${userId}`, userId);
     await del(`followers:user:${userId}`, userId);
+    const profileCacheKey = `profile:username:${currentUser.Username}`;
+    await del(profileCacheKey, userId?.toString());
+    console.log(`Cache invalidated for profile: ${profileCacheKey}`);
 
     // Emit privacy update event via Socket.IO if the instance is available
     const io = req.app.get("io");
@@ -380,13 +440,9 @@ const updatePrivacySettings = async (req, res) => {
         timestamp: new Date(),
       });
 
-      // Notify followers of approved requests
       if (currentUser.IsPrivate && !isPrivateBoolean) {
         const approvedFollowers = await prisma.follower.findMany({
-          where: {
-            UserID: userId,
-            Status: "ACCEPTED",
-          },
+          where: { UserID: userId, Status: "ACCEPTED" },
           select: { FollowerUserID: true },
         });
         approvedFollowers.forEach((follower) => {
@@ -565,15 +621,199 @@ const getSavedPosts = async (req, res) => {
     const savedPosts = await prisma.savedPost.findMany({
       where: { UserID: userId },
       include: {
-        Post: true,
+        Post: {
+          include: {
+            User: {
+              select: {
+                UserID: true,
+                Username: true,
+                ProfilePicture: true,
+                IsPrivate: true,
+              },
+            },
+            Likes: {
+              select: {
+                LikeID: true,
+                PostID: true,
+                UserID: true,
+                CreatedAt: true,
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+              },
+            },
+            Comments: {
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+                CommentLikes: {
+                  select: {
+                    LikeID: true,
+                    CommentID: true,
+                    UserID: true,
+                    CreatedAt: true,
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                      },
+                    },
+                  },
+                },
+                Replies: {
+                  include: {
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                      },
+                    },
+                    CommentLikes: {
+                      select: {
+                        LikeID: true,
+                        CommentID: true,
+                        UserID: true,
+                        CreatedAt: true,
+                        User: {
+                          select: {
+                            Username: true,
+                            ProfilePicture: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                _count: {
+                  select: {
+                    CommentLikes: true,
+                    Replies: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: {
+                Likes: true,
+                Comments: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    res.status(200).json({ savedPosts });
+    // Format the response to match the desired structure
+    const formattedPosts = savedPosts.map((savedPost) => {
+      const post = savedPost.Post;
+      const isLiked = post.Likes.some((like) => like.UserID === userId);
+      const likedBy = post.Likes.map((like) => ({
+        username: like.User.Username,
+        profilePicture: like.User.ProfilePicture,
+      }));
+
+      const formattedComments = post.Comments.map((comment) => {
+        const commentIsLiked = comment.CommentLikes.some(
+          (like) => like.UserID === userId
+        );
+        const commentLikedBy = comment.CommentLikes.map((like) => ({
+          username: like.User.Username,
+          profilePicture: like.User.ProfilePicture,
+        }));
+
+        const formattedReplies = comment.Replies.map((reply) => {
+          const replyIsLiked = reply.CommentLikes.some(
+            (like) => like.UserID === userId
+          );
+          const replyLikedBy = reply.CommentLikes.map((like) => ({
+            username: like.User.Username,
+            profilePicture: like.User.ProfilePicture,
+          }));
+
+          return {
+            CommentID: reply.CommentID,
+            PostID: reply.PostID,
+            UserID: reply.UserID,
+            Content: reply.Content,
+            CreatedAt: reply.CreatedAt,
+            ParentCommentID: reply.ParentCommentID,
+            User: {
+              Username: reply.User.Username,
+              ProfilePicture: reply.User.ProfilePicture,
+            },
+            CommentLikes: reply.CommentLikes,
+            isLiked: replyIsLiked,
+            likeCount: reply.CommentLikes.length,
+            replyCount: 0, // Replies to replies are not supported in this schema
+            likedBy: replyLikedBy,
+          };
+        });
+
+        return {
+          CommentID: comment.CommentID,
+          PostID: comment.PostID,
+          UserID: comment.UserID,
+          Content: comment.Content,
+          CreatedAt: comment.CreatedAt,
+          ParentCommentID: comment.ParentCommentID,
+          User: {
+            Username: comment.User.Username,
+            ProfilePicture: comment.User.ProfilePicture,
+          },
+          CommentLikes: comment.CommentLikes,
+          Replies: formattedReplies,
+          _count: {
+            CommentLikes: comment._count.CommentLikes,
+            Replies: comment._count.Replies,
+          },
+          isLiked: commentIsLiked,
+          likeCount: comment._count.CommentLikes,
+          replyCount: comment._count.Replies,
+          likedBy: commentLikedBy,
+        };
+      });
+
+      return {
+        PostID: post.PostID,
+        UserID: post.UserID,
+        Content: post.Content,
+        ImageURL: post.ImageURL,
+        VideoURL: post.VideoURL,
+        CreatedAt: post.CreatedAt,
+        UpdatedAt: post.UpdatedAt,
+        privacy: post.privacy,
+        User: {
+          UserID: post.User.UserID,
+          Username: post.User.Username,
+          ProfilePicture: post.User.ProfilePicture,
+          IsPrivate: post.User.IsPrivate,
+        },
+        Likes: post.Likes,
+        Comments: formattedComments,
+        _count: {
+          Likes: post._count.Likes,
+          Comments: post._count.Comments,
+        },
+        isLiked: isLiked,
+        likeCount: post._count.Likes,
+        commentCount: post._count.Comments,
+        likedBy: likedBy,
+      };
+    });
+
+    res.status(200).json({ savedPosts: formattedPosts });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching saved posts", error: error.message });
+    res.status(500).json({
+      message: "Error fetching saved posts",
+      error: error.message,
+    });
   }
 };
 
@@ -766,6 +1006,11 @@ const followUser = async (req, res) => {
       });
     }
 
+    // Invalidate Redis cache for the target user's profile
+    const cacheKey = `profile:username:${targetUser.Username}`;
+    await del(cacheKey, followerId?.toString());
+    console.log(`Cache invalidated for profile: ${cacheKey} after follow`);
+
     res.status(201).json({
       message: "Successfully followed user",
       status: "ACCEPTED",
@@ -779,6 +1024,103 @@ const followUser = async (req, res) => {
       details: error.message,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
+  }
+};
+
+/**
+ * Removes follow relationship between users
+ * Validates user IDs to prevent self-unfollow
+ */
+const unfollowUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const followerId = req.user.UserID;
+
+    if (userId === followerId) {
+      return res.status(400).json({ error: "Cannot unfollow yourself" });
+    }
+
+    const result = await prisma.follower.deleteMany({
+      where: {
+        UserID: parseInt(userId),
+        FollowerUserID: followerId,
+      },
+    });
+
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Follow relationship not found" });
+    }
+
+    // Invalidate Redis cache for the unfollowed user's profile
+    const unfollowedUser = await prisma.user.findUnique({
+      where: { UserID: parseInt(userId) },
+      select: { Username: true },
+    });
+    if (unfollowedUser) {
+      const cacheKey = `profile:username:${unfollowedUser.Username}`;
+      await del(cacheKey, followerId?.toString());
+      console.log(`Cache cleared for profile: ${cacheKey} after unfollow`);
+    }
+
+    res.status(200).json({ message: "Unfollowed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Removes a follower from the current user's followers list
+ * Validates user ownership and deletes the follow relationship
+ */
+const removeFollower = async (req, res) => {
+  try {
+    const { followerId } = req.params; // ID of the user to remove as a follower
+    const userId = req.user.UserID; // Current authenticated user (profile owner)
+
+    // Validate that the followerId is a valid number
+    const parsedFollowerId = parseInt(followerId);
+    if (isNaN(parsedFollowerId)) {
+      return res.status(400).json({ error: "Invalid follower ID format" });
+    }
+
+    // Check if the follower relationship exists
+    const followRelationship = await prisma.follower.findFirst({
+      where: {
+        UserID: userId,
+        FollowerUserID: parsedFollowerId,
+        Status: "ACCEPTED",
+      },
+    });
+
+    if (!followRelationship) {
+      return res.status(404).json({ error: "Follower relationship not found" });
+    }
+
+    // Delete the follower relationship
+    await prisma.follower.delete({
+      where: {
+        FollowerID: followRelationship.FollowerID,
+      },
+    });
+
+    // Invalidate Redis cache for the current user's profile and followers list
+    const cacheKeyProfile = `profile:username:${req.user.Username}`;
+    await del(cacheKeyProfile, userId?.toString());
+    console.log(
+      `Cache cleared for profile: ${cacheKeyProfile} after removing follower`
+    );
+
+    const cacheKeyFollowers = `followers:user:${userId}`;
+    await del(cacheKeyFollowers, userId?.toString());
+    console.log(
+      `Cache cleared for followers: ${cacheKeyFollowers} after removing follower`
+    );
+
+    res.status(200).json({ message: "Follower removed successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Internal server error", details: error.message });
   }
 };
 
@@ -924,36 +1266,6 @@ const rejectFollowRequest = async (req, res) => {
 };
 
 /**
- * Removes follow relationship between users
- * Validates user IDs to prevent self-unfollow
- */
-const unfollowUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const followerId = req.user.UserID;
-
-    if (userId === followerId) {
-      return res.status(400).json({ error: "Cannot unfollow yourself" });
-    }
-
-    const result = await prisma.follower.deleteMany({
-      where: {
-        UserID: parseInt(userId),
-        FollowerUserID: followerId,
-      },
-    });
-
-    if (result.count === 0) {
-      return res.status(404).json({ error: "Follow relationship not found" });
-    }
-
-    res.status(200).json({ message: "Unfollowed successfully" });
-  } catch (error) {
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-/**
  * Retrieves user's followers with privacy checks
  * For private accounts, verifies follow status before showing
  */
@@ -1011,8 +1323,10 @@ const getFollowers = async (req, res) => {
           select: {
             UserID: true,
             Username: true,
+            ProfileName: true,
             ProfilePicture: true,
             IsPrivate: true,
+            Bio: true, // Include Bio since we're returning it in the response
           },
         },
         CreatedAt: true,
@@ -1025,11 +1339,13 @@ const getFollowers = async (req, res) => {
 
     res.status(200).json({
       count: followers.length,
-      followers: users.map((user) => ({
-        userId: user.UserID,
-        username: user.Username,
-        profilePicture: user.ProfilePicture,
-        bio: user.Bio,
+      followers: followers.map((follower) => ({
+        userId: follower.FollowerUser.UserID,
+        username: follower.FollowerUser.Username,
+        profileName: follower.FollowerUser.ProfileName,
+        profilePicture: follower.FollowerUser.ProfilePicture,
+        isPrivate: follower.FollowerUser.IsPrivate,
+        bio: follower.FollowerUser.Bio,
       })),
     });
   } catch (error) {
@@ -1091,7 +1407,10 @@ const getFollowing = async (req, res) => {
           select: {
             UserID: true,
             Username: true,
+            ProfileName: true,
             ProfilePicture: true,
+            Bio: true,
+            IsPrivate: true,
           },
         },
       },
@@ -1099,7 +1418,15 @@ const getFollowing = async (req, res) => {
     });
 
     res.status(200).json({
-      following: following.map((f) => f.User),
+      count: following.length,
+      following: following.map((f) => ({
+        userId: f.User.UserID,
+        username: f.User.Username,
+        profileName: f.User.ProfileName,
+        profilePicture: f.User.ProfilePicture,
+        isPrivate: f.User.IsPrivate,
+        bio: f.User.Bio,
+      })),
     });
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -1240,6 +1567,7 @@ const getProfileByUsername = async (req, res) => {
         Role: true,
         CreatedAt: true,
         UpdatedAt: true,
+        ProfileName: true,
         IsBanned: true,
         _count: {
           select: {
@@ -1260,25 +1588,20 @@ const getProfileByUsername = async (req, res) => {
       return res.status(403).json({ error: "User is banned" });
     }
 
-    const isOwner = currentUserId === user.UserID;
-    let hasAccess = !user.IsPrivate || isOwner;
-
-    if (user.IsPrivate && !isOwner && currentUserId) {
-      const followRelationship = await prisma.follower.findFirst({
+    // Check if the current user is following this user and get follow status
+    let isFollowing = false;
+    let followStatus = "NONE";
+    if (currentUserId && currentUserId !== user.UserID) {
+      const followStatusQuery = await prisma.follower.findFirst({
         where: {
           UserID: user.UserID,
           FollowerUserID: currentUserId,
-          Status: "ACCEPTED",
         },
       });
-      hasAccess = followRelationship !== null;
-    }
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        error: "Private account",
-        message: `You must follow @${user.Username} to view their profile`,
-      });
+      if (followStatusQuery) {
+        isFollowing = followStatusQuery.Status === "ACCEPTED";
+        followStatus = followStatusQuery.Status;
+      }
     }
 
     const response = {
@@ -1299,11 +1622,15 @@ const getProfileByUsername = async (req, res) => {
         followerCount: user._count.Followers,
         followingCount: user._count.Following,
         likeCount: user._count.Likes,
+        isFollowing: isFollowing,
+        profileName: user.ProfileName,
+        followStatus: followStatus, // Added to indicate follow status
       },
     };
 
     // Cache the result in Redis for 5 minutes
     await setWithTracking(cacheKey, response, 300, currentUserId?.toString());
+    console.log(`Cache set for profile: ${cacheKey}`);
 
     res.status(200).json(response);
   } catch (error) {
@@ -1327,6 +1654,7 @@ module.exports = {
   getUserStories,
   followUser,
   unfollowUser,
+  removeFollower,
   getFollowers,
   getFollowing,
   acceptFollowRequest,

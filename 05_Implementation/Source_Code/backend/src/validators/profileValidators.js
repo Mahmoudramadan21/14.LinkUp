@@ -19,8 +19,8 @@ const updateProfileValidationRules = [
     .optional()
     .trim()
     .isEmail()
-    .withMessage("Please provide a valid email address")
-    .normalizeEmail(),
+    .withMessage("Please provide a valid email address"),
+  // Removed .normalizeEmail() to preserve the email exactly as provided
 
   body("bio")
     .optional()

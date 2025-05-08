@@ -17,6 +17,7 @@ const {
   getUserStories,
   getUserSuggestions,
   getProfileByUsername,
+  removeFollower,
 } = require("../controllers/profileController");
 const { validate } = require("../middleware/validationMiddleware");
 const {
@@ -125,7 +126,7 @@ router.get("/", authMiddleware, getProfile);
  *   put:
  *     tags: [Profile]
  *     summary: Update user profile
- *     description: Update the user's profile information (username, email, bio, address, job title, date of birth, profile picture, cover picture) using form data.
+ *     description: Update the user's profile information (username, email, bio, address, job title, date of birth, profile picture, cover picture, isPrivate, firstName, lastName) using form data. profileName is automatically generated from firstName and lastName.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -161,6 +162,15 @@ router.get("/", authMiddleware, getProfile);
  *                 type: string
  *                 format: binary
  *                 description: Cover picture file to upload
+ *               isPrivate:
+ *                 type: boolean
+ *                 description: Whether the user's profile is private (true) or public (false)
+ *               firstName:
+ *                 type: string
+ *                 description: User's first name (used to generate profileName)
+ *               lastName:
+ *                 type: string
+ *                 description: User's last name (used to generate profileName)
  *     responses:
  *       200:
  *         description: Profile updated successfully
@@ -172,7 +182,46 @@ router.get("/", authMiddleware, getProfile);
  *                 message:
  *                   type: string
  *                 profile:
- *                   $ref: '#/components/schemas/User'
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     profilePicture:
+ *                       type: string
+ *                       nullable: true
+ *                     coverPicture:
+ *                       type: string
+ *                       nullable: true
+ *                     bio:
+ *                       type: string
+ *                       nullable: true
+ *                     address:
+ *                       type: string
+ *                       nullable: true
+ *                     jobTitle:
+ *                       type: string
+ *                       nullable: true
+ *                     dateOfBirth:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                     isPrivate:
+ *                       type: boolean
+ *                     role:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     profileName:
+ *                       type: string
+ *                       nullable: true
  *       400:
  *         description: Invalid input or duplicate username/email
  *       401:
@@ -348,7 +397,7 @@ router.delete("/", authMiddleware, deleteProfile);
  *       400:
  *         description: Invalid user ID format
  *       403:
- *         description: Private account
+ *         description: Private account - must follow to view posts
  *       404:
  *         description: User not found
  *       500:
@@ -400,7 +449,7 @@ router.get("/stories", authMiddleware, getUserStories);
  *   get:
  *     tags: [Profile]
  *     summary: Get saved posts
- *     description: Retrieve the posts saved by the user.
+ *     description: Retrieve the posts saved by the user with full details including likes, comments, and replies.
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -409,11 +458,232 @@ router.get("/stories", authMiddleware, getUserStories);
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Post'
+ *               type: object
+ *               properties:
+ *                 savedPosts:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       PostID:
+ *                         type: integer
+ *                       UserID:
+ *                         type: integer
+ *                       Content:
+ *                         type: string
+ *                       ImageURL:
+ *                         type: string
+ *                         nullable: true
+ *                       VideoURL:
+ *                         type: string
+ *                         nullable: true
+ *                       CreatedAt:
+ *                         type: string
+ *                         format: date-time
+ *                       UpdatedAt:
+ *                         type: string
+ *                         format: date-time
+ *                       privacy:
+ *                         type: string
+ *                         enum: [PUBLIC, FOLLOWERS_ONLY, PRIVATE]
+ *                       User:
+ *                         type: object
+ *                         properties:
+ *                           UserID:
+ *                             type: integer
+ *                           Username:
+ *                             type: string
+ *                           ProfilePicture:
+ *                             type: string
+ *                             nullable: true
+ *                           IsPrivate:
+ *                             type: boolean
+ *                       Likes:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             LikeID:
+ *                               type: integer
+ *                             PostID:
+ *                               type: integer
+ *                             UserID:
+ *                               type: integer
+ *                             CreatedAt:
+ *                               type: string
+ *                               format: date-time
+ *                             User:
+ *                               type: object
+ *                               properties:
+ *                                 Username:
+ *                                   type: string
+ *                                 ProfilePicture:
+ *                                   type: string
+ *                                   nullable: true
+ *                       Comments:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             CommentID:
+ *                               type: integer
+ *                             PostID:
+ *                               type: integer
+ *                             UserID:
+ *                               type: integer
+ *                             Content:
+ *                               type: string
+ *                             CreatedAt:
+ *                               type: string
+ *                               format: date-time
+ *                             ParentCommentID:
+ *                               type: integer
+ *                               nullable: true
+ *                             User:
+ *                               type: object
+ *                               properties:
+ *                                 Username:
+ *                                   type: string
+ *                                 ProfilePicture:
+ *                                   type: string
+ *                                   nullable: true
+ *                             CommentLikes:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   LikeID:
+ *                                     type: integer
+ *                                   CommentID:
+ *                                     type: integer
+ *                                   UserID:
+ *                                     type: integer
+ *                                   CreatedAt:
+ *                                     type: string
+ *                                     format: date-time
+ *                                   User:
+ *                                     type: object
+ *                                     properties:
+ *                                       Username:
+ *                                         type: string
+ *                                       ProfilePicture:
+ *                                         type: string
+ *                                         nullable: true
+ *                             Replies:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   CommentID:
+ *                                     type: integer
+ *                                   PostID:
+ *                                     type: integer
+ *                                   UserID:
+ *                                     type: integer
+ *                                   Content:
+ *                                     type: string
+ *                                   CreatedAt:
+ *                                     type: string
+ *                                     format: date-time
+ *                                   ParentCommentID:
+ *                                     type: integer
+ *                                     nullable: true
+ *                                   User:
+ *                                     type: object
+ *                                     properties:
+ *                                       Username:
+ *                                         type: string
+ *                                       ProfilePicture:
+ *                                         type: string
+ *                                         nullable: true
+ *                                   CommentLikes:
+ *                                     type: array
+ *                                     items:
+ *                                       type: object
+ *                                       properties:
+ *                                         LikeID:
+ *                                           type: integer
+ *                                         CommentID:
+ *                                           type: integer
+ *                                         UserID:
+ *                                           type: integer
+ *                                         CreatedAt:
+ *                                           type: string
+ *                                           format: date-time
+ *                                         User:
+ *                                           type: object
+ *                                           properties:
+ *                                             Username:
+ *                                               type: string
+ *                                             ProfilePicture:
+ *                                               type: string
+ *                                               nullable: true
+ *                                   isLiked:
+ *                                     type: boolean
+ *                                   likeCount:
+ *                                     type: integer
+ *                                   replyCount:
+ *                                     type: integer
+ *                                   likedBy:
+ *                                     type: array
+ *                                     items:
+ *                                       type: object
+ *                                       properties:
+ *                                         username:
+ *                                           type: string
+ *                                         profilePicture:
+ *                                           type: string
+ *                                           nullable: true
+ *                             _count:
+ *                               type: object
+ *                               properties:
+ *                                 CommentLikes:
+ *                                   type: integer
+ *                                 Replies:
+ *                                   type: integer
+ *                             isLiked:
+ *                               type: boolean
+ *                             likeCount:
+ *                               type: integer
+ *                             replyCount:
+ *                               type: integer
+ *                             likedBy:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   username:
+ *                                     type: string
+ *                                   profilePicture:
+ *                                     type: string
+ *                                     nullable: true
+ *                       _count:
+ *                         type: object
+ *                         properties:
+ *                           Likes:
+ *                             type: integer
+ *                           Comments:
+ *                             type: integer
+ *                       isLiked:
+ *                         type: boolean
+ *                       likeCount:
+ *                         type: integer
+ *                       commentCount:
+ *                         type: integer
+ *                       likedBy:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             username:
+ *                               type: string
+ *                             profilePicture:
+ *                               type: string
+ *                               nullable: true
  *       401:
  *         description: Unauthorized
+ *       500:
+ *         description: Error fetching saved posts
  */
 router.get("/saved-posts", authMiddleware, getSavedPosts);
 
@@ -475,6 +745,89 @@ router.post(
   followActionValidator,
   validate,
   followUser
+);
+
+/**
+ * @swagger
+ * /profile/unfollow/{userId}:
+ *   delete:
+ *     tags: [Profile]
+ *     summary: Unfollow a user
+ *     description: Stop following another user.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user to unfollow
+ *     responses:
+ *       200:
+ *         description: Unfollowed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Cannot unfollow yourself
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Follow relationship not found
+ */
+router.delete(
+  "/unfollow/:userId",
+  authMiddleware,
+  userIdParamValidator,
+  validate,
+  unfollowUser
+);
+
+/**
+ * @swagger
+ * /profile/remove-follower/{followerId}:
+ *   delete:
+ *     tags: [Profile]
+ *     summary: Remove a follower
+ *     description: Remove a user from the current user's followers list.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: followerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user to remove as a follower
+ *     responses:
+ *       200:
+ *         description: Follower removed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid follower ID format
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Follower relationship not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete(
+  "/remove-follower/:followerId",
+  authMiddleware,
+  validate,
+  removeFollower
 );
 
 /**
@@ -600,47 +953,6 @@ router.delete(
 
 /**
  * @swagger
- * /profile/unfollow/{userId}:
- *   delete:
- *     tags: [Profile]
- *     summary: Unfollow a user
- *     description: Stop following another user.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the user to unfollow
- *     responses:
- *       200:
- *         description: Unfollowed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       400:
- *         description: Cannot unfollow yourself
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Follow relationship not found
- */
-router.delete(
-  "/unfollow/:userId",
-  authMiddleware,
-  userIdParamValidator,
-  validate,
-  unfollowUser
-);
-
-/**
- * @swagger
  * /profile/followers/{userId}:
  *   get:
  *     tags: [Profile]
@@ -668,11 +980,28 @@ router.delete(
  *                 followers:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/User'
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: integer
+ *                       username:
+ *                         type: string
+ *                       profileName:
+ *                         type: string
+ *                       profilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                       isPrivate:
+ *                         type: boolean
+ *                       bio:
+ *                         type: string
+ *                         nullable: true
  *       403:
  *         description: Private account - cannot view followers
  *       404:
  *         description: User not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
   "/followers/:userId",
@@ -706,14 +1035,33 @@ router.get(
  *             schema:
  *               type: object
  *               properties:
+ *                 count:
+ *                   type: integer
  *                 following:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/User'
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: integer
+ *                       username:
+ *                         type: string
+ *                       profileName:
+ *                         type: string
+ *                       profilePicture:
+ *                         type: string
+ *                         nullable: true
+ *                       isPrivate:
+ *                         type: boolean
+ *                       bio:
+ *                         type: string
+ *                         nullable: true
  *       403:
  *         description: Private account - cannot view following list
  *       404:
  *         description: User not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
   "/following/:userId",
@@ -787,7 +1135,7 @@ router.get(
  *   get:
  *     tags: [Profile]
  *     summary: Get user profile by username
- *     description: Retrieve the profile of a user by their username, with privacy checks for private accounts.
+ *     description: Retrieve the profile of a user by their username. Public and private profiles return basic details (excluding posts and highlights) even if not followed.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -806,9 +1154,58 @@ router.get(
  *               type: object
  *               properties:
  *                 profile:
- *                   $ref: '#/components/schemas/User'
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     profilePicture:
+ *                       type: string
+ *                       nullable: true
+ *                     coverPicture:
+ *                       type: string
+ *                       nullable: true
+ *                     bio:
+ *                       type: string
+ *                       nullable: true
+ *                     address:
+ *                       type: string
+ *                       nullable: true
+ *                     jobTitle:
+ *                       type: string
+ *                       nullable: true
+ *                     dateOfBirth:
+ *                       type: string
+ *                       format: date-time
+ *                     isPrivate:
+ *                       type: boolean
+ *                     role:
+ *                       type: string
+ *                       enum: [USER, ADMIN, BANNED]
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     postCount:
+ *                       type: integer
+ *                     followerCount:
+ *                       type: integer
+ *                     followingCount:
+ *                       type: integer
+ *                     likeCount:
+ *                       type: integer
+ *                     isFollowing:
+ *                       type: boolean
+ *                       description: Indicates if the current user is following this profile
+ *                     followStatus:
+ *                       type: string
+ *                       enum: [NONE, ACCEPTED, PENDING]
+ *                       description: The current follow request status (NONE if no request, ACCEPTED if followed, PENDING if request sent but not accepted)
  *       403:
- *         description: Private account - access denied
+ *         description: User is banned
  *       404:
  *         description: User not found
  *       500:
