@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 /*
  * Button Component
@@ -37,7 +37,12 @@ const Button: React.FC<ButtonProps> = ({
       type={type}
       onClick={handleClick}
       disabled={disabled}
-      className={`button ${variant} ${size} ${disabled ? 'disabled' : ''}`}
+      className={`
+        button-block 
+        button-block--${variant} 
+        button-block--${size} 
+        ${disabled ? 'button-block--disabled' : ''}
+      `}
       aria-disabled={disabled}
       {...props}
     >
@@ -46,4 +51,4 @@ const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export default Button;
+export default memo(Button);
