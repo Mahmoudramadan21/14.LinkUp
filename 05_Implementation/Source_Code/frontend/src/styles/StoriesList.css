@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .stories-list-container {
-  @apply w-64 bg-white rounded-lg shadow-lg p-4;
+  @apply w-[260px] overflow-hidden bg-white rounded-lg shadow-lg p-4;
 }
 
 .stories-list-title {
@@ -23,7 +23,7 @@
 }
 zzz
 .story-details {
-  @apply flex-1;
+  @apply hidden md:block flex-1;
 }
 
 .story-username {

@@ -2,29 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-.story-viewer-container {
-    @applyz relative max-w-[600px] h-auto;
-  }
-  
-  .story-viewer-image {
-    @apply w-full h-full object-cover rounded-lg;
-  }
+.story-viewer-wrapper {
+  @apply w-full max-w-[460px] mx-auto;
+}
 
+.story-viewer-container {
+  @apply relative w-full h-0;
+  padding-top: 177.78%; /* 9:16 Aspect Ratio (16/9 = 1.7778) */
+  @apply overflow-hidden;
+}
+
+.story-viewer-image {
+  @apply w-full h-full object-cover rounded-lg;
+}
+
+.story-viewer-image-wrapper {
+  @apply absolute top-0 left-0 w-full h-full;
+}
+
+.story-viewer-image::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  background-color: #00000036; /* Slight dimming */
+}
 
 .story-viewer-header {
-  @apply flex items-center space-x-2 absolute top-4 left-4;
+  @apply flex items-center space-x-2 absolute top-4 left-4 bg-opacity-50 p-2 rounded;
 }
 
 .story-viewer-username {
   @apply text-sm font-semibold text-white;
 }
 
-.story-viewer-active {
-  @apply text-xs text-green-400;
-}
-
 .story-viewer-actions {
-  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between;
+  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between bg-opacity-50 p-2 rounded;
 }
 
 .story-viewer-stats {
@@ -44,7 +59,7 @@
 }
 
 .story-viewer-reply {
-  @apply flex-1 flex items-center border border-white rounded-full px-3 py-1;
+  @apply flex-1 flex items-center border border-white rounded-full px-3 py-1 bg-opacity-50;
 }
 
 .story-viewer-reply-input {
@@ -52,10 +67,63 @@
 }
 
 .story-viewer-reply-input::placeholder {
-    @apply text-white;
-
+  @apply text-white;
 }
 
 .story-viewer-reply-btn {
   @apply bg-transparent border-none;
+}
+
+.story-viewer-progress {
+  @apply absolute top-0 left-0 w-full flex items-center space-x-2 py-2 px-4 rounded-3xl overflow-hidden;
+}
+
+.progress-bar {
+  @apply flex space-x-0.5 flex-1;
+}
+
+.progress-bar__item {
+  @apply flex-1 h-1 bg-gray-500 relative overflow-hidden;
+}
+
+.progress-bar__fill {
+  @apply h-full bg-white;
+}
+
+.progress-bar__fill--active {
+  @apply h-full bg-white;
+  animation: fillProgress 15s linear forwards;
+}
+
+.story-nav-btn {
+  @apply absolute top-1/2 -translate-y-1/2 bg-black/50 rounded-full w-[30px] h-[30px] flex items-center justify-center cursor-pointer;
+}
+
+.nav-button--prev {
+  @apply left-2;
+}
+
+.nav-button--next {
+  @apply right-2;
+}
+
+.story-nav-icon {
+  @apply w-6 h-6 text-white;
+}
+
+.play-pause-button {
+  @apply bg-black/50 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer;
+}
+
+.story-play-pause-icon {
+  @apply w-4 h-4 text-white;
+}
+
+@keyframes fillProgress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
 }

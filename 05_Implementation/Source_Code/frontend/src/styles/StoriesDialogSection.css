@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.stories-dialog__overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50;
+}
+
+.stories-dialog__wrapper {
+  @apply w-[720px] h-fit bg-white rounded-lg overflow-hidden flex;
+}
+
+.stories-dialog__content {
+  @apply w-full h-full;
+}
+
+.stories-dialog__panel {
+  @apply flex flex-col h-full;
+}
+
+.stories-dialog__title {
+  @apply p-4 text-lg font-bold border-b border-gray-200 flex justify-between items-center;
+}
+
+.stories-dialog__close-button {
+  @apply bg-transparent border-none text-xl cursor-pointer text-gray-600 hover:text-gray-800;
+}
+
+.stories-dialog__body {
+  @apply flex flex-1 overflow-hidden;
+}
+
+.stories-list-container {
+  @apply w-1/3 overflow-y-auto border-r border-gray-200 p-4;
+}
+
+.story-item {
+  @apply cursor-pointer mb-4;
+}
