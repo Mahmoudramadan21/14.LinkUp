@@ -49,12 +49,11 @@ const validateForm = (formData: FormData): FormErrors => {
   const errors: FormErrors = {};
 
   // Validate profileName
-  const profileNameRegex = /^[a-zA-Z0-9\s\-\']{3,50}$/;
+  const profileNameRegex = /^[a-zA-Z\s]{2,50}$/; // فقط حروف ومسافات، 2-50 حرفاً
   if (!formData.profileName.trim()) {
     errors.profileName = "Profile name is required";
   } else if (!profileNameRegex.test(formData.profileName)) {
-    errors.profileName =
-      "Profile name must be 3-50 characters and can only contain letters, numbers, spaces, hyphens, or apostrophes";
+    errors.profileName = "Profile name must be between 2 and 50 characters and contain only letters and spaces";
   }
 
   // Validate username
@@ -62,8 +61,7 @@ const validateForm = (formData: FormData): FormErrors => {
   if (!formData.username.trim()) {
     errors.username = "Username is required";
   } else if (!usernameRegex.test(formData.username)) {
-    errors.username =
-      "Username must be 3-30 characters and can only contain letters, numbers, or underscores";
+    errors.username = "Username must be 3-30 characters and can only contain letters, numbers, or underscores";
   }
 
   // Validate email
@@ -79,8 +77,7 @@ const validateForm = (formData: FormData): FormErrors => {
   if (!formData.password.trim()) {
     errors.password = "Password is required";
   } else if (!passwordRegex.test(formData.password)) {
-    errors.password =
-      "Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&)";
+    errors.password = "Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&)";
   }
 
   // Validate confirmPassword
@@ -106,8 +103,7 @@ const validateForm = (formData: FormData): FormErrors => {
     const age = today.getFullYear() - dob.getFullYear();
     const monthDiff = today.getMonth() - dob.getMonth();
     const dayDiff = today.getDate() - dob.getDate();
-    const adjustedAge =
-      monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+    const adjustedAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
     if (isNaN(dob.getTime())) {
       errors.dateOfBirth = "Please enter a valid date of birth";
@@ -141,10 +137,7 @@ const SignupForm: React.FC = () => {
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
     const { name, value, type } = e.target;
-    const newValue =
-      type === "checkbox"
-        ? (e.target as HTMLInputElement).checked
-        : value;
+    const newValue = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
     setFormData((prev) => ({ ...prev, [name]: newValue }));
     // Clear server error when user starts typing
     setServerError("");
@@ -169,10 +162,20 @@ const SignupForm: React.FC = () => {
       // Format dateOfBirth to YYYY-MM-DD
       const formattedDateOfBirth = new Date(formData.dateOfBirth).toISOString().split("T")[0];
 
+      // Log the data being sent
+      console.log("Sending Signup Data:", {
+        profileName: formData.profileName,
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        gender: formData.gender,
+        dateOfBirth: formattedDateOfBirth,
+      });
+
       const response = await api.post<SignupResponse>(
         API_ENDPOINTS.SIGNUP,
         {
-          profilename: formData.profileName,
+          profileName: formData.profileName,
           username: formData.username,
           email: formData.email,
           password: formData.password,

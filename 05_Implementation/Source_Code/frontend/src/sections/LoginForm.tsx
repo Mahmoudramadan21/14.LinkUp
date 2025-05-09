@@ -28,6 +28,7 @@ interface LoginResponse {
     username: string;
     profileName: string;
     profilePicture: string;
+    email: string; // إضافة الـ email هنا
   };
 }
 
@@ -99,9 +100,9 @@ const LoginForm: React.FC = () => {
 
     try {
       const response = await api.post<LoginResponse>(API_ENDPOINTS.LOGIN, formData);
-      const { accessToken, refreshToken, userId, username, profileName, profilePicture } = response.data.data;
+      const { accessToken, refreshToken, userId, username, profileName, profilePicture, email } = response.data.data;
 
-      // Store auth data in localStorage
+      // Store auth data in localStorage with email
       setAuthData({
         accessToken,
         refreshToken,
@@ -109,6 +110,7 @@ const LoginForm: React.FC = () => {
         username,
         profileName,
         profilePicture,
+        email, // إضافة الـ email هنا
       });
 
       console.log("Login successful:", { userId, username });
