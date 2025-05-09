@@ -8,24 +8,21 @@ import PostCard from '@/components/PostCard';
 import Loading from '@/components/Loading';
 import { useAppStore } from '@/store/feedStore';
 import UserMenu from '@/components/UserMenu';
-import { getAuthData, removeAuthData } from '@/utils/auth';
+import { getAuthData, removeAuthData, getAccessToken } from '@/utils/auth';
 
 const FeedPage: React.FC = () => {
   const {
     authLoading,
     followLoading,
     postLoading,
-    storiesLoading,
     postsLoading,
     authData,
     followRequests,
-    stories,
     posts,
     error,
     page,
     hasMore,
     fetchFollowRequests,
-    fetchStories,
     fetchPosts,
     handleAcceptRequest,
     handleRejectRequest,
@@ -42,7 +39,6 @@ const FeedPage: React.FC = () => {
     } else if (authLoading) {
       setAuthLoading(false); // Explicitly set authLoading to false when authData is valid
       fetchFollowRequests();
-      fetchStories();
       fetchPosts();
     }
   }, [authLoading, authData, setAuthLoading]);
@@ -106,6 +102,8 @@ const FeedPage: React.FC = () => {
         profilePicture: '/avatars/placeholder.jpg',
       };
 
+  const token = authData?.accessToken || getAccessToken();
+
   return (
     <div className="feed-page-container" data-testid="feed-page">
       <HeaderSection />
@@ -125,7 +123,7 @@ const FeedPage: React.FC = () => {
           )}
         </aside>
         <main className="feed-page-content">
-          {storiesLoading ? <Loading /> : <StoriesSection stories={stories} />}
+          <StoriesSection currentUserId={authData?.userId} token={token} user={user} /> {/* تمرير الـ Token */}
           {authData && (
             <CreatePost
               user={user}
@@ -162,7 +160,6 @@ const FeedPage: React.FC = () => {
           </div>
           {postsLoading && <Loading />}
         </main>
-
         <aside className="feed-page-sidebar">
           <UserMenu user={user} onLogout={handleLogout} />
         </aside>
