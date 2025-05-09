@@ -26,7 +26,7 @@ interface StoryUser {
   username: string;
   profilePicture: string;
   hasUnviewedStories: boolean;
-  stories: { storyId: number; createdAt: string; isViewed: boolean }[];
+  stories: { storyId: number; createdAt: string; mediaUrl: string; expiresAt: string; isViewed: boolean }[];
 }
 
 interface Story {
@@ -98,17 +98,16 @@ interface AppState {
   handleRejectRequest: (requestId: number) => Promise<void>;
   handlePostSubmit: (content: string, image?: File, video?: File) => Promise<void>;
   handlePostUpdate: (postId: number, updatedFields: Partial<Post>) => void;
+  handlePostStory: (media: File) => Promise<void>;
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export const useAppStore = create<AppState>((set, get) => ({
-  authLoading: true, // Start with loading true to indicate authentication check
+  authLoading: true,
   followLoading: false,
   postLoading: false,
   storiesLoading: false,
   postsLoading: false,
-  authData: getAuthData(), // Initialize with getAuthData result
+  authData: getAuthData(),
   followRequests: [],
   stories: [],
   posts: [],
@@ -134,7 +133,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const response = await api.get<FollowRequestsResponse>('/profile/follow-requests/pending');
       console.log('Fetched follow requests:', response.data);
-      await delay(2000);
       set({ followRequests: response.data.pendingRequests || [] });
     } catch (err: any) {
       set({ error: err.message || 'Failed to load follow requests' });
@@ -148,7 +146,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const response = await api.get<StoryUser[]>('/stories/feed');
       console.log('Fetched stories:', response.data);
-      await delay(2000);
       const mappedStories: Story[] = [
         {
           username: 'You',
@@ -157,7 +154,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
         ...response.data.map((storyUser) => ({
           username: storyUser.username,
-          imageSrc: storyUser.profilePicture || '/avatars/placeholder.jpg',
+          imageSrc: storyUser.stories.length > 0 ? storyUser.stories[0].mediaUrl : storyUser.profilePicture || '/avatars/placeholder.jpg',
           hasUnviewedStories: storyUser.hasUnviewedStories,
         })),
       ];
@@ -176,7 +173,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         params: { page: get().page, limit: 10 },
       });
       console.log('Fetched posts raw data:', response.data);
-      await delay(2000);
       if (response.data && Array.isArray(response.data)) {
         const newPosts: Post[] = response.data.map((post) => ({
           postId: post.PostID,
@@ -212,7 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           })) || [],
         }));
         set((state) => ({
-          posts: [...state.posts, ...newPosts],
+          posts: get().page === 1 ? newPosts : [...state.posts, ...newPosts],
           hasMore: newPosts.length === 10,
         }));
       } else {
@@ -259,7 +255,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       console.log('Post created successfully:', response.data);
-      set({ posts: [], page: 1, hasMore: true });
+
+      // Reset page to 1 to fetch updated posts, but keep current posts until fetch is done
+      set({ page: 1, hasMore: true });
+      await get().fetchPosts();
     } catch (err: any) {
       set({ error: err.message || 'Failed to create post' });
     } finally {
@@ -273,5 +272,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         post.postId === postId ? { ...post, ...updatedFields } : post
       ),
     }));
+  },
+
+  handlePostStory: async (media: File) => {
+    set({ storiesLoading: true });
+    try {
+      const formData = new FormData();
+      formData.append('media', media, 'story.png');
+      await api.post('/stories', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await get().fetchStories();
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to post story' });
+    } finally {
+      set({ storiesLoading: false });
+    }
   },
 }));

@@ -6,6 +6,7 @@ interface AuthData {
   username: string;
   profileName: string;
   profilePicture: string;
+  email: string; // إضافة الـ Email هنا
 }
 
 // Store auth data in localStorage
@@ -72,6 +73,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       username: data.data.username,
       profileName: data.data.profileName,
       profilePicture: data.data.profilePicture,
+      email: data.data.email || '', // إضافة الـ Email من الـ Response
     };
 
     setAuthData(newAuthData);
