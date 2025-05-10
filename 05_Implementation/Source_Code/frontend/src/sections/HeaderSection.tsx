@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 import NavIcon from '../components/NavIcon';
 import SearchBar from '../components/SearchBar';
 import Notifications from '../components/Notifications';
-import { useNotificationsStore } from '@/store/notificationsStore';
+import { useNotificationsStore } from '@/store/notificationStore';
 import { getAuthData } from '@/utils/auth';
 
 // Backend WebSocket URL
@@ -54,35 +54,35 @@ const HeaderSection: React.FC = () => {
         />
       </div>
       <div className="header-section__center">
-        <SearchBar />
+        {/* <SearchBar /> */}
         <div className="header-section__nav-group">
           <NavIcon
             iconSrc="/icons/home.svg"
             activeIconSrc="/icons/home-active.svg"
             alt="Home Icon"
             ariaLabel="Go to Home"
-            to="/"
+            to="/feed"
           />
-          <NavIcon
+          {/* <NavIcon
             iconSrc="/icons/video.svg"
             activeIconSrc="/icons/video-active.svg"
             alt="Video Icon"
             ariaLabel="Go to Videos"
             to="/video"
-          />
-          <NavIcon
+          /> */}
+          {/* <NavIcon
             iconSrc="/icons/add-friend.svg"
             activeIconSrc="/icons/add-friend-active.svg"
             alt="Add Friend Icon"
             ariaLabel="Add Friend"
-            to="/add-friend"
-          />
+            to="/friends"
+          /> */}
           <NavIcon
             iconSrc="/icons/profile.svg"
             activeIconSrc="/icons/profile-active.svg"
             alt="Profile Icon"
             ariaLabel="Go to Profile"
-            to="/profile"
+            to={`/profile/${authData?.username}`}
           />
         </div>
       </div>
@@ -95,12 +95,12 @@ const HeaderSection: React.FC = () => {
           variant="mobile"
         />
         <div className="header-section__nav-group">
-          <NavIcon
+          {/* <NavIcon
             iconSrc="/icons/message.svg"
             alt="Messages Icon"
             ariaLabel="Go to Messages"
             to="/messages"
-          />
+          /> */}
           <NavIcon
             iconSrc="/icons/notification.svg"
             alt="Notifications Icon"
