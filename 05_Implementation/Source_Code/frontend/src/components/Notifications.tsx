@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 import { Dialog, Transition } from '@headlessui/react';
 import Avatar from '../components/Avatar';
 import Link from 'next/link';
-import { useNotificationsStore } from '@/store/notificationsStore';
+import { useNotificationsStore } from '../store/notificationStore';
 
 // Backend WebSocket URL
 const BACKEND_WS_URL = 'http://localhost:3000';

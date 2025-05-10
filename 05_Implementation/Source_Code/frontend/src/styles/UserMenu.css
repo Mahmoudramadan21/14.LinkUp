@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .user-menu-container {
-  @apply w-80 bg-white rounded-lg shadow-lg py-4 px-8;
+  @apply hidden lg:block w-80 bg-white rounded-lg shadow-lg py-4 px-8;
 }
 
 .user-menu-header {
