@@ -1,0 +1,72 @@
+/* components/FollowerFollowingDialog.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.follower-following-dialog {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.follower-following-dialog__content {
+  @apply bg-white rounded-lg w-full max-w-lg p-6 shadow-lg transform transition-transform duration-300 scale-100;
+}
+
+.follower-following-dialog__title {
+  @apply text-xl font-semibold mb-4 capitalize;
+}
+
+.follower-following-dialog__search {
+  @apply mb-4;
+}
+
+.follower-following-dialog__search-input {
+  @apply w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600;
+}
+
+.follower-following-dialog__error {
+  @apply text-red-500 text-center;
+}
+
+.follower-following-dialog__list {
+  @apply max-h-96 overflow-y-auto;
+}
+
+.follower-following-dialog__empty {
+  @apply text-gray-500 text-center;
+}
+
+.follower-following-dialog__item {
+  @apply flex items-center justify-between py-2;
+}
+
+.follower-following-dialog__user {
+  @apply flex items-center w-3/4;
+}
+
+.follower-following-dialog__avatar {
+  @apply relative w-12 h-12 mr-3;
+}
+
+.follower-following-dialog__avatar-img {
+  @apply rounded-full border-2 border-purple-500 object-cover;
+}
+
+.follower-following-dialog__info {
+  @apply flex flex-col;
+}
+
+.follower-following-dialog__name {
+  @apply font-semibold;
+}
+
+.follower-following-dialog__username {
+  @apply text-gray-500 text-sm;
+}
+
+.follower-following-dialog__remove-btn {
+  @apply w-44 flex justify-end;
+}
+
+.follower-following-dialog__close-btn {
+  @apply mt-4 w-full;
+}

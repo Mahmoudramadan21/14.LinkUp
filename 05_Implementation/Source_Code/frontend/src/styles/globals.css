@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "./Avatar.css";
 @import "./Input.css";
 @import "./Button.css";
 @import "./CodeInput.css";
@@ -10,7 +11,6 @@
 @import "./SearchBar.css";
 @import "./HeaderSection.css";
 @import "./StoriesSection.css";
-@import "./Avatar.css";
 @import "./PostCard.css";
 @import "./FollowRequests.css";
 @import "./UserMenu.css";
@@ -21,3 +21,14 @@
 @import "./CreateStories.css";
 @import "./FeedPage.css";
 @import "./loading.css";
+@import "./StoriesDialogSection.css";
+@import "./UserBanner.css";
+@import "./FollowerFollowingDialog.css";
+@import "./highlights.css";
+@import "./Bio.css";
+@import "./MainLayout.css";
+@import "./EditProfile.css";
+
+body {
+    @apply bg-gray-50;
+}

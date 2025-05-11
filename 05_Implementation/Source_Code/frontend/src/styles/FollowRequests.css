@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .follow-requests-container {
-  @apply w-full mx-auto p-4 bg-white;
+  @apply md:w-72 2xl:w-96  mx-auto p-4 bg-white;
 }
 
 .follow-requests-title {
