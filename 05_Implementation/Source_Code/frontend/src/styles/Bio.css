@@ -1,0 +1,45 @@
+/* .bio {
+  height: fit-content;
+  padding: 16px 16px 24px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #fff;
+  max-width: 400px;
+  margin-right: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  position: sticky;
+  left: 0;
+  top: 20px;
+}
+  .bio__bio {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid rgb(215, 219, 224);
+}
+.bio__bio .bio__text {
+    color: #64748B;
+}
+.bio__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.bio__text {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.bio__bio .bio__title{
+  color: #8F8F8F;
+}
+
+.bio__job-title,
+.bio__address,
+.bio__date-of-birth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+} */
