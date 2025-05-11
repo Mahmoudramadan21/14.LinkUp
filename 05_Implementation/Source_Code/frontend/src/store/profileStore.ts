@@ -1,0 +1,422 @@
+import { create } from 'zustand';
+import {
+  fetchProfileByUsername,
+  fetchUserHighlights,
+  fetchSavedPosts,
+  fetchUserPosts,
+  followUser,
+  unfollowUser,
+  fetchFollowers,
+  fetchFollowing,
+  removeFollower,
+} from '@/utils/api';
+import { getAuthData } from '@/utils/auth';
+
+// Define Profile type
+interface Profile {
+  userId: number;
+  username: string;
+  profileName: string; // حقل جديد
+  profilePicture: string | null;
+  coverPicture: string | null;
+  bio: string | null;
+  address: string | null;
+  jobTitle: string | null;
+  dateOfBirth: string | null;
+  isPrivate: boolean;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  postCount: number;
+  followerCount: number;
+  followingCount: number;
+  likeCount: number;
+  isFollowing: boolean; // حالة المتابعة الحالية
+  followStatus: 'PENDING' | 'ACCEPTED' | null; // حقل جديد لتحديد حالة الـ Follow
+}
+
+// Define AuthData type
+interface AuthData {
+  userId: number;
+  username: string;
+  profilePicture: string | null;
+  token: string;
+}
+
+// Define Highlight Story type
+interface HighlightStory {
+  storyId: number;
+  mediaUrl: string;
+  createdAt: string;
+  expiresAt: string;
+  assignedAt: string;
+}
+
+// Define Highlight type
+interface Highlight {
+  highlightId: number;
+  title: string;
+  coverImage: string;
+  storyCount: number;
+  stories: HighlightStory[];
+}
+
+// Define Saved Post type based on API response
+interface SavedPost {
+  PostID: number;
+  UserID: number;
+  Content: string;
+  ImageURL: string | null;
+  VideoURL: string | null;
+  CreatedAt: string;
+  UpdatedAt: string;
+  privacy: string;
+  User: {
+    UserID: number;
+    Username: string;
+    ProfilePicture: string | null;
+    IsPrivate: boolean;
+  };
+  Likes: Array<{
+    LikeID: number;
+    PostID: number;
+    UserID: number;
+    CreatedAt: string;
+    User: {
+      Username: string;
+      ProfilePicture: string | null;
+    };
+  }>;
+  Comments: Array<{
+    CommentID: number;
+    PostID: number;
+    UserID: number;
+    Content: string;
+    CreatedAt: string;
+    ParentCommentID: number | null;
+    User: {
+      Username: string;
+      ProfilePicture: string | null;
+    };
+    CommentLikes: Array<{
+      LikeID: number;
+      CommentID: number;
+      UserID: number;
+      CreatedAt: string;
+      User: {
+        Username: string;
+        ProfilePicture: string | null;
+      };
+    }>;
+    Replies: Array<{
+      CommentID: number;
+      PostID: number;
+      UserID: number;
+      Content: string;
+      CreatedAt: string;
+      ParentCommentID: number | null;
+      User: {
+        Username: string;
+        ProfilePicture: string | null;
+      };
+      CommentLikes: Array<{
+        LikeID: number;
+        CommentID: number;
+        UserID: number;
+        CreatedAt: string;
+        User: {
+          Username: string;
+          ProfilePicture: string | null;
+        };
+      }>;
+      isLiked: boolean;
+      likeCount: number;
+      replyCount: number;
+      likedBy: Array<{
+        username: string;
+        profilePicture: string | null;
+      }>;
+    }>;
+    _count: {
+      CommentLikes: number;
+      Replies: number;
+    };
+    isLiked: boolean;
+    likeCount: number;
+    replyCount: number;
+    likedBy: Array<{
+      username: string;
+      profilePicture: string | null;
+    }>;
+  }>;
+  _count: {
+    Likes: number;
+    Comments: number;
+  };
+  isLiked: boolean;
+  likeCount: number;
+  commentCount: number;
+  likedBy: Array<{
+    username: string;
+    profilePicture: string | null;
+  }>;
+}
+
+// Define Post type based on API response
+interface Post {
+  postId: number;
+  content: string;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    UserID: number;
+    Username: string;
+    ProfilePicture: string;
+  };
+  likeCount: number;
+  commentCount: number;
+}
+
+interface PostsResponse {
+  count: number;
+  posts: Post[];
+}
+
+interface SavedPostsResponse {
+  savedPosts: SavedPost[];
+}
+
+interface FollowResponse {
+  message: string;
+  status?: "PENDING" | "ACCEPTED";
+}
+
+interface FollowingFollower {
+  userId: number;
+  username: string;
+  profileName: string;
+  profilePicture: string | null;
+  isPrivate: boolean;
+  bio: string | null;
+}
+
+interface FollowingFollowersResponse {
+  count: number;
+  following?: FollowingFollower[];
+  followers?: FollowingFollower[];
+}
+
+interface ProfileState {
+  profile: Profile | null;
+  highlights: Highlight[];
+  savedPosts: SavedPost[];
+  posts: Post[];
+  loading: boolean;
+  error: string | null;
+  highlightsLoading: boolean;
+  highlightsError: string | null;
+  savedPostsLoading: boolean;
+  savedPostsError: string | null;
+  postsLoading: boolean;
+  postsError: string | null;
+  authData: AuthData | null;
+
+  setProfile: (profile: Profile | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  setHighlights: (highlights: Highlight[]) => void;
+  setHighlightsLoading: (loading: boolean) => void;
+  setHighlightsError: (error: string | null) => void;
+  setSavedPosts: (savedPosts: SavedPost[]) => void;
+  setSavedPostsLoading: (loading: boolean) => void;
+  setSavedPostsError: (error: string | null) => void;
+  setPosts: (posts: Post[]) => void;
+  setPostsLoading: (loading: boolean) => void;
+  setPostsError: (error: string | null) => void;
+  setAuthData: (data: AuthData | null) => void;
+
+  fetchProfile: (username: string) => Promise<void>;
+  fetchHighlights: (userId: number) => Promise<void>;
+  fetchSavedPosts: () => Promise<void>;
+  fetchPosts: (userId: number) => Promise<void>;
+  followUser: (userId: number) => Promise<void>;
+  unfollowUser: (userId: number) => Promise<void>;
+  fetchFollowers: (userId: number) => Promise<FollowingFollowersResponse>;
+  fetchFollowing: (userId: number) => Promise<FollowingFollowersResponse>;
+  removeFollower: (followerId: number) => Promise<{ message: string }>;
+  initializeAuth: () => void;
+}
+
+export const useProfileStore = create<ProfileState>((set, get) => ({
+  profile: null,
+  highlights: [],
+  savedPosts: [],
+  posts: [],
+  loading: false,
+  error: null,
+  highlightsLoading: false,
+  highlightsError: null,
+  savedPostsLoading: false,
+  savedPostsError: null,
+  postsLoading: false,
+  postsError: null,
+  authData: getAuthData(),
+
+  setProfile: (profile) => set({ profile }),
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error }),
+  setHighlights: (highlights) => set({ highlights }),
+  setHighlightsLoading: (loading) => set({ highlightsLoading: loading }),
+  setHighlightsError: (error) => set({ highlightsError: error }),
+  setSavedPosts: (savedPosts) => set({ savedPosts }),
+  setSavedPostsLoading: (loading) => set({ savedPostsLoading: loading }),
+  setSavedPostsError: (error) => set({ savedPostsError: error }),
+  setPosts: (posts) => set({ posts }),
+  setPostsLoading: (loading) => set({ postsLoading: loading }),
+  setPostsError: (error) => set({ postsError: error }),
+  setAuthData: (data) => set({ authData: data }),
+
+  fetchProfile: async (username: string) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetchProfileByUsername(username);
+      set({ profile: response.profile });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch profile' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchHighlights: async (userId: number) => {
+    set({ highlightsLoading: true, highlightsError: null });
+    try {
+      const highlights = await fetchUserHighlights(userId);
+      set({ highlights });
+    } catch (err: any) {
+      set({ highlightsError: err.message || 'Failed to fetch highlights' });
+    } finally {
+      set({ highlightsLoading: false });
+    }
+  },
+
+  fetchSavedPosts: async () => {
+    set({ savedPostsLoading: true, savedPostsError: null });
+    try {
+      const response = await fetchSavedPosts();
+      console.log('Raw saved posts response:', response);
+      if (!Array.isArray(response)) {
+        throw new Error('Invalid saved posts data format');
+      }
+      set({ savedPosts: response });
+    } catch (err: any) {
+      set({ savedPostsError: err.message || 'Failed to fetch saved posts' });
+    } finally {
+      set({ savedPostsLoading: false });
+    }
+  },
+
+  fetchPosts: async (userId: number) => {
+    set({ postsLoading: true, postsError: null });
+    try {
+      const response = await fetchUserPosts(userId);
+      set({ posts: response.posts || [] });
+    } catch (err: any) {
+      set({ postsError: err.message || 'Failed to fetch posts', posts: [] });
+    } finally {
+      set({ postsLoading: false });
+    }
+  },
+
+  followUser: async (userId: number) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await followUser(userId);
+      if (response.status === 'PENDING' || response.status === 'ACCEPTED') {
+        set((state) => ({
+          profile: state.profile
+            ? {
+                ...state.profile,
+                isFollowing: true,
+                followStatus: response.status,
+                followerCount: state.profile.followerCount + 1,
+              }
+            : null,
+        }));
+      }
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to follow user' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  unfollowUser: async (userId: number) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await unfollowUser(userId);
+      set((state) => ({
+        profile: state.profile
+          ? {
+              ...state.profile,
+              isFollowing: false,
+              followStatus: null,
+              followerCount: state.profile.followerCount - 1,
+            }
+          : null,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to unfollow user' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchFollowers: async (userId: number) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetchFollowers(userId);
+      return response;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch followers' });
+      return { count: 0, followers: [] };
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchFollowing: async (userId: number) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetchFollowing(userId);
+      return response;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch following' });
+      return { count: 0, following: [] };
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  removeFollower: async (followerId: number) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await removeFollower(followerId);
+      return response;
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to remove follower' });
+      throw err;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  initializeAuth: () => {
+    const auth = getAuthData();
+    set({ authData: auth });
+  },
+}));
+
+useProfileStore.getState().initializeAuth();
