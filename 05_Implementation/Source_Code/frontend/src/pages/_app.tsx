@@ -12,6 +12,7 @@ import StoriesList from '@/components/StoriesList';
 import StoryViewer from '@/components/StoryViewer';
 import CreateStories from '@/components/CreateStories';
 import Loading from '@/components/Loading';
+import UserBanner from '@/components/UserBanner';
 
 // Main App component for Next.js
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
