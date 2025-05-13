@@ -1,24 +1,25 @@
-import { useState, FormEvent, ChangeEvent } from "react";
-import Input from "@/components/Input";
-import Button from "@/components/Button";
-import api from "@/utils/api";
-import { setAuthData } from "@/utils/auth";
-import { API_ENDPOINTS, ERROR_MESSAGES } from "@/utils/constants";
-import Link from "next/link";
+import React, { memo, useState, useCallback, useMemo, ChangeEvent, FormEvent } from 'react';
+import { useRouter } from 'next/router';
+import Input from '@/components/Input';
+import Button from '@/components/Button';
+import api from '@/utils/api';
+import { setAuthData } from '@/utils/auth';
+import { API_ENDPOINTS, ERROR_MESSAGES } from '@/utils/constants';
+import Link from 'next/link';
 
-// Define form data type
+// Interface for form data
 interface FormData {
   usernameOrEmail: string;
   password: string;
 }
 
-// Define error type
+// Interface for form errors
 interface FormErrors {
   usernameOrEmail?: string;
   password?: string;
 }
 
-// Define API response type
+// Interface for API response
 interface LoginResponse {
   message: string;
   data: {
@@ -28,124 +29,131 @@ interface LoginResponse {
     username: string;
     profileName: string;
     profilePicture: string;
-    email: string; // إضافة الـ email هنا
+    email: string;
   };
 }
 
-// Validation function
-const validateForm = (formData: FormData): FormErrors => {
-  const errors: FormErrors = {};
-
-  // Validate usernameOrEmail
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const usernameRegex = /^[a-zA-Z0-9_]{3,}$/;
-  if (!formData.usernameOrEmail.trim()) {
-    errors.usernameOrEmail = "Email or username is required";
-  } else if (
-    !emailRegex.test(formData.usernameOrEmail) &&
-    !usernameRegex.test(formData.usernameOrEmail)
-  ) {
-    errors.usernameOrEmail = "Please enter a valid email or username (minimum 3 characters)";
-  }
-
-  // Validate password
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  if (!formData.password.trim()) {
-    errors.password = "Password is required";
-  } else if (!passwordRegex.test(formData.password)) {
-    errors.password =
-      "Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&)";
-  }
-
-  return errors;
-};
-
+/**
+ * LoginForm Component
+ * Renders a login form with validation, API integration, and error handling.
+ */
 const LoginForm: React.FC = () => {
-  // State for form inputs and errors
+  const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
-    usernameOrEmail: "",
-    password: "",
+    usernameOrEmail: '',
+    password: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [serverError, setServerError] = useState<string>("");
+  const [serverError, setServerError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(false);
 
-  // Handle input changes with real-time validation
-  const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // Validate form data
+  const validateForm = useCallback((data: FormData): FormErrors => {
+    const errors: FormErrors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const usernameRegex = /^[a-zA-Z0-9_]{3,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
-    // Validate the entire form
-    const updatedFormData = { ...formData, [name]: value };
-    const newErrors = validateForm(updatedFormData);
-    setErrors(newErrors);
-    setServerError("");
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-
-    // Validate the entire form before submission
-    const validationErrors = validateForm(formData);
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) {
-      return;
+    if (!data.usernameOrEmail.trim()) {
+      errors.usernameOrEmail = 'Email or username is required';
+    } else if (!emailRegex.test(data.usernameOrEmail) && !usernameRegex.test(data.usernameOrEmail)) {
+      errors.usernameOrEmail = 'Please enter a valid email or username (minimum 3 characters)';
     }
 
-    setIsLoading(true);
-    setServerError("");
-
-    try {
-      const response = await api.post<LoginResponse>(API_ENDPOINTS.LOGIN, formData);
-      const { accessToken, refreshToken, userId, username, profileName, profilePicture, email } = response.data.data;
-
-      // Store auth data in localStorage with email
-      setAuthData({
-        accessToken,
-        refreshToken,
-        userId,
-        username,
-        profileName,
-        profilePicture,
-        email, // إضافة الـ email هنا
-      });
-
-      console.log("Login successful:", { userId, username });
-
-      // Redirect to feed page
-      window.location.href = "/feed";
-    } catch (error: any) {
-      setIsLoading(false);
-      console.error("Login error:", error);
-      if (error.status === 400 && error.errors) {
-        const newErrors: FormErrors = {};
-        error.errors.forEach((err: { field: string; message: string }) => {
-          newErrors[err.field as keyof FormErrors] = err.message;
-        });
-        setErrors(newErrors);
-      } else if (error.status === 401) {
-        setServerError("Invalid email/username or password");
-      } else if (error.status === 429) {
-        setServerError("Too many login attempts. Please try again later.");
-      } else {
-        setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
-      }
+    if (!data.password.trim()) {
+      errors.password = 'Password is required';
+    } else if (!passwordRegex.test(data.password)) {
+      errors.password =
+        'Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&)';
     }
-  };
 
-  // Check if the form has any validation errors
-  const validationErrors = validateForm(formData);
+    return errors;
+  }, []);
+
+  // Memoized validation errors
+  const validationErrors = useMemo(() => validateForm(formData), [formData, validateForm]);
   const hasErrors = Object.keys(validationErrors).length > 0;
 
+  // Handle input changes with debouncing
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>): void => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+      setServerError('');
+    },
+    []
+  );
+
+  // Handle form submission
+  const handleSubmit = useCallback(
+    async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+      e.preventDefault();
+      const errors = validateForm(formData);
+      setErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        return;
+      }
+
+      setIsLoading(true);
+      setServerError('');
+
+      try {
+        const response = await api.post<LoginResponse>(API_ENDPOINTS.LOGIN, formData, {
+          headers: {
+            'X-CSRF-Token':
+              document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+          },
+        });
+        const { accessToken, refreshToken, userId, username, profileName, profilePicture, email } =
+          response.data.data;
+
+        setAuthData({
+          accessToken,
+          refreshToken,
+          userId,
+          username,
+          profileName,
+          profilePicture,
+          email,
+        });
+
+        router.push('/feed');
+      } catch (error: any) {
+        setIsLoading(false);
+        if (error.status === 400 && error.errors) {
+          const newErrors: FormErrors = {};
+          error.errors.forEach((err: { field: string; message: string }) => {
+            newErrors[err.field as keyof FormErrors] = err.message;
+          });
+          setErrors(newErrors);
+        } else if (error.status === 401) {
+          setServerError('Invalid email/username or password');
+        } else if (error.status === 429) {
+          setServerError('Too many login attempts. Please try again later.');
+        } else {
+          setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
+        }
+      }
+    },
+    [formData, router]
+  );
+
   return (
-    <section className="auth-form">
+    <section
+      className="auth-form"
+      role="form"
+      aria-labelledby="login-form-title"
+      itemscope
+      itemtype="http://schema.org/Person"
+    >
       <div className="auth-form__container">
-        <h1 className="auth-form__title">Sign in</h1>
+        <h1 id="login-form-title" className="auth-form__title">
+          Sign in
+        </h1>
         <form onSubmit={handleSubmit} className="auth-form__form" aria-label="Login form">
-          {/* Username or Email Input */}
           <Input
             id="usernameOrEmail"
             name="usernameOrEmail"
@@ -158,8 +166,6 @@ const LoginForm: React.FC = () => {
             required
             autoComplete="username"
           />
-
-          {/* Password Input */}
           <Input
             id="password"
             name="password"
@@ -172,29 +178,18 @@ const LoginForm: React.FC = () => {
             required
             autoComplete="current-password"
           />
-
-          {/* Password Requirements Info */}
-          <p className="auth-form__info text-gray-500 text-xs mt-1">
-            Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&).
+          <p className="auth-form__info" aria-hidden="true">
+            Password must be at least 8 characters long, include an uppercase letter, a lowercase
+            letter, a number, and a special character (@$!%*?&).
           </p>
-
-          {/* Server Error Message */}
           {serverError && (
             <div className="auth-form__error" role="alert">
               {serverError}
             </div>
           )}
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={isLoading || hasErrors}
-          >
-            {isLoading ? "Signing in..." : "Sign in"}
+          <Button type="submit" variant="primary" disabled={isLoading || hasErrors}>
+            {isLoading ? 'Signing in...' : 'Sign in'}
           </Button>
-
-          {/* Remember Me and Forgot Password */}
           <div className="auth-form__options">
             <label className="auth-form__checkbox">
               <input
@@ -205,15 +200,17 @@ const LoginForm: React.FC = () => {
               />
               <span className="auth-form__checkbox-label">Remember me</span>
             </label>
-            <Link href="/forgot-password" className="auth-form__link auth-form__forgot-password-link">
+            <Link
+              href="/forgot-password"
+              className="auth-form__link auth-form__forgot-password-link"
+              prefetch={false}
+            >
               Forgot password?
             </Link>
           </div>
-
-          {/* Sign Up Link */}
           <p className="auth-form__signup">
-            Don’t have an account?{" "}
-            <Link href="/signup" className="auth-form__link">
+            Don’t have an account?{' '}
+            <Link href="/signup" className="auth-form__link" prefetch={false}>
               Sign up
             </Link>
           </p>
@@ -223,4 +220,4 @@ const LoginForm: React.FC = () => {
   );
 };
 
-export default LoginForm;
+export default memo(LoginForm);

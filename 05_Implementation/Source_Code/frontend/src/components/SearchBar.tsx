@@ -1,27 +1,49 @@
+'use client';
 import React from 'react';
+import './SearchBar.css';
 
 /*
  * SearchBar Component
- * A simple search input field with an icon for user search functionality.
- * Used in headers or navigation bars to allow users to search the app.
+ * A search input with an icon for finding users or content.
+ * Optimized for accessibility with ARIA attributes and semantic HTML.
  */
-const SearchBar: React.FC = () => {
+interface SearchBarProps {
+  // Reserved for future props (e.g., onSearch callback, default value)
+}
+
+const SearchBar: React.FC<SearchBarProps> = () => {
+  // Handle form submission (extendable for search logic)
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Future: Implement search logic here
+  };
+
   return (
-    <div className="search-bar" data-testid="search-bar">
+    <form
+      className="search-bar__container"
+      role="search"
+      aria-label="Search LinkUp"
+      onSubmit={handleSubmit}
+      data-testid="search-bar"
+    >
+      <label htmlFor="search-input" className="search-bar__label">
+        Search
+      </label>
       <img
         src="/icons/search.svg"
-        alt="Search Icon"
+        alt="Search icon"
         className="search-bar__icon"
         aria-hidden="true"
-        loading="lazy" // Lazy-load icon for performance
+        loading="lazy"
       />
       <input
+        id="search-input"
         type="text"
         placeholder="Search"
         className="search-bar__input"
         aria-label="Search LinkUp"
       />
-    </div>
+    </form>
   );
 };
 

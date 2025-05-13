@@ -1,129 +1,142 @@
+/* StoryViewer component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.story-viewer-wrapper {
-  @apply w-full max-w-[460px] mx-auto;
+/* Main wrapper */
+.story-viewer__wrapper {
+  @apply w-full max-w-[460px] mx-auto z-50;
 }
 
-.story-viewer-container {
-  @apply relative w-full h-0;
-  padding-top: 177.78%; /* 9:16 Aspect Ratio (16/9 = 1.7778) */
-  @apply overflow-hidden;
+/* Story container */
+.story-viewer__container {
+  @apply relative w-full h-0 pt-[177.78%] overflow-hidden rounded-lg;
 }
 
-.story-viewer-image {
-  @apply w-full h-full object-cover rounded-lg;
-}
-
-.story-viewer-image-wrapper {
-  @apply absolute top-0 left-0 w-full h-full;
-}
-
-.story-viewer-image::after {
-  content: "";
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  left: 0;
-  top: 0;
-  background-color: #00000036; /* Slight dimming */
-}
-
-.story-viewer-header {
-  @apply flex items-center space-x-2 absolute top-4 left-4 bg-opacity-50 p-2 rounded;
-}
-
-.story-viewer-username {
-  @apply text-sm font-semibold text-white;
-}
-
-.story-viewer-actions {
-  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between bg-opacity-50 p-2 rounded;
-}
-
-.story-viewer-stats {
-  @apply flex space-x-4 text-white text-sm;
-}
-
-.story-viewer-interactions {
-  @apply flex items-center space-x-4 w-full;
-}
-
-.story-viewer-like-btn {
-  @apply bg-transparent border-none;
-}
-
-.story-viewer-icon {
-  @apply w-6 h-6;
-}
-
-.story-viewer-reply {
-  @apply flex-1 flex items-center border border-white rounded-full px-3 py-1 bg-opacity-50;
-}
-
-.story-viewer-reply-input {
-  @apply flex-1 bg-transparent text-white focus:outline-none text-sm;
-}
-
-.story-viewer-reply-input::placeholder {
-  @apply text-white;
-}
-
-.story-viewer-reply-btn {
-  @apply bg-transparent border-none;
-}
-
-.story-viewer-progress {
+/* Progress bar */
+.story-viewer__progress {
   @apply absolute top-0 left-0 w-full flex items-center space-x-2 py-2 px-4 rounded-3xl overflow-hidden;
 }
 
-.progress-bar {
+.story-viewer__progress-bar {
   @apply flex space-x-0.5 flex-1;
 }
 
-.progress-bar__item {
+.story-viewer__progress-bar--item {
   @apply flex-1 h-1 bg-gray-500 relative overflow-hidden;
 }
 
-.progress-bar__fill {
-  @apply h-full bg-white;
+.story-viewer__progress-bar--fill {
+  @apply h-full bg-gray-500;
 }
 
-.progress-bar__fill--active {
-  @apply h-full bg-white;
-  animation: fillProgress 15s linear forwards;
+.story-viewer__progress-bar--fill-completed {
+  @apply bg-white w-full;
 }
 
-.story-nav-btn {
-  @apply absolute top-1/2 -translate-y-1/2 bg-black/50 rounded-full w-[30px] h-[30px] flex items-center justify-center cursor-pointer;
+.story-viewer__progress-bar--fill-pending {
+  @apply bg-gray-500 w-0;
 }
 
-.nav-button--prev {
+.story-viewer__progress-bar--fill-active {
+  @apply bg-white animate-progress;
+}
+
+/* Image wrapper */
+.story-viewer__image-wrapper {
+  @apply absolute top-0 left-0 w-full h-full;
+}
+
+.story-viewer__image {
+  @apply w-full h-full object-cover rounded-lg brightness-75 relative;
+}
+
+.story-viewer__image::after {
+  @apply content-[''] absolute inset-0 bg-black/20;
+}
+
+/* Header */
+.story-viewer__header {
+  @apply flex items-center space-x-2 absolute top-4 left-4 bg-black/50 p-2 rounded;
+}
+
+.story-viewer__username {
+  @apply text-sm font-semibold text-white;
+}
+
+/* Actions */
+.story-viewer__actions {
+  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/50 p-2 rounded;
+}
+
+.story-viewer__stats {
+  @apply flex space-x-4 text-white text-sm;
+}
+
+.story-viewer__interactions {
+  @apply flex items-center space-x-4 w-full;
+}
+
+/* Buttons */
+.story-viewer__button--play-pause {
+  @apply bg-black/50 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-white;
+}
+
+.story-viewer__button--prev,
+.story-viewer__button--next {
+  @apply absolute top-1/2 -translate-y-1/2 bg-black/50 rounded-full w-[30px] h-[30px] flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-white;
+}
+
+.story-viewer__button--prev {
   @apply left-2;
 }
 
-.nav-button--next {
+.story-viewer__button--next {
   @apply right-2;
 }
 
-.story-nav-icon {
-  @apply w-6 h-6 text-white;
+.story-viewer__button--like {
+  @apply bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-white;
 }
 
-.play-pause-button {
-  @apply bg-black/50 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer;
+.story-viewer__button--reply {
+  @apply bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-white;
 }
 
-.story-play-pause-icon {
+/* Icons */
+.story-viewer__icon {
+  @apply w-6 h-6;
+}
+
+.story-viewer__icon--play-pause {
   @apply w-4 h-4 text-white;
 }
 
-@keyframes fillProgress {
+.story-viewer__icon--nav {
+  @apply w-6 h-6 text-white;
+}
+
+/* Reply input */
+.story-viewer__input--reply {
+  @apply flex-1 bg-transparent text-white text-sm focus:outline-none focus:ring-2 focus:ring-white placeholder-white;
+}
+
+.story-viewer__reply {
+  @apply flex-1 flex items-center border border-white rounded-full px-3 py-1 bg-black/50;
+}
+
+/* Animation for progress bar */
+@keyframes progress {
   from {
     width: 0%;
   }
   to {
     width: 100%;
+  }
+}
+
+@layer utilities {
+  .animate-progress {
+    animation: progress linear forwards;
   }
 }

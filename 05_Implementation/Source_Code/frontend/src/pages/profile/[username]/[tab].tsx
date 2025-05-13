@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRouter } from 'next/router';
 import MainLayout from '@/layout/MainLayout';
-import UserBanner from '@/components/UserBanner';
+import ProfilePage from "../[username].tsx"
 
 const ProfileTabPage: React.FC = () => {
   const router = useRouter();
@@ -10,7 +10,7 @@ const ProfileTabPage: React.FC = () => {
 
   return (
     <MainLayout title={`LinkUp | ${typeof username === 'string' ? username : 'Profile'} - ${typeof tab === 'string' ? tab : ''}`}>
-      <UserBanner />
+      <ProfilePage />
     </MainLayout>
   );
 };

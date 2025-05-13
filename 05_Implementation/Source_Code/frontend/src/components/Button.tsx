@@ -1,17 +1,15 @@
 import React, { memo } from 'react';
+import clsx from 'clsx';
 
-/*
- * Button Component
- * A reusable button component with customizable variants, sizes, and states.
- * Used for actions like submitting forms, triggering events, or navigation.
- */
+// Reusable button with customizable variants, sizes, and states
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  type?: 'button' | 'submit' | 'reset'; // Defines the button type
-  children: React.ReactNode; // Content inside the button
+  type?: 'button' | 'submit' | 'reset'; // Button type for forms
+  children: React.ReactNode; // Button content
   onClick?: () => void; // Click event handler
-  disabled?: boolean; // Controls button interactivity
-  variant?: 'primary' | 'secondary' | 'tertiary'; // Visual style variant
+  disabled?: boolean; // Disables button
+  variant?: 'primary' | 'secondary' | 'tertiary'; // Visual style
   size?: 'small' | 'medium' | 'large'; // Button size
+  ariaLabel?: string; // Accessibility label for icon-only buttons
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -21,11 +19,12 @@ const Button: React.FC<ButtonProps> = ({
   disabled = false,
   variant = 'primary',
   size = 'medium',
+  ariaLabel,
   ...props
 }) => {
-  // Prevent default behavior on disabled buttons for security
+  // Prevent clicks on disabled buttons
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled && onClick) {
+    if (disabled) {
       e.preventDefault();
       return;
     }
@@ -37,13 +36,14 @@ const Button: React.FC<ButtonProps> = ({
       type={type}
       onClick={handleClick}
       disabled={disabled}
-      className={`
-        button-block 
-        button-block--${variant} 
-        button-block--${size} 
-        ${disabled ? 'button-block--disabled' : ''}
-      `}
       aria-disabled={disabled}
+      aria-label={ariaLabel}
+      className={clsx(
+        'button-block',
+        `button-block--${variant}`,
+        `button-block--${size}`,
+        { 'button-block--is-disabled': disabled }
+      )}
       {...props}
     >
       {children}

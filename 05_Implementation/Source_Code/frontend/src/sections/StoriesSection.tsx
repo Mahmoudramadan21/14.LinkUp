@@ -1,5 +1,4 @@
-'use client';
-import React, { useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Avatar from '../components/Avatar';
 import StoriesDialogSection from './StoriesDialogSection';
 import { fetchStoryFeed } from '../utils/api';
@@ -22,16 +21,22 @@ interface UserStory {
   stories: Story[];
 }
 
+interface User {
+  name: string;
+  username: string;
+  profilePicture?: string;
+}
+
 interface StoriesSectionProps {
   currentUserId?: number;
   token: string;
-  user?: { 
-    name: string;
-    username: string;
-    profilePicture?: string;
-  };
+  user: User;
 }
 
+/**
+ * StoriesSection Component
+ * Renders a list of user stories with avatars and a create story dialog.
+ */
 const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, user }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedStoryId, setSelectedStoryId] = useState<number | null>(null);
@@ -39,10 +44,12 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
+  // Fetch stories on mount
   useEffect(() => {
     if (!token) {
-      setError("No authentication token available");
+      setError('No authentication token available');
       setLoading(false);
       return;
     }
@@ -53,9 +60,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
         setStories(data);
         setError(null);
       } catch (err: any) {
-        const errorMessage = err.response?.data?.message || err.message || "Failed to load stories";
-        setError(errorMessage);
-        console.error("API Error:", err.response?.data || err);
+        setError(err.response?.data?.message || err.message || 'Failed to load stories');
       } finally {
         setLoading(false);
       }
@@ -63,60 +68,122 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
     loadStories();
   }, [token]);
 
-  const storyList = [
-    {
-      username: 'You',
-      imageSrc: user?.profilePicture || '/avatars/placeholder.png',
-      hasUnviewedStories: false,
-    },
-    ...stories.map((userStory) => ({
-      username: userStory.username,
-      imageSrc: userStory.stories.length > 0 ? userStory.stories[0].mediaUrl : userStory.profilePicture || '/avatars/placeholder.png',
-      hasUnviewedStories: userStory.hasUnviewedStories,
-    })),
-  ];
+  // Memoized story list
+  const storyList = useMemo(
+    () => [
+      {
+        username: 'You',
+        imageSrc: user.profilePicture || '/avatars/placeholder.png',
+        hasUnviewedStories: false,
+      },
+      ...stories.map((userStory) => ({
+        username: userStory.username,
+        imageSrc:
+          userStory.stories.length > 0
+            ? userStory.stories[0].mediaUrl
+            : userStory.profilePicture || '/avatars/placeholder.png',
+        hasUnviewedStories: userStory.hasUnviewedStories,
+      })),
+    ],
+    [stories, user.profilePicture]
+  );
 
-  const handleStoryClick = (userIndex: number) => {
-    if (userIndex === 0) {
-      setIsCreateDialogOpen(true);
-    } else if (userIndex > 0 && userIndex - 1 < stories.length) {
-      const userStory = stories[userIndex - 1];
-      if (userStory && Array.isArray(userStory.stories) && userStory.stories.length > 0) {
-        const firstUnviewedStory = userStory.stories.find((story) => !story.isViewed);
-        const storyToSelect = firstUnviewedStory || userStory.stories[0];
-        setSelectedStoryId(storyToSelect.storyId);
-        setIsDialogOpen(true);
-      } else {
-        console.warn(`No valid stories found for user at index ${userIndex - 1}`, userStory);
+  // Handle story click
+  const handleStoryClick = useCallback(
+    (userIndex: number) => {
+      if (userIndex === 0) {
+        setIsCreateDialogOpen(true);
+      } else if (userIndex > 0 && userIndex - 1 < stories.length) {
+        const userStory = stories[userIndex - 1];
+        if (userStory?.stories?.length > 0) {
+          const firstUnviewedStory = userStory.stories.find((story) => !story.isViewed);
+          const storyToSelect = firstUnviewedStory || userStory.stories[0];
+          setSelectedStoryId(storyToSelect.storyId);
+          setIsDialogOpen(true);
+        }
       }
-    } else {
-      console.warn(`Invalid user index: ${userIndex}, stories length: ${stories.length}`);
+    },
+    [stories]
+  );
+
+  // Handle share story
+  const handleShareStory = useCallback(
+    (storyData: {
+      text: string;
+      media?: File;
+      backgroundColor?: string;
+      textColor: string;
+      position: { x: number; y: number };
+      fontSize: number;
+    }) => {
+      setIsCreateDialogOpen(false);
+    },
+    []
+  );
+
+  // Handle discard story
+  const handleDiscardStory = useCallback(() => {
+    setIsCreateDialogOpen(false);
+  }, []);
+
+  // Close dialog on outside click
+  const handleOverlayClick = useCallback(() => {
+    setIsCreateDialogOpen(false);
+  }, []);
+
+  // Focus trap for dialog
+  useEffect(() => {
+    if (isCreateDialogOpen && dialogRef.current) {
+      const focusableElements = dialogRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          if (e.shiftKey && document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          } else if (!e.shiftKey && document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+        if (e.key === 'Escape') {
+          setIsCreateDialogOpen(false);
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      firstElement?.focus();
+
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
     }
-  };
-
-  const handleShareStory = (storyData: {
-    text: string;
-    media?: File;
-    backgroundColor?: string;
-    textColor: string;
-    position: { x: number; y: number };
-    fontSize: number;
-  }) => {
-    console.log('Story shared:', storyData);
-    setIsCreateDialogOpen(false);
-  };
-
-  const handleDiscardStory = () => {
-    setIsCreateDialogOpen(false);
-  };
+  }, [isCreateDialogOpen]);
 
   return (
-    <section className="stories-section" data-testid="stories-section">
-      <h2 className="stories-section__title">Stories</h2>
+    <section
+      className="stories-section"
+      data-testid="stories-section"
+      role="region"
+      aria-labelledby="stories-section-title"
+      itemscope
+      itemtype="http://schema.org/CreativeWork"
+    >
+      <h2 id="stories-section-title" className="stories-section__title">
+        Stories
+      </h2>
       {loading ? (
-        <div>Loading stories...</div>
+        <div className="stories-section__loading" aria-live="polite">
+          Loading stories...
+        </div>
       ) : error ? (
-        <div className="error-message">{error}</div>
+        <div className="stories-section__error" aria-live="polite">
+          {error}
+        </div>
       ) : (
         <div className="stories-section__list">
           {storyList.length > 0 ? (
@@ -124,7 +191,11 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
               <div
                 key={index}
                 onClick={() => handleStoryClick(index)}
-                className="story-item cursor-pointer"
+                className="stories-section__item"
+                role="button"
+                aria-label={`View ${story.username}'s story`}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleStoryClick(index)}
               >
                 <Avatar
                   imageSrc={story.imageSrc}
@@ -132,12 +203,14 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
                   size="medium"
                   showUsername={true}
                   hasUnviewedStories={story.hasUnviewedStories}
-                  status={story.hasUnviewedStories ? "Super Active" : ""}
+                  status={story.hasUnviewedStories ? 'Super Active' : ''}
                 />
               </div>
             ))
           ) : (
-            <p>No stories available</p>
+            <p className="stories-section__empty" aria-live="polite">
+              No stories available
+            </p>
           )}
         </div>
       )}
@@ -159,11 +232,22 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="create-stories-overlay" onClick={() => setIsCreateDialogOpen(false)}>
-          <div className="create-stories-dialog" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="stories-section__create-overlay"
+          onClick={handleOverlayClick}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create story dialog"
+        >
+          <div
+            className="stories-section__create-dialog"
+            onClick={(e) => e.stopPropagation()}
+            ref={dialogRef}
+          >
             <CreateStories
-              user={user || { name: '', username: '', profilePicture: undefined }}
+              user={user}
               onDiscard={handleDiscardStory}
+              onShare={handleShareStory}
             />
           </div>
         </div>
@@ -172,4 +256,4 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
   );
 };
 
-export default StoriesSection;
+export default memo(StoriesSection);

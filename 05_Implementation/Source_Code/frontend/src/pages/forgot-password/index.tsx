@@ -1,27 +1,29 @@
-import AuthLayout from "@/layout/AuthLayout";
-import ForgotPasswordForm from "@/sections/ForgotPasswordForm";
-import Image from "next/image";
-import authSecurityIllustration from "@/../public/illustrations/auth-security-illustration.svg";
+import React, { memo } from 'react';
+import AuthLayout from '@/layout/AuthLayout';
+import ForgotPasswordForm from '@/sections/ForgotPasswordForm';
+import Image from 'next/image';
 
+/**
+ * ForgotPasswordPage Component
+ * Renders the forgot password page with a form and an illustration within the AuthLayout.
+ */
 const ForgotPasswordPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Forgot Password">
       <div className="auth-page">
         <div className="auth-page__container">
-          {/* Left Side: Form */}
           <div className="auth-page__form">
             <ForgotPasswordForm />
           </div>
-
-          {/* Right Side: Illustration */}
-          <div className="auth-page__illustration">
+          <div className="auth-page__illustration" aria-hidden="true">
             <Image
-              src={authSecurityIllustration}
+              src="/illustrations/auth-security-illustration.svg"
               alt="Illustration of a person resetting their password securely"
               width={500}
               height={500}
-              priority
-              className="auth-page__illustration-image"
+              className="auth-page__image--illustration"
+              loading="lazy"
+              sizes="(max-width: 1024px) 50vw, 500px"
             />
           </div>
         </div>
@@ -30,4 +32,4 @@ const ForgotPasswordPage: React.FC = () => {
   );
 };
 
-export default ForgotPasswordPage;
+export default memo(ForgotPasswordPage);

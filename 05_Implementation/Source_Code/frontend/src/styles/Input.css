@@ -1,39 +1,49 @@
+/* Input component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Main container */
 .input-block {
-    @apply mb-4;
-  }
-  
-  .input-block__header {
-    @apply flex justify-between items-center mb-1;
-  }
-  
-  .input-block__label {
-    @apply block text-gray-700 text-sm font-medium;
-  }
-  zz
-  .input-block__required {
-    @apply text-red-500 ml-1;
-  }
-  
-  .input-block__toggle-password {
-    @apply flex items-center text-gray-600 text-sm font-medium;
-  }
-  
-  .input-block__toggle-text {
-    @apply ml-1;
-  }
-  
-  .input-block__input {
-    @apply mb-1 w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-  }
-  
-  .input-block__input--error {
-    @apply border-red-500;
-  }
-  
-  .input-block__error {
-    @apply text-red-500 text-sm mt-1;
-  }
+  @apply mb-4;
+}
+
+/* Header with label and toggle */
+.input-block__header {
+  @apply flex justify-between items-center mb-1;
+}
+
+/* Input label */
+.input-block__label {
+  @apply block text-gray-700 text-sm font-medium;
+}
+
+/* Required indicator */
+.input-block__required {
+  @apply text-red-500 ml-1;
+}
+
+/* Password toggle button */
+.input-block__toggle--password {
+  @apply flex items-center text-gray-600 text-sm font-medium;
+}
+
+/* Toggle text (hidden for screen readers) */
+.input-block__toggle-text {
+  @apply ml-1;
+}
+
+/* Input field */
+.input-block__input {
+  @apply mb-1 w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600;
+}
+
+/* Invalid input state */
+.input-block__input--invalid {
+  @apply border-red-500;
+}
+
+/* Error message */
+.input-block__error {
+  @apply text-red-500 text-sm mt-1;
+}

@@ -1,42 +1,36 @@
-import React, { useState, useRef, useEffect, ChangeEvent, KeyboardEvent } from 'react';
+import React, { memo, useState, useRef, useEffect, ChangeEvent, KeyboardEvent } from 'react';
 
-/*
- * CodeInput Component
- * A multi-input field for entering verification codes or PINs.
- * Used in authentication flows to collect digit-based codes.
- */
+// Multi-input field for verification codes or PINs
 interface CodeInputProps {
-  length: number; // Number of input fields for the code
-  onChange: (code: string) => void; // Callback with the combined code
+  length: number; // Number of input fields
+  onChange: (code: string) => void; // Callback for combined code
   error?: string; // Error message to display
 }
 
 const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
   const [digits, setDigits] = useState<string[]>(Array(length).fill(''));
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const inputRefs = useRef<Array<HTMLInputElement | null>>(Array(length).fill(null));
 
-  // Focus the first input when the component mounts
+  // Focus first input on mount
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
-  // Update digit and manage focus on input change
+  // Handle input change and focus navigation
   const handleChange = (index: number, value: string) => {
     if (!/^[0-9]?$/.test(value)) return;
 
     const newDigits = [...digits];
     newDigits[index] = value;
     setDigits(newDigits);
-
-    const code = newDigits.join('');
-    onChange(code);
+    onChange(newDigits.join(''));
 
     if (value && index < length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle navigation with backspace and arrow keys
+  // Handle keyboard navigation
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !digits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
@@ -47,27 +41,28 @@ const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
     }
   };
 
-  // Handle paste event for multi-digit input
+  // Handle paste event
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').trim();
-    if (!/^\d{4}$/.test(pastedData)) return;
+    if (!/^\d+$/.test(pastedData)) return;
 
     const newDigits = pastedData.split('').slice(0, length);
     setDigits(newDigits);
     onChange(newDigits.join(''));
 
-    inputRefs.current[length - 1]?.focus();
+    inputRefs.current[Math.min(length - 1, newDigits.length - 1)]?.focus();
   };
 
   return (
-    <div className="code-input">
+    <fieldset className="code-input" role="group" aria-label="Verification code input">
       <div className="code-input__container">
         {digits.map((digit, index) => (
           <input
             key={index}
             type="text"
             inputMode="numeric"
+            pattern="[0-9]"
             maxLength={1}
             value={digit}
             onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange(index, e.target.value)}
@@ -76,20 +71,21 @@ const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
             ref={(el) => {
               inputRefs.current[index] = el;
             }}
-            className={`code-input__digit ${error ? 'error' : ''}`}
+            className={error ? 'code-input__digit code-input__digit--has-error' : 'code-input__digit'}
             aria-label={`Verification code digit ${index + 1}`}
             aria-invalid={error ? 'true' : 'false'}
-            aria-describedby={error ? 'code-error' : undefined}
+            aria-describedby={error ? 'code-input-error' : undefined}
+            autoComplete="one-time-code"
           />
         ))}
       </div>
       {error && (
-        <span id="code-error" className="code-input__error" role="alert">
+        <span id="code-input-error" className="code-input__error" role="alert" aria-live="polite">
           {error}
         </span>
       )}
-    </div>
+    </fieldset>
   );
 };
 
-export default CodeInput;
+export default memo(CodeInput);

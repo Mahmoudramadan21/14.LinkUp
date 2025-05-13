@@ -6,8 +6,9 @@ import MainLayout from '@/layout/MainLayout';
 import Input from '@/components/Input';
 import Button from '@/components/Button';
 import { useProfileStore } from '@/store/profileStore';
-import { changePassword, updateProfile } from '@/utils/api'; // استيراد updateProfile بدل api
+import { changePassword, updateProfile } from '@/utils/api';
 
+// Define interfaces for form data and errors
 interface FormData {
   firstName: string;
   lastName: string;
@@ -43,6 +44,20 @@ interface FormErrors {
   general?: string;
 }
 
+// Define interface for authData to ensure type safety
+interface AuthData {
+  userId: number;
+  username: string;
+  profilePicture: string | null;
+  email: string;
+  token: string;
+}
+
+/**
+ * EditProfilePage Component
+ * Allows users to update their profile information and change their password.
+ * Optimized for SEO, accessibility, and performance with semantic HTML and ARIA attributes.
+ */
 const EditProfilePage: React.FC = () => {
   const router = useRouter();
   const { username } = router.query;
@@ -64,7 +79,6 @@ const EditProfilePage: React.FC = () => {
     newPassword: '',
     confirmNewPassword: '',
   });
-
   const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -73,18 +87,25 @@ const EditProfilePage: React.FC = () => {
   const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'account' | 'security'>('account');
 
-  // Refs لـ Input الخفي لتحميل الصور
+  // Refs for hidden file inputs
   const profilePictureInputRef = useRef<HTMLInputElement>(null);
   const coverPictureInputRef = useRef<HTMLInputElement>(null);
 
-  // جلب بيانات الملف الشخصي عند تحميل الصفحة
+  // Initialize profile data
   useEffect(() => {
     if (typeof username === 'string') {
       fetchProfile(username);
     }
   }, [username, fetchProfile]);
 
-  // ملء النموذج ببيانات الملف الشخصي
+  // Redirect if user is not authorized
+  useEffect(() => {
+    if (authData && profile && authData.userId !== profile.userId) {
+      router.push(`/profile/${username}`);
+    }
+  }, [authData, profile, router, username]);
+
+  // Populate form with profile data
   useEffect(() => {
     if (profile) {
       setFormData((prev) => ({
@@ -103,21 +124,22 @@ const EditProfilePage: React.FC = () => {
     }
   }, [profile]);
 
-  // تحديث الـ Email بناءً على authData
+  // Update email from auth data
   useEffect(() => {
     if (authData) {
-      setFormData((prev) => ({ ...prev, email: authData.email || '' }));
+      setFormData((prev) => ({ ...prev, email: (authData as AuthData).email || '' }));
     }
   }, [authData]);
 
-  // التحقق من إن المستخدم هو صاحب الملف الشخصي
+  // Clean up image previews to prevent memory leaks
   useEffect(() => {
-    if (authData && profile && authData.userId !== profile.userId) {
-      router.push(`/profile/${username}`);
-    }
-  }, [authData, profile, router, username]);
+    return () => {
+      if (previewProfilePicture) URL.revokeObjectURL(previewProfilePicture);
+      if (previewCoverPicture) URL.revokeObjectURL(previewCoverPicture);
+    };
+  }, [previewProfilePicture, previewCoverPicture]);
 
-  // التعامل مع تغيير ملفات الصور مع إضافة Preview
+  // Handle file input changes for images
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, files } = e.target;
     if (files && files[0]) {
@@ -125,7 +147,6 @@ const EditProfilePage: React.FC = () => {
       setFormData((prev) => ({ ...prev, [name]: file }));
       setErrors((prev) => ({ ...prev, [name]: undefined }));
 
-      // عمل Preview للصورة
       const previewUrl = URL.createObjectURL(file);
       if (name === 'profilePicture') {
         setPreviewProfilePicture(previewUrl);
@@ -135,87 +156,71 @@ const EditProfilePage: React.FC = () => {
     }
   }, []);
 
-  // تنظيف الـ Previews عند تغيير الصور أو تفريغ الكومبوننت
-  useEffect(() => {
-    return () => {
-      if (previewProfilePicture) URL.revokeObjectURL(previewProfilePicture);
-      if (previewCoverPicture) URL.revokeObjectURL(previewCoverPicture);
-    };
-  }, [previewProfilePicture, previewCoverPicture]);
-
-  // التعامل مع تغيير الحقول النصية
+  // Handle text input changes
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   }, []);
 
-  // فتح Input الخفي عند الضغط على الصور
-  const handleImageClick = (inputRef: React.RefObject<HTMLInputElement>, name: string) => {
-    if (inputRef.current) {
-      inputRef.current.click();
-    }
-  };
+  // Trigger hidden file input click
+  const handleImageClick = useCallback(
+    (inputRef: React.RefObject<HTMLInputElement>, name: string, e: React.MouseEvent | React.KeyboardEvent) => {
+      if (inputRef.current && (e.type === 'click' || (e as React.KeyboardEvent).key === 'Enter')) {
+        inputRef.current.click();
+      }
+    },
+    []
+  );
 
-  // التعامل مع تغيير الـ Radio Buttons
+  // Handle privacy radio button changes
   const handlePrivacyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value === 'private',
-    }));
-    setErrors((prev) => ({ ...prev, [name]: undefined }));
+    const { value } = e.target;
+    setFormData((prev) => ({ ...prev, isPrivate: value === 'private' }));
+    setErrors((prev) => ({ ...prev, isPrivate: undefined }));
   }, []);
 
-  // التحقق من صحة النموذج (Information)
+  // Validate account form
   const validateForm = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!formData.username.trim()) newErrors.username = 'Username is required';
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email address';
+    }
     if (formData.dateOfBirth) {
       const parsedDate = new Date(formData.dateOfBirth);
       if (isNaN(parsedDate.getTime()) || !formData.dateOfBirth.match(/^\d{4}-\d{2}-\d{2}$/)) {
         newErrors.dateOfBirth = 'Invalid date of birth (use YYYY-MM-DD)';
       }
     }
-    if (formData.profilePicture && formData.profilePicture.size > 5 * 1024 * 1024)
+    if (formData.profilePicture && formData.profilePicture.size > 5 * 1024 * 1024) {
       newErrors.profilePicture = 'Profile picture must be less than 5MB';
-    if (formData.coverPicture && formData.coverPicture.size > 5 * 1024 * 1024)
+    }
+    if (formData.coverPicture && formData.coverPicture.size > 5 * 1024 * 1024) {
       newErrors.coverPicture = 'Cover picture must be less than 5MB';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // التحقق من صحة النموذج (Security)
+  // Validate password form
   const validatePasswordForm = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
-    // Validation for oldPassword
-    if (!formData.oldPassword?.trim()) {
-      newErrors.oldPassword = 'Current password is required';
-    }
-
-    // Validation for newPassword
+    if (!formData.oldPassword?.trim()) newErrors.oldPassword = 'Current password is required';
     if (!formData.newPassword?.trim()) {
       newErrors.newPassword = 'New password is required';
     } else {
-      if (formData.newPassword.length < 8) {
-        newErrors.newPassword = 'New password must be at least 8 characters';
-      }
+      if (formData.newPassword.length < 8) newErrors.newPassword = 'New password must be at least 8 characters';
       if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.newPassword)) {
         newErrors.newPassword = 'New password must contain both letters and numbers';
       }
-      if (/[\s]/.test(formData.newPassword)) {
-        newErrors.newPassword = 'New password cannot contain spaces';
-      }
+      if (/[\s]/.test(formData.newPassword)) newErrors.newPassword = 'New password cannot contain spaces';
     }
-
-    // Validation for confirmNewPassword
     if (!formData.confirmNewPassword?.trim()) {
       newErrors.confirmNewPassword = 'Confirm new password is required';
     } else if (formData.confirmNewPassword !== formData.newPassword) {
@@ -226,98 +231,134 @@ const EditProfilePage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   }, [formData.oldPassword, formData.newPassword, formData.confirmNewPassword]);
 
-  // إرسال النموذج (Information)
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  // Submit account form
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!validateForm()) return;
 
-    setIsLoading(true);
+      setIsLoading(true);
+      setErrors({});
+      setSuccessMessage(null);
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('firstName', formData.firstName);
+      formDataToSend.append('lastName', formData.lastName);
+      formDataToSend.append('username', formData.username);
+      formDataToSend.append('email', formData.email);
+      if (formData.bio) formDataToSend.append('bio', formData.bio);
+      if (formData.address) formDataToSend.append('address', formData.address);
+      if (formData.jobTitle) formDataToSend.append('jobTitle', formData.jobTitle);
+      if (formData.dateOfBirth) formDataToSend.append('dateOfBirth', formData.dateOfBirth);
+      if (formData.profilePicture) formDataToSend.append('profilePicture', formData.profilePicture);
+      if (formData.coverPicture) formDataToSend.append('coverPicture', formData.coverPicture);
+      formDataToSend.append('isPrivate', formData.isPrivate.toString());
+
+      try {
+        const response = await updateProfile(formDataToSend);
+        setSuccessMessage(response.message);
+        setTimeout(() => router.push(`/profile/${formData.username}`), 1500);
+      } catch (err: any) {
+        setErrors({ general: err.message || 'Failed to update profile' });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [formData, validateForm, router]
+  );
+
+  // Submit password form
+  const handlePasswordSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!validatePasswordForm()) return;
+
+      setIsLoading(true);
+      setErrors({});
+      setSecuritySuccess(null);
+
+      try {
+        const response = await changePassword(formData.oldPassword || '', formData.newPassword || '');
+        setSecuritySuccess(response.message);
+        setFormData((prev) => ({ ...prev, oldPassword: '', newPassword: '', confirmNewPassword: '' }));
+        setTimeout(() => setSecuritySuccess(null), 3000);
+      } catch (err: any) {
+        setErrors({ general: err.message || 'Failed to change password' });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [formData.oldPassword, formData.newPassword, validatePasswordForm]
+  );
+
+  // Handle tab change
+  const handleTabChange = useCallback((tab: 'account' | 'security') => {
+    setActiveTab(tab);
     setErrors({});
     setSuccessMessage(null);
-
-    const formDataToSend = new FormData();
-    formDataToSend.append('firstName', formData.firstName);
-    formDataToSend.append('lastName', formData.lastName);
-    formDataToSend.append('username', formData.username);
-    formDataToSend.append('email', formData.email);
-    if (formData.bio) formDataToSend.append('bio', formData.bio);
-    if (formData.address) formDataToSend.append('address', formData.address);
-    if (formData.jobTitle) formDataToSend.append('jobTitle', formData.jobTitle);
-    if (formData.dateOfBirth) formDataToSend.append('dateOfBirth', formData.dateOfBirth);
-    if (formData.profilePicture) formDataToSend.append('profilePicture', formData.profilePicture);
-    if (formData.coverPicture) formDataToSend.append('coverPicture', formData.coverPicture);
-    formDataToSend.append('isPrivate', formData.isPrivate.toString());
-
-    try {
-      const response = await updateProfile(formDataToSend); // استخدام updateProfile
-      setSuccessMessage(response.message);
-      setTimeout(() => router.push(`/profile/${formData.username}`), 1500);
-    } catch (err: any) {
-      setErrors({ general: err.message || 'Failed to update profile' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [formData, validateForm, router]);
-
-  // إرسال النموذج (Security - Change Password)
-  const handlePasswordSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validatePasswordForm()) return;
-
-    setIsLoading(true);
-    setErrors({});
     setSecuritySuccess(null);
-
-    try {
-      const response = await changePassword(formData.oldPassword || '', formData.newPassword || '');
-      setSecuritySuccess(response.message); // Response will be something like "Password changed successfully"
-      setFormData((prev) => ({ ...prev, oldPassword: '', newPassword: '', confirmNewPassword: '' }));
-      setTimeout(() => setSecuritySuccess(null), 3000);
-    } catch (err: any) {
-      setErrors({ general: err.message || 'Failed to change password' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [formData.oldPassword, formData.newPassword, validatePasswordForm]);
+  }, []);
 
   if (!profile) {
-    return <div className="edit-profile__loading">Loading...</div>;
+    return (
+      <main className="edit-profile__loading" aria-live="polite">
+        Loading...
+      </main>
+    );
   }
 
   return (
-    <MainLayout title={`Edit Profile | ${profile.username} - LinkUp`}>
+    <MainLayout
+      title={`Edit Profile | ${profile.username} - LinkUp`}
+      description={`Edit the profile of ${profile.username} on LinkUp, including personal information and security settings.`}
+    >
       <div className="edit-profile">
-        {/* قسم الصور في الأعلى */}
-        <div className="edit-profile__header">
+        {/* Header with cover and profile images */}
+        <header className="edit-profile__header">
           <div
-            className="edit-profile__cover relative"
-            style={{
-              backgroundImage: `url(${previewCoverPicture || profile.coverPicture || '/default-cover.jpg'})`,
-            }}
-            onClick={() => handleImageClick(coverPictureInputRef, 'coverPicture')}
+            className="edit-profile__cover"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => handleImageClick(coverPictureInputRef, 'coverPicture', e)}
+            onKeyDown={(e) => handleImageClick(coverPictureInputRef, 'coverPicture', e)}
+            aria-label="Change cover picture"
           >
             <img
-              src="/icons/edit.svg"
-              alt="Edit Cover"
-              className="absolute top-2 right-2 w-7 h-7 cursor-pointer bg-white p-1 rounded-full"
-              onClick={() => handleImageClick(coverPictureInputRef, 'coverPicture')}
+              src={previewCoverPicture || profile.coverPicture || '/default-cover.jpg'}
+              alt="Cover picture"
+              className="edit-profile__cover-image"
+              loading="lazy"
             />
-            <div
-              className="edit-profile__profile-picture relative"
-              style={{
-                backgroundImage: `url(${previewProfilePicture || profile.profilePicture || '/default-profile.jpg'})`,
-              }}
-              onClick={() => handleImageClick(profilePictureInputRef, 'profilePicture')}
-            >
-              <img
-                src="/icons/edit.svg"
-                alt="Edit Profile"
-                className="absolute top-1 right-1 w-7 h-7 cursor-pointer bg-white p-1 rounded-full"
-                onClick={() => handleImageClick(profilePictureInputRef, 'profilePicture')}
-              />
-            </div>
+            <img
+              src="/icons/edit.svg"
+              alt="Edit cover picture"
+              className="edit-profile__cover-edit-icon"
+              onClick={(e) => handleImageClick(coverPictureInputRef, 'coverPicture', e)}
+              onKeyDown={(e) => handleImageClick(coverPictureInputRef, 'coverPicture', e)}
+            />
           </div>
-          {/* Input الخفي لتحميل الصور */}
+          <div
+            className="edit-profile__profile-picture"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => handleImageClick(profilePictureInputRef, 'profilePicture', e)}
+            onKeyDown={(e) => handleImageClick(profilePictureInputRef, 'profilePicture', e)}
+            aria-label="Change profile picture"
+          >
+            <img
+              src={previewProfilePicture || profile.profilePicture || '/default-profile.jpg'}
+              alt="Profile picture"
+              className="edit-profile__profile-picture-image"
+              loading="lazy"
+            />
+            <img
+              src="/icons/edit.svg"
+              alt="Edit profile picture"
+              className="edit-profile__profile-picture-edit-icon"
+              onClick={(e) => handleImageClick(profilePictureInputRef, 'profilePicture', e)}
+              onKeyDown={(e) => handleImageClick(profilePictureInputRef, 'profilePicture', e)}
+            />
+          </div>
           <input
             type="file"
             ref={profilePictureInputRef}
@@ -325,6 +366,7 @@ const EditProfilePage: React.FC = () => {
             name="profilePicture"
             accept="image/*"
             className="edit-profile__hidden-input"
+            aria-hidden="true"
           />
           <input
             type="file"
@@ -333,215 +375,221 @@ const EditProfilePage: React.FC = () => {
             name="coverPicture"
             accept="image/*"
             className="edit-profile__hidden-input"
+            aria-hidden="true"
           />
-        </div>
+        </header>
 
+        {/* Page title */}
         <h1 className="edit-profile__title">Edit Profile</h1>
-        <div className="edit-profile__tabs">
-          <a
-            href="#account"
-            className={`edit-profile__tab ${activeTab === 'account' ? 'active' : ''}`}
-            onClick={() => setActiveTab('account')}
+
+        {/* Tabs for account and security */}
+        <nav className="edit-profile__tabs" role="tablist">
+          <button
+            className={`edit-profile__tab ${activeTab === 'account' ? 'edit-profile__tab--active' : ''}`}
+            onClick={() => handleTabChange('account')}
+            role="tab"
+            aria-selected={activeTab === 'account'}
+            aria-controls="account-panel"
+            id="account-tab"
           >
-            Account Setting
-          </a>
-          <a
-            href="#security"
-            className={`edit-profile__tab ${activeTab === 'security' ? 'active' : ''}`}
-            onClick={() => setActiveTab('security')}
+            Account Settings
+          </button>
+          <button
+            className={`edit-profile__tab ${activeTab === 'security' ? 'edit-profile__tab--active' : ''}`}
+            onClick={() => handleTabChange('security')}
+            role="tab"
+            aria-selected={activeTab === 'security'}
+            aria-controls="security-panel"
+            id="security-tab"
           >
             Security
-          </a>
-        </div>
+          </button>
+        </nav>
 
-        {/* الـ Form الرئيسية لتحديث بيانات الملف الشخصي */}
-        <form onSubmit={handleSubmit} className="edit-profile__form" noValidate>
-          {activeTab === 'account' && (
-            <>
-              {/* Information Section */}
-              <div className="edit-profile__section" id="account">
-                <h2 className="edit-profile__section-title">Information</h2>
-                <div className="edit-profile__input-group">
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="firstName"
-                      type="text"
-                      label="First Name"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      error={errors.firstName}
-                      required
-                      name="firstName"
-                      disabled={isLoading}
-                      aria-required="true"
-                    />
-                  </div>
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="lastName"
-                      type="text"
-                      label="Last Name"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      error={errors.lastName}
-                      required
-                      name="lastName"
-                      disabled={isLoading}
-                      aria-required="true"
-                    />
-                  </div>
-                </div>
-                <div className="edit-profile__input-group">
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="username"
-                      type="text"
-                      label="Username"
-                      value={formData.username}
-                      onChange={handleInputChange}
-                      error={errors.username}
-                      required
-                      name="username"
-                      disabled={isLoading}
-                      aria-required="true"
-                    />
-                  </div>
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="email"
-                      type="email"
-                      label="Email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      error={errors.email}
-                      name="email"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-                <div className="edit-profile__input-group">
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="jobTitle"
-                      type="text"
-                      label="Job Title"
-                      value={formData.jobTitle}
-                      onChange={handleInputChange}
-                      error={errors.jobTitle}
-                      name="jobTitle"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="edit-profile__input-block">
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      label="Date of Birth"
-                      value={formData.dateOfBirth}
-                      onChange={handleInputChange}
-                      error={errors.dateOfBirth}
-                      name="dateOfBirth"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
+        {/* Account form */}
+        {activeTab === 'account' && (
+          <form onSubmit={handleSubmit} className="edit-profile__form" noValidate aria-labelledby="account-tab">
+            <section className="edit-profile__section" id="account-panel" role="tabpanel" aria-labelledby="account-tab">
+              <h2 className="edit-profile__section-title">Information</h2>
+              <div className="edit-profile__input-group">
                 <div className="edit-profile__input-block">
                   <Input
-                    id="address"
+                    id="firstName"
                     type="text"
-                    label="Address"
-                    value={formData.address}
+                    label="First Name"
+                    value={formData.firstName}
                     onChange={handleInputChange}
-                    error={errors.address}
-                    name="address"
+                    error={errors.firstName}
+                    required
+                    name="firstName"
                     disabled={isLoading}
+                    aria-describedby={errors.firstName ? 'firstName-error' : undefined}
                   />
                 </div>
                 <div className="edit-profile__input-block">
                   <Input
-                    id="bio"
+                    id="lastName"
                     type="text"
-                    label="Bio"
-                    value={formData.bio}
+                    label="Last Name"
+                    value={formData.lastName}
                     onChange={handleInputChange}
-                    error={errors.bio}
-                    name="bio"
+                    error={errors.lastName}
+                    required
+                    name="lastName"
                     disabled={isLoading}
+                    aria-describedby={errors.lastName ? 'lastName-error' : undefined}
                   />
                 </div>
               </div>
-
-              {/* Privacy Section */}
-              <div className="edit-profile__section" id="privacy">
-                <h2 className="edit-profile__section-title">Privacy</h2>
-                <div className="edit-profile__privacy-group">
-                  <h3 className="edit-profile__privacy-title">Account Privacy</h3>
-                  <div className="edit-profile__radio-group">
-                    <label className="edit-profile__radio-label">
-                      <input
-                        type="radio"
-                        name="isPrivate"
-                        value="public"
-                        checked={!formData.isPrivate}
-                        onChange={handlePrivacyChange}
-                        disabled={isLoading}
-                        aria-label="Make account public"
-                      />
-                      Public
-                    </label>
-                    <label className="edit-profile__radio-label">
-                      <input
-                        type="radio"
-                        name="isPrivate"
-                        value="private"
-                        checked={formData.isPrivate}
-                        onChange={handlePrivacyChange}
-                        disabled={isLoading}
-                        aria-label="Make account private"
-                      />
-                      Private
-                    </label>
-                  </div>
+              <div className="edit-profile__input-group">
+                <div className="edit-profile__input-block">
+                  <Input
+                    id="username"
+                    type="text"
+                    label="Username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    error={errors.username}
+                    required
+                    name="username"
+                    disabled={isLoading}
+                    aria-describedby={errors.username ? 'username-error' : undefined}
+                  />
+                </div>
+                <div className="edit-profile__input-block">
+                  <Input
+                    id="email"
+                    type="email"
+                    label="Email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    error={errors.email}
+                    name="email"
+                    disabled={isLoading}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
+                  />
                 </div>
               </div>
-            </>
-          )}
+              <div className="edit-profile__input-group">
+                <div className="edit-profile__input-block">
+                  <Input
+                    id="jobTitle"
+                    type="text"
+                    label="Job Title"
+                    value={formData.jobTitle}
+                    onChange={handleInputChange}
+                    error={errors.jobTitle}
+                    name="jobTitle"
+                    disabled={isLoading}
+                    aria-describedby={errors.jobTitle ? 'jobTitle-error' : undefined}
+                  />
+                </div>
+                <div className="edit-profile__input-block">
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    label="Date of Birth"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange}
+                    error={errors.dateOfBirth}
+                    name="dateOfBirth"
+                    disabled={isLoading}
+                    aria-describedby={errors.dateOfBirth ? 'dateOfBirth-error' : undefined}
+                  />
+                </div>
+              </div>
+              <div className="edit-profile__input-block">
+                <Input
+                  id="address"
+                  type="text"
+                  label="Address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  error={errors.address}
+                  name="address"
+                  disabled={isLoading}
+                  aria-describedby={errors.address ? 'address-error' : undefined}
+                />
+              </div>
+              <div className="edit-profile__input-block">
+                <Input
+                  id="bio"
+                  type="text"
+                  label="Bio"
+                  value={formData.bio}
+                  onChange={handleInputChange}
+                  error={errors.bio}
+                  name="bio"
+                  disabled={isLoading}
+                  aria-describedby={errors.bio ? 'bio-error' : undefined}
+                />
+              </div>
+            </section>
 
-          {/* General Error Message */}
-          {errors.general && activeTab === 'account' && (
-            <div className="edit-profile__error-general" role="alert">
-              {errors.general}
-            </div>
-          )}
+            <section className="edit-profile__section" id="privacy">
+              <h2 className="edit-profile__section-title">Privacy</h2>
+              <div className="edit-profile__privacy-group">
+                <h3 className="edit-profile__privacy-title">Account Privacy</h3>
+                <div className="edit-profile__radio-group">
+                  <label className="edit-profile__radio-label">
+                    <input
+                      type="radio"
+                      name="isPrivate"
+                      value="public"
+                      checked={!formData.isPrivate}
+                      onChange={handlePrivacyChange}
+                      disabled={isLoading}
+                      aria-label="Make account public"
+                    />
+                    Public
+                  </label>
+                  <label className="edit-profile__radio-label">
+                    <input
+                      type="radio"
+                      name="isPrivate"
+                      value="private"
+                      checked={formData.isPrivate}
+                      onChange={handlePrivacyChange}
+                      disabled={isLoading}
+                      aria-label="Make account private"
+                    />
+                    Private
+                  </label>
+                </div>
+              </div>
+            </section>
 
-          {/* Success Message */}
-          {successMessage && activeTab === 'account' && (
-            <div className="edit-profile__success" role="status">
-              {successMessage}
-            </div>
-          )}
+            {errors.general && (
+              <div className="edit-profile__error-general" role="alert" aria-live="polite">
+                {errors.general}
+              </div>
+            )}
 
-          {/* Buttons */}
-          {activeTab === 'account' && (
+            {successMessage && (
+              <div className="edit-profile__success" role="status" aria-live="polite">
+                {successMessage}
+              </div>
+            )}
+
             <div className="edit-profile__actions">
               <Button
                 type="submit"
                 variant="primary"
                 size="medium"
                 disabled={isLoading}
-                aria-label="Update your account"
+                aria-label="Update account"
               >
-                {isLoading ? 'Saving...' : 'UPDATE YOUR ACCOUNT'}
+                {isLoading ? 'Saving...' : 'Update Account'}
               </Button>
             </div>
-          )}
-        </form>
+          </form>
+        )}
 
-        {/* قسم Security خارج الـ Form الرئيسية */}
-        {(activeTab === 'security') && (
-          <div className="edit-profile__section" id="security">
+        {/* Security form */}
+        {activeTab === 'security' && (
+          <section className="edit-profile__section" id="security-panel" role="tabpanel" aria-labelledby="security-tab">
             <h2 className="edit-profile__section-title">Security</h2>
-            <form onSubmit={handlePasswordSubmit} className="edit-profile__form" noValidate>
+            <form onSubmit={handlePasswordSubmit} className="edit-profile__form" noValidate aria-labelledby="security-tab">
               <div className="edit-profile__input-group">
                 <div className="edit-profile__input-block">
                   <Input
@@ -554,7 +602,7 @@ const EditProfilePage: React.FC = () => {
                     required
                     name="oldPassword"
                     disabled={isLoading}
-                    aria-required="true"
+                    aria-describedby={errors.oldPassword ? 'oldPassword-error' : undefined}
                   />
                 </div>
                 <div className="edit-profile__input-block">
@@ -568,7 +616,7 @@ const EditProfilePage: React.FC = () => {
                     required
                     name="newPassword"
                     disabled={isLoading}
-                    aria-required="true"
+                    aria-describedby={errors.newPassword ? 'newPassword-error' : undefined}
                   />
                 </div>
                 <div className="edit-profile__input-block">
@@ -582,31 +630,33 @@ const EditProfilePage: React.FC = () => {
                     required
                     name="confirmNewPassword"
                     disabled={isLoading}
-                    aria-required="true"
+                    aria-describedby={errors.confirmNewPassword ? 'confirmNewPassword-error' : undefined}
                   />
                 </div>
               </div>
-              <Button
-                type="submit"
-                variant="primary"
-                size="medium"
-                disabled={isLoading}
-                aria-label="Change Password"
-              >
-                {isLoading ? 'Saving...' : 'Change Password'}
-              </Button>
-              {securitySuccess && (
-                <div className="edit-profile__success" role="status">
-                  {securitySuccess}
-                </div>
-              )}
-              {errors.general && activeTab === 'security' && (
-                <div className="edit-profile__error-general" role="alert">
+              {errors.general && (
+                <div className="edit-profile__error-general" role="alert" aria-live="polite">
                   {errors.general}
                 </div>
               )}
+              {securitySuccess && (
+                <div className="edit-profile__success" role="status" aria-live="polite">
+                  {securitySuccess}
+                </div>
+              )}
+              <div className="edit-profile__actions">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="medium"
+                  disabled={isLoading}
+                  aria-label="Change password"
+                >
+                  {isLoading ? 'Saving...' : 'Change Password'}
+                </Button>
+              </div>
             </form>
-          </div>
+          </section>
         )}
       </div>
     </MainLayout>

@@ -1,11 +1,12 @@
-import React from 'react';
+'use client';
+import React, { memo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 /*
  * NavIcon Component
- * A navigation icon with an optional badge for notifications, supporting active states.
- * Used in navigation bars or menus for routing to different sections of the app or triggering actions.
+ * A navigation icon with optional badge and active state support.
+ * Used for routing or triggering actions in navigation menus.
  */
 interface NavIconProps {
   iconSrc: string; // URL of the default icon
@@ -31,13 +32,14 @@ const NavIcon: React.FC<NavIconProps> = ({
   const pathname = usePathname();
   const isActive = to ? pathname === to : false;
 
+  // Icon and badge content
   const content = (
     <>
       <img
         src={isActive && activeIconSrc ? activeIconSrc : iconSrc}
         alt={alt}
         className="nav-icon__icon"
-        loading="lazy" // Lazy-load icons for performance
+        loading="lazy"
       />
       {badgeCount && badgeCount > 0 ? (
         <span className="nav-icon__badge" aria-hidden="true">
@@ -47,7 +49,8 @@ const NavIcon: React.FC<NavIconProps> = ({
     </>
   );
 
-  const className = `nav-icon ${variant} ${isActive ? 'active' : ''}`;
+  // BEM class with variant and active state
+  const className = `nav-icon__wrapper nav-icon__wrapper--${variant} ${isActive ? 'nav-icon__wrapper--active' : ''}`;
 
   if (to) {
     return (
@@ -55,8 +58,9 @@ const NavIcon: React.FC<NavIconProps> = ({
         href={to}
         className={className}
         aria-label={ariaLabel}
+        aria-current={isActive ? 'page' : undefined}
         data-testid="nav-icon"
-        onClick={onClick} // Support onClick even with Link
+        onClick={onClick}
       >
         {content}
       </Link>
@@ -75,4 +79,4 @@ const NavIcon: React.FC<NavIconProps> = ({
   );
 };
 
-export default NavIcon;
+export default memo(NavIcon);

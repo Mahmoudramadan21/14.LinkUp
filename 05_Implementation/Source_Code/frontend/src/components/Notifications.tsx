@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import io from 'socket.io-client';
 import { Dialog, Transition } from '@headlessui/react';
 import Avatar from '../components/Avatar';
@@ -16,6 +16,7 @@ interface NotificationsProps {
 }
 
 const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }) => {
+  // Access notification store
   const {
     notifications,
     totalPages,
@@ -28,12 +29,12 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
     setPage,
   } = useNotificationsStore();
 
+  // Reference for dialog to manage focus
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   // Setup WebSocket connection
   useEffect(() => {
-    const socket = io(BACKEND_WS_URL, {
-      withCredentials: true,
-    });
-
+    const socket = io(BACKEND_WS_URL, { withCredentials: true });
     socket.emit('joinRoom', `user_${userId}`);
 
     socket.on('notification', (newNotification) => {
@@ -44,7 +45,7 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
     return () => {
       socket.disconnect();
     };
-  }, [userId, notifications]);
+  }, [userId]); // Only reconnect if userId changes
 
   // Fetch notifications and mark as read when dialog opens
   useEffect(() => {
@@ -54,6 +55,15 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
       markAllAsRead();
     }
   }, [isOpen, fetchNotifications, markAllAsRead, setPage]);
+
+  // Close dialog on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
   // Handle infinite scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -90,51 +100,166 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
     const postRelatedTypes = ['LIKE', 'COMMENT', 'COMMENT_LIKE', 'COMMENT_REPLY', 'STORY_LIKE'];
     const userRelatedTypes = ['FOLLOW', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'];
 
+    // Link to post for post-related notifications
     if (postRelatedTypes.includes(type) && metadata?.postId) {
       return `/post/${metadata.postId}`;
     }
-    if (userRelatedTypes.includes(type) && sender?.userId) {
-      return `/profile/${sender.userId}`;
+    // Link to user profile for user-related notifications
+    if (userRelatedTypes.includes(type) && sender?.username) {
+      return `/profile/${sender.username}`;
     }
     return null;
   };
 
+  // Memoize notifications rendering to optimize performance
+  const renderedNotifications = useMemo(
+    () =>
+      notifications.map((notification) => {
+        const linkTo = getNotificationLink(notification);
+        return (
+          <article
+            key={notification.notificationId}
+            className="notifications__item"
+            aria-labelledby={`notification-${notification.notificationId}`}
+          >
+            {linkTo ? (
+              <Link href={linkTo} className="notifications__link">
+                <Avatar
+                  imageSrc={notification.sender?.profilePicture || '/avatars/placeholder.jpg'}
+                  username={notification.sender?.username || 'Unknown'}
+                  size="medium"
+                  showUsername={false}
+                  loading="lazy"
+                />
+                <div className="notifications__content">
+                  <p
+                    id={`notification-${notification.notificationId}`}
+                    className="notifications__text"
+                  >
+                    {notification.content}
+                    {!notification.isRead && (
+                      <span
+                        className="notifications__unread"
+                        aria-label="Unread notification"
+                      />
+                    )}
+                  </p>
+                  <time className="notifications__time">
+                    {formatTimeAgo(notification.createdAt)}
+                  </time>
+                </div>
+              </Link>
+            ) : (
+              <div className="notifications__static">
+                <Avatar
+                  imageSrc={notification.sender?.profilePicture || '/avatars/placeholder.jpg'}
+                  username={notification.sender?.username || 'Unknown'}
+                  size="medium"
+                  showUsername={false}
+                  loading="lazy"
+                />
+                <div className="notifications__content">
+                  <p
+                    id={`notification-${notification.notificationId}`}
+                    className="notifications__text"
+                  >
+                    {notification.content}
+                    {!notification.isRead && (
+                      <span
+                        className="notifications__unread"
+                        aria-label="Unread notification"
+                      />
+                    )}
+                  </p>
+                  <time className="notifications__time">
+                    {formatTimeAgo(notification.createdAt)}
+                  </time>
+                </div>
+              </div>
+            )}
+            <div className="notifications__actions">
+              {!notification.isRead && (
+                <button
+                  onClick={() => markNotificationAsRead(notification.notificationId)}
+                  className="notifications__action notifications__action--mark-read"
+                  aria-label="Mark notification as read"
+                >
+                  Mark as Read
+                </button>
+              )}
+              <button
+                onClick={() => deleteNotification(notification.notificationId)}
+                className="notifications__action notifications__action--delete"
+                aria-label="Delete notification"
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        );
+      }),
+    [notifications, markNotificationAsRead, deleteNotification]
+  );
+
   return (
     <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog
+        as="div"
+        className="notifications"
+        onClose={onClose}
+        initialFocus={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notifications-title"
+      >
+        {/* Overlay with blur effect */}
         <Transition.Child
           as={React.Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
+          enter="notifications__overlay-enter"
+          enterFrom="notifications__overlay-enter-from"
+          enterTo="notifications__overlay-enter-to"
+          leave="notifications__overlay-leave"
+          leaveFrom="notifications__overlay-leave-from"
+          leaveTo="notifications__overlay-leave-to"
         >
-          <div className="dialog-overlay" aria-hidden="true" />
+          <div
+            className="notifications__overlay"
+            onClick={onClose}
+            aria-hidden="true"
+          />
         </Transition.Child>
 
-        <div className="dialog-wrapper">
-          <div className="dialog-content">
+        <div className="notifications__wrapper">
+          <div className="notifications__content">
             <Transition.Child
               as={React.Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 translate-x-full"
-              enterTo="opacity-100 translate-x-0"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 translate-x-0"
-              leaveTo="opacity-0 translate-x-full"
+              enter="notifications__panel-enter"
+              enterFrom="notifications__panel-enter-from"
+              enterTo="notifications__panel-enter-to"
+              leave="notifications__panel-leave"
+              leaveFrom="notifications__panel-leave-from"
+              leaveTo="notifications__panel-leave-to"
             >
-              <Dialog.Panel className="notifications-dialog">
-                <Dialog.Title as="h3" className="dialog-title">
-                  Notifications
+              <Dialog.Panel
+                className="notifications__panel"
+                ref={dialogRef}
+                tabIndex={-1}
+              >
+                <header className="notifications__header">
+                  <Dialog.Title
+                    as="h2"
+                    id="notifications-title"
+                    className="notifications__title"
+                  >
+                    Notifications
+                  </Dialog.Title>
                   <button
                     onClick={onClose}
-                    className="close-button"
+                    className="notifications__close"
                     aria-label="Close notifications dialog"
                   >
                     <svg
-                      className="close-icon"
+                      className="notifications__close-icon"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -148,76 +273,25 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
                       />
                     </svg>
                   </button>
-                </Dialog.Title>
-
-                <div className="notifications-container" onScroll={handleScroll} data-testid="notifications">
+                </header>
+                <div
+                  className="notifications__container"
+                  onScroll={handleScroll}
+                  data-testid="notifications"
+                  aria-live="polite"
+                >
                   {notifications.length === 0 && !loading ? (
-                    <p className="empty-message">No notifications yet.</p>
+                    <p className="notifications__empty">
+                      No notifications yet.
+                    </p>
                   ) : (
-                    notifications.map((notification) => {
-                      const linkTo = getNotificationLink(notification);
-                      return (
-                        <div key={notification.notificationId} className="notification-item">
-                          {linkTo ? (
-                            <Link href={linkTo} className="notification-link">
-                              <Avatar
-                                imageSrc={notification.sender?.profilePicture || '/avatars/placeholder.jpg'}
-                                username={notification.sender?.username || 'Unknown'}
-                                size="medium"
-                                showUsername={false}
-                              />
-                              <div className="notification-content">
-                                <p className="notification-text">
-                                  {notification.content}
-                                  {!notification.isRead && (
-                                    <span className="notification-unread" aria-label="Unread notification" />
-                                  )}
-                                </p>
-                                <p className="notification-time">{formatTimeAgo(notification.createdAt)}</p>
-                              </div>
-                            </Link>
-                          ) : (
-                            <div className="flex items-start space-x-3">
-                              <Avatar
-                                imageSrc={notification.sender?.profilePicture || '/avatars/placeholder.jpg'}
-                                username={notification.sender?.username || 'Unknown'}
-                                size="medium"
-                                showUsername={false}
-                              />
-                              <div className="notification-content">
-                                <p className="notification-text">
-                                  {notification.content}
-                                  {!notification.isRead && (
-                                    <span className="notification-unread" aria-label="Unread notification" />
-                                  )}
-                                </p>
-                                <p className="notification-time">{formatTimeAgo(notification.createdAt)}</p>
-                              </div>
-                            </div>
-                          )}
-                          <div className="notification-actions">
-                            {!notification.isRead && (
-                              <button
-                                onClick={() => markNotificationAsRead(notification.notificationId)}
-                                className="mark-read-button"
-                                aria-label="Mark as read"
-                              >
-                                Mark as Read
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteNotification(notification.notificationId)}
-                              className="delete-button"
-                              aria-label="Delete notification"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
+                    renderedNotifications
                   )}
-                  {loading && <div className="loading-text">Loading...</div>}
+                  {loading && (
+                    <div className="notifications__loading">
+                      Loading...
+                    </div>
+                  )}
                 </div>
               </Dialog.Panel>
             </Transition.Child>

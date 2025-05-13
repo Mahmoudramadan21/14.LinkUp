@@ -1,6 +1,5 @@
 'use client';
-
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useProfileStore } from '@/store/profileStore';
 import { useRouter } from 'next/router';
@@ -12,8 +11,9 @@ import PostCard from '@/components/PostCard';
 import Bio from '@/components/Bio';
 import PostModal from '@/components/PostModal';
 import PrivateAccountNotice from '@/components/PrivateAccountNotice';
-import api from '@/utils/api';
+import { fetchUserStories, handleAddHighlightSubmit, handleOpenModal } from '@/utils/profileUtils';
 
+// Define TypeScript interfaces for data structures
 interface FollowingFollower {
   userId: number;
   username: string;
@@ -61,7 +61,13 @@ interface Highlight {
   stories: Story[];
 }
 
+/*
+ * ProfilePage Component
+ * Displays a user profile with tabs for posts, saved posts, and highlights.
+ * Optimized for SEO with semantic HTML and for accessibility with ARIA attributes.
+ */
 const ProfilePage: React.FC = () => {
+  // State Management
   const {
     profile,
     highlights,
@@ -89,15 +95,15 @@ const ProfilePage: React.FC = () => {
   const router = useRouter();
   const { username, tab } = router.query;
 
-  const [activeTab, setActiveTab] = useState<'menu' | 'saved'>('menu');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogType, setDialogType] = useState<'followers' | 'following'>('followers');
-  const [followersData, setFollowersData] = useState<FollowingFollower[]>([]);
-  const [followingData, setFollowingData] = useState<FollowingFollower[]>([]);
-  const [fetchingDialogData, setFetchingDialogData] = useState(false);
-  const [dialogError, setDialogError] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isFollowingLoading, setIsFollowingLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'menu' | 'saved'>('menu'); // Tracks active tab (posts or saved)
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // Controls followers/following dialog visibility
+  const [dialogType, setDialogType] = useState<'followers' | 'following'>('followers'); // Dialog type
+  const [followersData, setFollowersData] = useState<FollowingFollower[]>([]); // Followers list
+  const [followingData, setFollowingData] = useState<FollowingFollower[]>([]); // Following list
+  const [fetchingDialogData, setFetchingDialogData] = useState(false); // Dialog data loading state
+  const [dialogError, setDialogError] = useState<string | null>(null); // Dialog error state
+  const [isModalOpen, setIsModalOpen] = useState(false); // Post modal visibility
+  const [isFollowingLoading, setIsFollowingLoading] = useState(false); // Follow/unfollow loading state
   const [selectedPost, setSelectedPost] = useState<{
     postId: number;
     userId: number;
@@ -113,14 +119,16 @@ const ProfilePage: React.FC = () => {
     comments: Comment[];
     isLiked: boolean;
     likedBy: { username: string; profilePicture: string }[];
-  } | null>(null);
-  const [isAddHighlightDialogOpen, setIsAddHighlightDialogOpen] = useState(false);
-  const [highlightTitle, setHighlightTitle] = useState('');
-  const [step, setStep] = useState(1);
-  const [userStories, setUserStories] = useState<Story[]>([]);
-  const [selectedStories, setSelectedStories] = useState<number[]>([]);
-  const [coverImage, setCoverImage] = useState<File | null>(null);
+  } | null>(null); // Selected post for modal
+  const [isAddHighlightDialogOpen, setIsAddHighlightDialogOpen] = useState(false); // Highlight dialog visibility
+  const [highlightTitle, setHighlightTitle] = useState(''); // Highlight title input
+  const [step, setStep] = useState(1); // Highlight creation step (1: title, 2: stories/cover)
+  const [userStories, setUserStories] = useState<Story[]>([]); // User stories for highlight
+  const [selectedStories, setSelectedStories] = useState<number[]>([]); // Selected story IDs
+  const [coverImage, setCoverImage] = useState<File | null>(null); // Highlight cover image
 
+  // API Calls and Side Effects
+  // Open dialog based on URL query
   useEffect(() => {
     if (tab === 'followers') {
       setDialogType('followers');
@@ -133,6 +141,7 @@ const ProfilePage: React.FC = () => {
     }
   }, [tab]);
 
+  // Fetch profile and initialize authentication
   useEffect(() => {
     initializeAuth();
     if (username && typeof username === 'string') {
@@ -140,6 +149,7 @@ const ProfilePage: React.FC = () => {
     }
   }, [username, fetchProfile, initializeAuth]);
 
+  // Fetch highlights, posts, and saved posts when profile is loaded
   useEffect(() => {
     if (profile?.userId) {
       fetchHighlights(profile.userId);
@@ -150,14 +160,12 @@ const ProfilePage: React.FC = () => {
     }
   }, [profile?.userId, authData, fetchHighlights, fetchPosts, fetchSavedPosts]);
 
+  // Fetch followers and following data for dialog
   useEffect(() => {
     if (profile && !followersData.length && !followingData.length) {
       setFetchingDialogData(true);
       setDialogError(null);
-      Promise.all([
-        fetchFollowers(profile.userId),
-        fetchFollowing(profile.userId),
-      ])
+      Promise.all([fetchFollowers(profile.userId), fetchFollowing(profile.userId)])
         .then(([followersResponse, followingResponse]) => {
           setFollowersData(followersResponse.followers || []);
           setFollowingData(followingResponse.following || []);
@@ -171,36 +179,30 @@ const ProfilePage: React.FC = () => {
     }
   }, [profile, followersData.length, followingData.length, fetchFollowers, fetchFollowing]);
 
+  // Fetch user stories for highlight creation
   useEffect(() => {
     if (isAddHighlightDialogOpen && step === 2 && authData?.userId) {
-      fetchUserStories();
+      fetchUserStories(setUserStories);
     }
   }, [isAddHighlightDialogOpen, step, authData?.userId]);
 
-  const fetchUserStories = async () => {
-    try {
-      const response = await api.get('/profile/stories');
-      setUserStories(response.data.stories || []);
-    } catch (err: any) {
-      console.error('Failed to fetch user stories:', err.message);
-    }
-  };
-
-  const handleEditProfile = (e: React.MouseEvent<HTMLButtonElement>) => {
+  // Event Handlers
+  // Navigate to edit profile page
+  const handleEditProfile = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (!profile || profile.userId !== authData?.userId) {
       alert('You can only edit your own profile.');
       return;
     }
     router.push(`/profile/${profile.username}/edit`);
-  };
+  }, [profile, authData, router]);
 
-  const handleFollow = async () => {
+  // Follow a user
+  const handleFollow = useCallback(async () => {
     if (!profile) return;
     setIsFollowingLoading(true);
     try {
       await followUser(profile.userId);
-      // بعد الـ Follow، نعمل Fetch تاني للـ Profile عشان نتاكد إن الـ followStatus محدث
       await fetchProfile(profile.username);
     } catch (err: any) {
       console.error('Failed to follow:', err);
@@ -208,192 +210,134 @@ const ProfilePage: React.FC = () => {
     } finally {
       setIsFollowingLoading(false);
     }
-  };
+  }, [profile, followUser, fetchProfile]);
 
-  const handleUnfollow = async () => {
+  // Unfollow a user
+  const handleUnfollow = useCallback(async () => {
     if (!profile) return;
     setIsFollowingLoading(true);
     try {
       await unfollowUser(profile.userId);
-      await fetchProfile(profile.username); // نعمل Fetch تاني لتحديث الـ State
+      await fetchProfile(profile.username);
     } catch (err: any) {
       console.error('Failed to unfollow:', err);
       alert('Failed to unfollow user. Please try again.');
     } finally {
       setIsFollowingLoading(false);
     }
-  };
+  }, [profile, unfollowUser, fetchProfile]);
 
-  const handleMessage = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    if (!profile) return;
-    router.push(`/messages/${profile.userId}`);
-  };
+  // Navigate to messaging page
+  const handleMessage = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      if (!profile) return;
+      router.push(`/messages/${profile.userId}`);
+    },
+    [profile, router]
+  );
 
-  const handleTabChange = (tab: 'menu' | 'saved') => {
+  // Switch between posts and saved posts tabs
+  const handleTabChange = useCallback((tab: 'menu' | 'saved') => {
     setActiveTab(tab);
-  };
+  }, []);
 
-  const openDialog = (type: 'followers' | 'following', e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (profile) {
-      setDialogType(type);
-      setIsDialogOpen(true);
-      const newPath = `/profile/${username}?tab=${type}`;
-      router.push(newPath, undefined, { shallow: true });
-    }
-  };
+  // Open followers or following dialog
+  const openDialog = useCallback(
+    (type: 'followers' | 'following', e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (profile) {
+        setDialogType(type);
+        setIsDialogOpen(true);
+        const newPath = `/profile/${username}?tab=${type}`;
+        router.push(newPath, undefined, { shallow: true });
+      }
+    },
+    [profile, username, router]
+  );
 
-  const closeDialog = () => {
+  // Close followers or following dialog
+  const closeDialog = useCallback(() => {
     setIsDialogOpen(false);
     const basePath = `/profile/${username}`;
     router.replace(basePath, undefined, { shallow: true });
-  };
+  }, [username, router]);
 
-  const handleViewHighlights = (userId: number) => {
-    router.push(`/profile/highlights/${userId}`);
-  };
+  // Navigate to highlights page
+  const handleViewHighlights = useCallback(
+    (userId: number) => {
+      router.push(`/profile/highlights/${userId}`);
+    },
+    [router]
+  );
 
-  const handleAddHighlight = () => {
+  // Open highlight creation dialog
+  const handleAddHighlight = useCallback(() => {
     setIsAddHighlightDialogOpen(true);
     setStep(1);
     setHighlightTitle('');
     setSelectedStories([]);
     setCoverImage(null);
-  };
+  }, []);
 
-  const handleNextStep = () => {
+  // Move to next step in highlight creation
+  const handleNextStep = useCallback(() => {
     if (step === 1 && highlightTitle.trim()) {
       setStep(2);
     }
-  };
+  }, [step, highlightTitle]);
 
-  const handleStorySelect = (storyId: number) => {
+  // Toggle story selection for highlight
+  const handleStorySelect = useCallback((storyId: number) => {
     setSelectedStories((prev) =>
       prev.includes(storyId) ? prev.filter((id) => id !== storyId) : [...prev, storyId]
     );
-  };
+  }, []);
 
-  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle cover image upload for highlight
+  const handleCoverImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setCoverImage(e.target.files[0]);
     }
-  };
+  }, []);
 
-  const handleAddHighlightSubmit = async () => {
-    if (!authData?.userId || !highlightTitle.trim() || selectedStories.length === 0) {
-      alert('Please fill the title and select at least one story.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('title', highlightTitle);
-    
-    if (!coverImage && selectedStories.length > 0) {
-      const selectedStoriesData = userStories.filter((story) => selectedStories.includes(story.storyId));
-      if (selectedStoriesData.length > 0) {
-        const latestStory = selectedStoriesData.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0];
-        
-        try {
-          const response = await fetch(latestStory.mediaUrl);
-          const blob = await response.blob();
-          const file = new File([blob], `cover-${latestStory.storyId}.jpg`, { type: blob.type });
-          formData.append('coverImage', file);
-        } catch (err: any) {
-          console.error('Failed to fetch story image for cover:', err.message);
-          alert('Failed to set cover image from story. Please upload a cover image manually.');
-          return;
-        }
-      }
-    } else if (coverImage) {
-      formData.append('coverImage', coverImage);
-    }
-
-    formData.append('storyIds', selectedStories.join(','));
-
-    try {
-      await api.post('/highlights', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      fetchHighlights(authData.userId);
-      setIsAddHighlightDialogOpen(false);
-      setStep(1);
-      setHighlightTitle('');
-      setSelectedStories([]);
-      setCoverImage(null);
-    } catch (err: any) {
-      console.error('Failed to create highlight:', err.message);
-      alert(`Failed to create highlight: ${err.message}`);
-    }
-  };
-
-  const handlePostUpdate = (postId: number, updatedFields: any) => {
+  // Update post data after interaction
+  const handlePostUpdate = useCallback((postId: number, updatedFields: any) => {
     useProfileStore.setState((state) => ({
       posts: state.posts.map((post) =>
         post.postId === postId ? { ...post, ...updatedFields } : post
       ),
     }));
-  };
+  }, []);
 
-  const handleOpenModal = (savedPost: any) => {
-    const transformedComments = (savedPost.Comments || []).map((comment: any) => ({
-      commentId: comment.CommentID,
-      userId: comment.UserID,
-      username: comment.User.Username || 'Unknown',
-      content: comment.Content,
-      createdAt: comment.CreatedAt,
-      profilePicture: comment.User.ProfilePicture || '/avatars/default.jpg',
-      isLiked: comment.isLiked || false,
-      likeCount: comment.likeCount || 0,
-      replies: (comment.Replies || []).map((reply: any) => ({
-        commentId: reply.CommentID,
-        userId: reply.UserID,
-        username: reply.User.Username || 'Unknown',
-        content: reply.Content,
-        createdAt: reply.CreatedAt,
-        profilePicture: reply.User.ProfilePicture || '/avatars/default.jpg',
-        isLiked: reply.isLiked || false,
-        likeCount: reply.likeCount || 0,
-      })),
-    }));
-
-    const transformedPost = {
-      postId: savedPost.PostID,
-      userId: savedPost.UserID,
-      username: savedPost.User.Username || 'Unknown',
-      profilePicture: savedPost.User.ProfilePicture || '/avatars/default.jpg',
-      privacy: savedPost.privacy,
-      content: savedPost.Content,
-      imageUrl: savedPost.ImageURL,
-      videoUrl: savedPost.VideoURL,
-      createdAt: savedPost.CreatedAt,
-      likeCount: savedPost.likeCount || 0,
-      commentCount: savedPost.commentCount || 0,
-      comments: transformedComments,
-      isLiked: savedPost.isLiked || false,
-      likedBy: savedPost.likedBy || [],
-    };
-    setSelectedPost(transformedPost);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
+  // Close post modal
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedPost(null);
-  };
+  }, []);
 
+  // Close highlight dialog on outside click
+  const handleDialogClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      setIsAddHighlightDialogOpen(false);
+      setStep(1);
+      setHighlightTitle('');
+      setSelectedStories([]);
+      setCoverImage(null);
+    }
+  }, []);
+
+  // Rendering
   if (loading) {
     return <Loading />;
   }
 
   if (!profile) {
     return (
-      <div className="profile-page__not-found" role="alert" aria-live="polite">
+      <main className="profile-page__not-found" role="alert" aria-live="polite">
         <p className="profile-page__not-found-text">Profile not found</p>
-      </div>
+      </main>
     );
   }
 
@@ -402,14 +346,14 @@ const ProfilePage: React.FC = () => {
 
   return (
     <MainLayout title={`LinkUp | ${typeof username === 'string' ? username : 'Profile'}`}>
-      <div className="profile-page relative">
-        <div className="profile-page__header">
+      <main className="profile-page__container">
+        {/* Profile Header */}
+        <header className="profile-page__header">
           <div className="profile-page__cover">
             <Image
               src={profile.coverPicture || '/cover-photos/sunset.jpg'}
               alt={`${profile.username}'s cover photo`}
-              layout="fill"
-              objectFit="cover"
+              fill
               className="profile-page__cover-image"
               loading="lazy"
               onError={(e) => {
@@ -430,8 +374,7 @@ const ProfilePage: React.FC = () => {
                 <Image
                   src={profile.profilePicture || '/avatars/placeholder.jpg'}
                   alt={`${profile.username}'s profile picture`}
-                  layout="fill"
-                  objectFit="cover"
+                  fill
                   className="profile-page__profile-image"
                   loading="lazy"
                   onError={(e) => {
@@ -442,6 +385,7 @@ const ProfilePage: React.FC = () => {
             </div>
           </div>
 
+          {/* Profile Details and Stats */}
           <div className="profile-page__content">
             <div className="profile-page__details">
               <h1 className="profile-page__name">{profile.profileName}</h1>
@@ -449,38 +393,39 @@ const ProfilePage: React.FC = () => {
             </div>
 
             <div className="profile-page__stats">
-              <div className="profile-page__stat">
+              <div className="profile-page__stat--item">
                 <span className="profile-page__stat-label">Posts</span>
                 <span className="profile-page__stat-value">{profile.postCount}</span>
               </div>
-              <div className="profile-page__stat">
+              <div className="profile-page__stat--item">
                 <span className="profile-page__stat-label">Followers</span>
                 <button
                   type="button"
-                  className="profile-page__stat-value cursor-pointer text-purple-600 hover:underline bg-transparent border-none p-0"
+                  className="profile-page__stat-value"
                   onClick={(e) => openDialog('followers', e)}
                   aria-label={`View ${profile.followerCount} followers`}
                 >
                   {profile.followerCount}
                 </button>
               </div>
-              <div className="profile-page__stat">
+              <div className="profile-page__stat--item">
                 <span className="profile-page__stat-label">Following</span>
                 <button
                   type="button"
-                  className="profile-page__stat-value cursor-pointer text-purple-600 hover:underline bg-transparent border-none p-0"
+                  className="profile-page__stat-value"
                   onClick={(e) => openDialog('following', e)}
                   aria-label={`View ${profile.followingCount} following`}
                 >
                   {profile.followingCount}
-                </button>
+              </button>
               </div>
-              <div className="profile-page__stat">
+              <div className="profile-page__stat--item">
                 <span className="profile-page__stat-label">Likes</span>
                 <span className="profile-page__stat-value">{profile.likeCount}</span>
               </div>
             </div>
 
+            {/* Follow and Message Buttons */}
             {!isOwnProfile && (
               <div className="profile-page__actions">
                 <Button
@@ -513,9 +458,9 @@ const ProfilePage: React.FC = () => {
                 >
                   <Image
                     src="/icons/message.svg"
-                    alt="Message Icon"
-                    width={48}
-                    height={48}
+                    alt="Message icon"
+                    width={24}
+                    height={24}
                     className="profile-page__message-icon"
                   />
                 </Button>
@@ -523,9 +468,12 @@ const ProfilePage: React.FC = () => {
             )}
           </div>
 
+          {/* Highlights Section */}
           {(!profile.isPrivate || isOwnProfile) && (
-            <div className="profile-page__highlights">
-              <h2 className="profile-page__highlights-title">Highlights</h2>
+            <section className="profile-page__highlights" aria-labelledby="highlights-title">
+              <h2 id="highlights-title" className="profile-page__highlights-title">
+                Highlights
+              </h2>
               {highlightsLoading ? (
                 <Loading />
               ) : highlightsError ? (
@@ -537,59 +485,66 @@ const ProfilePage: React.FC = () => {
                   {isOwnProfile && (
                     <button
                       onClick={handleAddHighlight}
-                      className="profile-page__highlight-item cursor-pointer flex flex-col items-center justify-center"
+                      className="profile-page__highlight-item"
                       aria-label="Add a new highlight"
                     >
-                      <div className="w-[80px] h-[80px] rounded-full bg-gray-100 flex items-center justify-center">
+                      <div className="profile-page__highlight-add">
                         <Image
                           src="/icons/plus.svg"
-                          alt="Add Highlight"
+                          alt="Add new highlight icon"
                           width={40}
                           height={40}
                           className="profile-page__highlight-add-icon"
                         />
                       </div>
-                      <p className="profile-page__highlight-title mt-2">Add Highlight</p>
+                      <p className="profile-page__highlight-title">Add Highlight</p>
                     </button>
                   )}
                   {highlights.length === 0 && isOwnProfile ? (
-                    <p className="profile-page__highlights-empty ml-4 mt-2">No highlights yet. Add one!</p>
+                    <p className="profile-page__highlights-empty">No highlights yet. Add one!</p>
                   ) : (
                     highlights.map((highlight) => (
                       <div
                         key={highlight.highlightId}
-                        className="profile-page__highlight-item cursor-pointer"
+                        className="profile-page__highlight-item"
                         onClick={() => handleViewHighlights(profile.userId)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && handleViewHighlights(profile.userId)}
+                        aria-label={`View ${highlight.title} highlight`}
                       >
-                        <Image
-                          src={highlight.coverImage}
-                          alt={highlight.title}
-                          width={80}
-                          height={80}
-                          className="profile-page__highlight-image"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/highlights/default.jpg';
-                          }}
-                        />
+                        <div className="profile-page__highlight-image">
+                          <Image
+                            src={highlight.coverImage}
+                            alt={`${highlight.title} highlight`}
+                            width={80}
+                            height={80}
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/highlights/default.jpg';
+                            }}
+                          />
+                        </div>
                         <p className="profile-page__highlight-title">{highlight.title}</p>
                       </div>
                     ))
                   )}
                 </div>
               )}
-            </div>
+            </section>
           )}
 
-          <div className="profile-page__tabs">
+          {/* Tabs Navigation */}
+          <nav className="profile-page__tabs" aria-label="Profile content tabs">
             <button
               onClick={() => handleTabChange('menu')}
-              className="profile-page__tab-btn"
-              aria-label="View Posts"
+              className={`profile-page__tab-btn ${activeTab === 'menu' ? 'profile-page__tab-btn--active' : ''}`}
+              aria-label="View posts"
+              aria-current={activeTab === 'menu' ? 'true' : undefined}
             >
               <Image
                 src={activeTab === 'menu' ? '/icons/menu-active.svg' : '/icons/menu.svg'}
-                alt="Menu Icon"
+                alt="Posts tab icon"
                 width={24}
                 height={24}
                 className="profile-page__tab-icon"
@@ -598,23 +553,25 @@ const ProfilePage: React.FC = () => {
             {isOwnProfile && (
               <button
                 onClick={() => handleTabChange('saved')}
-                className="profile-page__tab-btn"
-                aria-label="View Saved Posts"
+                className={`profile-page__tab-btn ${activeTab === 'saved' ? 'profile-page__tab-btn--active' : ''}`}
+                aria-label="View saved posts"
+                aria-current={activeTab === 'saved' ? 'true' : undefined}
               >
                 <Image
                   src={activeTab === 'saved' ? '/icons/saved.svg' : '/icons/save.svg'}
-                  alt="Saved Icon"
+                  alt="Saved posts tab icon"
                   width={24}
                   height={24}
                   className="profile-page__tab-icon"
                 />
               </button>
             )}
-          </div>
-        </div>
+          </nav>
+        </header>
 
+        {/* Posts Section */}
         {activeTab === 'menu' && (
-          <div className="profile-page__posts-section">
+          <section className="profile-page__posts-section" aria-labelledby="posts-title">
             <Bio
               bio={profile.bio || ''}
               jobTitle={profile.jobTitle || ''}
@@ -622,10 +579,10 @@ const ProfilePage: React.FC = () => {
               dateOfBirth={profile.dateOfBirth || '1970-01-01T00:00:00.000Z'}
             />
 
-            {(profile.isPrivate) && !isOwnProfile ? (
+            {profile.isPrivate && !isOwnProfile ? (
               <PrivateAccountNotice />
             ) : (
-              <div className="profile-page__posts-list">
+              <article className="profile-page__posts-list">
                 {postsLoading ? (
                   <Loading />
                 ) : postsError ? (
@@ -654,14 +611,17 @@ const ProfilePage: React.FC = () => {
                     />
                   ))
                 )}
-              </div>
+              </article>
             )}
-          </div>
+          </section>
         )}
 
+        {/* Saved Posts Section */}
         {activeTab === 'saved' && isOwnProfile && (
-          <div className="profile-page__saved-posts">
-            <h2 className="profile-page__saved-posts-title">Saved Posts</h2>
+          <section className="profile-page__saved-posts" aria-labelledby="saved-posts-title">
+            <h2 id="saved-posts-title" className="profile-page__saved-posts-title">
+              Saved Posts
+            </h2>
             {savedPostsLoading ? (
               <Loading />
             ) : savedPostsError ? (
@@ -674,8 +634,12 @@ const ProfilePage: React.FC = () => {
                   savedPosts.map((savedPost) => (
                     <div
                       key={savedPost.PostID}
-                      className="profile-page__saved-post-item cursor-pointer"
-                      onClick={() => handleOpenModal(savedPost)}
+                      className="profile-page__saved-post-item"
+                      onClick={() => handleOpenModal(savedPost, setSelectedPost, setIsModalOpen)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && handleOpenModal(savedPost, setSelectedPost, setIsModalOpen)}
+                      aria-label={`View saved post ${savedPost.PostID}`}
                     >
                       <Image
                         src={savedPost.ImageURL || savedPost.VideoURL || '/saved-posts/default.jpg'}
@@ -695,9 +659,10 @@ const ProfilePage: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
+          </section>
         )}
 
+        {/* Post Modal */}
         {selectedPost && (
           <PostModal
             isOpen={isModalOpen}
@@ -707,11 +672,8 @@ const ProfilePage: React.FC = () => {
           />
         )}
 
-        {(
-          !profile.isPrivate ||
-          isOwnProfile ||
-          profile.followStatus === 'ACCEPTED'
-        ) && (
+        {/* Followers/Following Dialog */}
+        {(!profile.isPrivate || isOwnProfile || profile.followStatus === 'ACCEPTED') && (
           <FollowerFollowingDialog
             isOpen={isDialogOpen}
             onClose={closeDialog}
@@ -725,26 +687,38 @@ const ProfilePage: React.FC = () => {
           />
         )}
 
-
+        {/* Highlight Creation Dialog */}
         {isAddHighlightDialogOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg w-full max-w-md">
+          <div
+            className="profile-page__highlight-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="highlight-dialog-title"
+            onClick={handleDialogClick}
+          >
+            <div className="profile-page__highlight-dialog-content">
               {step === 1 && (
                 <>
-                  <h2 className="text-xl font-bold mb-4">Create Highlight</h2>
+                  <h2 id="highlight-dialog-title" className="profile-page__highlight-dialog-title">
+                    Create Highlight
+                  </h2>
+                  <label htmlFor="highlight-title" className="profile-page__highlight-dialog-label">
+                    Highlight Title
+                  </label>
                   <input
+                    id="highlight-title"
                     type="text"
                     value={highlightTitle}
                     onChange={(e) => setHighlightTitle(e.target.value)}
                     placeholder="Enter highlight title"
-                    className="w-full p-2 mb-4 border rounded"
+                    className="profile-page__highlight-dialog-input"
                   />
-                  <div className="flex justify-end">
+                  <div className="profile-page__highlight-dialog-actions">
                     <Button
                       onClick={() => setIsAddHighlightDialogOpen(false)}
                       variant="secondary"
                       size="medium"
-                      className="mr-2"
+                      aria-label="Cancel highlight creation"
                     >
                       Cancel
                     </Button>
@@ -753,6 +727,7 @@ const ProfilePage: React.FC = () => {
                       variant="primary"
                       size="medium"
                       disabled={!highlightTitle.trim()}
+                      aria-label="Proceed to select stories"
                     >
                       Next
                     </Button>
@@ -761,8 +736,10 @@ const ProfilePage: React.FC = () => {
               )}
               {step === 2 && (
                 <>
-                  <h2 className="text-xl font-bold mb-4">Select Stories and Cover</h2>
-                  <div className="mb-4 max-h-64 overflow-y-auto grid grid-cols-3 gap-2">
+                  <h2 id="highlight-dialog-title" className="profile-page__highlight-dialog-title">
+                    Select Stories and Cover
+                  </h2>
+                  <div className="profile-page__highlight-dialog-stories">
                     {userStories.length > 0 ? (
                       userStories.map((story) => {
                         const storyDate = new Date(story.createdAt);
@@ -773,60 +750,41 @@ const ProfilePage: React.FC = () => {
                         });
                         const isSelected = selectedStories.includes(story.storyId);
                         return (
-                          <div key={story.storyId} className="relative">
-                            <div className="relative w-full pt-[177.78%] rounded-lg overflow-hidden">
-                              <div
-                                className="absolute inset-0 p-1"
-                                style={{
-                                  background: 'linear-gradient(45deg, #ff2d55, #ffbc5b)',
-                                  borderRadius: '10px',
-                                }}
-                              >
-                                <div className="absolute inset-1 bg-white rounded-lg">
-                                  <label className="relative block w-full h-full cursor-pointer">
+                          <div key={story.storyId} className="profile-page__highlight-story">
+                            <div className="profile-page__highlight-story-container">
+                              <div className="profile-page__highlight-story-gradient">
+                                <div className="profile-page__highlight-story-content">
+                                  <label className="profile-page__highlight-story-label">
                                     <Image
                                       src={story.mediaUrl}
                                       alt={`Story ${story.storyId}`}
-                                      layout="fill"
-                                      objectFit="cover"
-                                      objectPosition="center"
-                                      className="absolute inset-0 rounded-lg"
+                                      fill
+                                      className="profile-page__highlight-story-image"
+                                      loading="lazy"
                                     />
                                     <input
                                       type="checkbox"
                                       checked={isSelected}
                                       onChange={() => handleStorySelect(story.storyId)}
-                                      className="hidden"
+                                      className="profile-page__highlight-story-checkbox"
+                                      aria-label={`Select story from ${formattedDate}`}
                                     />
                                     {isSelected && (
-                                      <div className="absolute inset-0 bg-white opacity-30 rounded-lg"></div>
+                                      <div className="profile-page__highlight-story-overlay" />
                                     )}
-                                    <div
-                                      className={`absolute top-2 left-2 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                        isSelected ? 'bg-purple-700 border-purple-700' : 'bg-transparent border-gray-300'
-                                      }`}
-                                    >
-                                      {isSelected && (
-                                        <svg
-                                          className="w-3 h-3 text-white"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                          xmlns="http://www.w3.org/2000/svg"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="3"
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      )}
+                                    <div className="profile-page__highlight-story-checkbox-indicator">
+                                      <Image
+                                        src={isSelected ? '/icons/check-circle.svg' : '/icons/circle.svg'}
+                                        alt={isSelected ? 'Selected' : 'Not selected'}
+                                        width={20}
+                                        height={20}
+                                        className="profile-page__highlight-story-checkbox-icon"
+                                      />
                                     </div>
-                                    <div className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-gray-300 z-10">
-                                      <span className="text-xs font-bold">{day}</span>
+                                    <div className="profile-page__highlight-story-day">
+                                      <span className="profile-page__highlight-story-day-text">{day}</span>
                                     </div>
-                                    <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white text-black text-xs px-2 py-1 rounded-full">
+                                    <div className="profile-page__highlight-story-date">
                                       {formattedDate}
                                     </div>
                                   </label>
@@ -837,59 +795,53 @@ const ProfilePage: React.FC = () => {
                         );
                       })
                     ) : (
-                      <p>No stories available.</p>
+                      <p className="profile-page__highlight-dialog-empty">No stories available.</p>
                     )}
                   </div>
-                  <div className="mb-4">
-                    <h3 className="text-lg mb-2">Upload Cover Image (Optional)</h3>
-                    <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors">
+                  <div className="profile-page__highlight-dialog-cover">
+                    <h3 className="profile-page__highlight-dialog-cover-title">Upload Cover Image (Optional)</h3>
+                    <label className="profile-page__highlight-dialog-cover-label">
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
                         onChange={handleCoverImageChange}
-                        className="hidden"
+                        className="profile-page__highlight-dialog-cover-input"
                       />
-                      <span className="text-gray-500 flex items-center">
-                        <svg
-                          className="w-6 h-6 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M3 16v2a2 2 0 002 2h14a2 2 0 002-2v-2M16 6l-4-4m0 0L8 6m4-4v12"
-                          />
-                        </svg>
+                      <span className="profile-page__highlight-dialog-cover-text">
+                        <Image
+                          src="/icons/upload.svg"
+                          alt="Upload icon"
+                          width={24}
+                          height={24}
+                          className="profile-page__highlight-dialog-cover-icon"
+                        />
                         Choose Image
                       </span>
                     </label>
                     {coverImage && (
-                      <div className="mt-4 flex justify-center">
+                      <div className="profile-page__highlight-dialog-cover-preview">
                         <Image
                           src={URL.createObjectURL(coverImage)}
-                          alt="Cover Preview"
+                          alt="Cover preview"
                           width={120}
                           height={120}
-                          className="rounded-lg object-cover"
+                          className="profile-page__highlight-dialog-cover-image"
+                          loading="lazy"
                         />
                       </div>
                     )}
                     {!coverImage && selectedStories.length > 0 && (
-                      <p className="text-sm text-gray-500 mt-2 text-center">
+                      <p className="profile-page__highlight-dialog-cover-note">
                         No cover image selected. The latest story will be used as the cover.
                       </p>
                     )}
                   </div>
-                  <div className="flex justify-end">
+                  <div className="profile-page__highlight-dialog-actions">
                     <Button
                       onClick={() => setStep(1)}
                       variant="secondary"
                       size="medium"
-                      className="mr-2"
+                      aria-label="Go back to title input"
                     >
                       Back
                     </Button>
@@ -897,15 +849,30 @@ const ProfilePage: React.FC = () => {
                       onClick={() => setIsAddHighlightDialogOpen(false)}
                       variant="secondary"
                       size="medium"
-                      className="mr-2"
+                      aria-label="Cancel highlight creation"
                     >
                       Cancel
                     </Button>
                     <Button
-                      onClick={handleAddHighlightSubmit}
+                      onClick={() =>
+                        handleAddHighlightSubmit(
+                          authData?.userId,
+                          highlightTitle,
+                          selectedStories,
+                          coverImage,
+                          userStories,
+                          fetchHighlights,
+                          setIsAddHighlightDialogOpen,
+                          setStep,
+                          setHighlightTitle,
+                          setSelectedStories,
+                          setCoverImage
+                        )
+                      }
                       variant="primary"
                       size="medium"
                       disabled={selectedStories.length === 0}
+                      aria-label="Add highlight"
                     >
                       Add
                     </Button>
@@ -915,7 +882,7 @@ const ProfilePage: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </MainLayout>
   );
 };

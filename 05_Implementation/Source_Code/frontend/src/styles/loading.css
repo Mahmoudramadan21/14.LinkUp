@@ -1,8 +1,22 @@
-.loading-container {
-    @apply flex flex-col items-center justify-center bg-gray-100;
-  }
-  
-  .loading-spinner {
-    @apply w-12 h-12 border-4 border-t-4 border-blue-500 border-solid rounded-full animate-spin;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Custom utility for transparent border-top in spinner */
+  .border-t-transparent {
     border-top-color: transparent;
   }
+}
+
+.loading__container {
+  @apply flex flex-col items-center justify-center bg-gray-100 min-h-screen;
+}
+
+.loading__spinner {
+  @apply w-12 h-12 border-4 border-blue-500 border-t-transparent border-solid rounded-full animate-spin;
+}
+
+.loading__sr-only {
+  @apply sr-only;
+}

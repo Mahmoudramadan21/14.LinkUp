@@ -1,13 +1,13 @@
 'use client';
-
 import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Transition } from '@headlessui/react';
 import Button from './Button';
 import Loading from './Loading';
 import { useProfileStore } from '@/store/profileStore';
-import { useRouter } from 'next/router';
 
+// Interface for follower/following data
 interface FollowingFollower {
   userId: number;
   username: string;
@@ -17,16 +17,72 @@ interface FollowingFollower {
   bio: string | null;
 }
 
+// Interface for profile store actions
+interface ProfileStore {
+  authData: { userId: number } | null;
+  removeFollower: (followerId: number) => Promise<void>;
+  unfollowUser: (followedUserId: number) => Promise<void>;
+  fetchFollowers: (userId: number) => Promise<void>;
+  fetchFollowing: (userId: number) => Promise<void>;
+  setError: (error: string) => void;
+}
+
+// Props for FollowerFollowingDialog component
 interface FollowerFollowingDialogProps {
   isOpen: boolean;
   onClose: () => void;
   userId: number;
   type: 'followers' | 'following';
-  showSearch?: boolean;
-  showRemove?: boolean;
+  showSearch: boolean;
+  showRemove: boolean;
   data: FollowingFollower[];
   loading?: boolean;
   error?: string | null;
+}
+
+// Custom hook for debouncing search input
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// Custom hook for focus trapping
+function useFocusTrap(dialogRef: React.RefObject<HTMLDialogElement>) {
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableElements = dialog.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0] as HTMLElement;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    firstElement?.focus();
+
+    return () => {
+      dialog.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [dialogRef]);
 }
 
 const FollowerFollowingDialog: React.FC<FollowerFollowingDialogProps> = ({
@@ -34,183 +90,214 @@ const FollowerFollowingDialog: React.FC<FollowerFollowingDialogProps> = ({
   onClose,
   userId,
   type,
-  showSearch = false,
-  showRemove = false,
-  data = [],
+  showSearch,
+  showRemove,
+  data,
   loading = false,
   error = null,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const firstFocusableElementRef = useRef<HTMLButtonElement>(null);
-  const { authData, removeFollower, unfollowUser, fetchFollowers, fetchFollowing } = useProfileStore();
-  const router = useRouter();
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const { authData, removeFollower, unfollowUser, fetchFollowers, fetchFollowing, setError } =
+    useProfileStore() as ProfileStore;
 
   const isOwnProfile = authData?.userId === userId;
 
-  // استخدام useMemo لتجنب إعادة حساب filteredData في كل Render
+  // Filter data based on debounced search query
   const filteredData = useMemo(() => {
-    return data.filter((item) =>
-      item.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.profileName && item.profileName.toLowerCase().includes(searchQuery.toLowerCase()))
+    return data.filter(
+      (item) =>
+        item.username.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        (item.profileName &&
+          item.profileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
     );
-  }, [data, searchQuery]);
+  }, [data, debouncedSearchQuery]);
 
-  // Focus Management: نقل الـ Focus للـ Modal لما يفتح
+  // Open dialog and manage focus
   useEffect(() => {
-    if (isOpen && firstFocusableElementRef.current) {
-      firstFocusableElementRef.current.focus();
+    if (isOpen && dialogRef.current && !dialogRef.current.open) {
+      dialogRef.current.showModal();
     }
   }, [isOpen]);
 
-  // Keyboard Navigation: إغلاق الـ Modal بالضغط على Esc
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
+  // Focus trap for accessibility
+  useFocusTrap(dialogRef);
 
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
+  // Close dialog on outside click
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === backdropRef.current) {
+      onClose();
     }
+  };
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+  // Close dialog on Escape key
+  const handleBackdropKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
 
-  // دالة لمسح المتابع (Remove Follower)
+  // Remove follower
   const handleRemoveFollower = async (followerId: number) => {
     if (!isOwnProfile) return;
     try {
       await removeFollower(followerId);
-      await fetchFollowers(userId); // تحديث قائمة المتابعين
+      await fetchFollowers(userId);
     } catch (err: any) {
-      console.error('Failed to remove follower:', err);
-      alert('Failed to remove follower. Please try again.');
+      setError(err.message || 'Failed to remove follower');
     }
   };
 
-  // دالة لإلغاء المتابعة (Unfollow)
+  // Unfollow user
   const handleUnfollow = async (followedUserId: number) => {
     if (!isOwnProfile) return;
     try {
       await unfollowUser(followedUserId);
-      await fetchFollowing(userId); // تحديث قائمة المتابعة
+      await fetchFollowing(userId);
     } catch (err: any) {
-      console.error('Failed to unfollow:', err);
-      alert('Failed to unfollow. Please try again.');
+      setError(err.message || 'Failed to unfollow');
     }
   };
 
-  // إذا الـ Modal مش مفتوح، لا نعرض شيء
   if (!isOpen) return null;
 
   return (
-    <div
-      className="follower-following-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${type} dialog`}
-      onClick={onClose}
+    <Transition
+      show={isOpen}
+      enter="transition-opacity duration-300"
+      enterFrom="opacity-0"
+      enterTo="opacity-100"
+      leave="transition-opacity duration-300"
+      leaveFrom="opacity-100"
+      leaveTo="opacity-0"
     >
       <div
-        className="follower-following-dialog__content"
-        ref={dialogRef}
-        onClick={(e) => e.stopPropagation()}
+        className="follower-following-dialog__backdrop"
+        ref={backdropRef}
+        onClick={handleBackdropClick}
+        onKeyDown={handleBackdropKeyDown}
+        tabIndex={0}
       >
-        <h2 className="follower-following-dialog__title">{type}</h2>
-        {showSearch && (
-          <div className="follower-following-dialog__search">
-            <input
-              type="text"
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="follower-following-dialog__search-input"
-              aria-label={`Search ${type}`}
-            />
-          </div>
-        )}
-        {loading ? (
-          <Loading />
-        ) : error ? (
-          <p className="follower-following-dialog__error" role="alert">
-            {error}
-          </p>
-        ) : (
-          <div className="follower-following-dialog__list">
-            {filteredData.length === 0 ? (
-              <p className="follower-following-dialog__empty">No {type} found</p>
-            ) : (
-              filteredData.map((item) => (
-                <div key={item.userId} className="follower-following-dialog__item">
-                  <Link href={`/profile/${item.username}`} className="follower-following-dialog__user">
-                    <div className="follower-following-dialog__avatar">
-                      <Image
-                        src={item.profilePicture || '/avatars/placeholder.jpg'}
-                        alt={`${item.username}'s profile picture`}
-                        width={48}
-                        height={48}
-                        className="follower-following-dialog__avatar-img"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/avatars/default.jpg';
-                        }}
-                      />
-                    </div>
-                    <div className="follower-following-dialog__info">
-                      <p className="follower-following-dialog__name">
-                        {item.profileName || item.username}
-                      </p>
-                      <p className="follower-following-dialog__username">@{item.username}</p>
-                    </div>
-                  </Link>
-                  {isOwnProfile && (
-                    <div className="follower-following-dialog__action-btn">
-                      {type === 'followers' ? (
-                        <Button
-                          variant="primary"
-                          size="small"
-                          onClick={(e) => {
-                            handleRemoveFollower(item.userId);
-                          }}
-                          aria-label={`Remove ${item.username} from followers`}
-                        >
-                          Remove
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="primary"
-                          size="small"
-                          onClick={(e) => {
-                            handleUnfollow(item.userId);
-                          }}
-                          aria-label={`Unfollow ${item.username}`}
-                        >
-                          Following
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-        <Button
-          variant="secondary"
-          size="medium"
-          onClick={onClose}
-          className="follower-following-dialog__close-btn"
-          ref={firstFocusableElementRef}
-          aria-label="Close dialog"
+        <dialog
+          className="follower-following-dialog__content"
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="follower-following-dialog-title"
+          onClick={(e) => e.stopPropagation()}
         >
-          Close
-        </Button>
+          <h2 className="follower-following-dialog__title" id="follower-following-dialog-title">
+            {type}
+          </h2>
+          {showSearch && (
+            <div className="follower-following-dialog__search">
+              <label htmlFor="search-input" className="follower-following-dialog__label">
+                Search {type}
+              </label>
+              <input
+                id="search-input"
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="follower-following-dialog__search-input"
+                aria-label={`Search ${type}`}
+              />
+            </div>
+          )}
+          {loading ? (
+            <Loading />
+          ) : error ? (
+            <p
+              className="follower-following-dialog__error"
+              role="alert"
+              aria-live="polite"
+            >
+              {error}
+            </p>
+          ) : (
+            <div className="follower-following-dialog__list">
+              {filteredData.length === 0 ? (
+                <p className="follower-following-dialog__empty">No {type} found</p>
+              ) : (
+                filteredData.map((item) => (
+                  <div
+                    key={item.userId}
+                    className="follower-following-dialog__item"
+                    itemProp="author"
+                  >
+                    <Link
+                      href={`/profile/${item.username}`}
+                      className="follower-following-dialog__user"
+                      prefetch={false}
+                    >
+                      <div className="follower-following-dialog__avatar">
+                        <Image
+                          src={item.profilePicture || '/avatars/placeholder.jpg'}
+                          alt={`${item.username}'s profile picture`}
+                          width={48}
+                          height={48}
+                          className="follower-following-dialog__avatar-img"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/avatars/default.jpg';
+                          }}
+                        />
+                      </div>
+                      <div className="follower-following-dialog__info">
+                        <p className="follower-following-dialog__name">
+                          {item.profileName || item.username}
+                        </p>
+                        <p className="follower-following-dialog__username">
+                          @{item.username}
+                        </p>
+                      </div>
+                    </Link>
+                    {isOwnProfile && showRemove && (
+                      <div className="follower-following-dialog__action">
+                        {type === 'followers' ? (
+                          <Button
+                            variant="primary"
+                            size="small"
+                            type="button"
+                            onClick={() => handleRemoveFollower(item.userId)}
+                            aria-label={`Remove ${item.username} from followers`}
+                          >
+                            Remove
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="primary"
+                            size="small"
+                            type="button"
+                            onClick={() => handleUnfollow(item.userId)}
+                            aria-label={`Unfollow ${item.username}`}
+                          >
+                            Following
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          <Button
+            variant="secondary"
+            size="medium"
+            type="button"
+            onClick={onClose}
+            className="follower-following-dialog__button--close"
+            aria-label="Close dialog"
+          >
+            Close
+          </Button>
+        </dialog>
       </div>
-    </div>
+    </Transition>
   );
 };
 

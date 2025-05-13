@@ -1,12 +1,17 @@
-import AuthLayout from "@/layout/AuthLayout";
-import SignupForm from "@/sections/SignupForm";
+import React, { memo } from 'react';
+import AuthLayout from '@/layout/AuthLayout';
+import SignupForm from '@/sections/SignupForm';
 
+/**
+ * SignupPage Component
+ * Renders the signup page with a form within the AuthLayout.
+ */
 const SignupPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Sign Up">
-      <div className="auth-page signup-page">
+      <div className="auth-page auth-page--signup">
         <div className="auth-page__container">
-          <div className="auth-page__form  signup-page__form">
+          <div className="auth-page__form auth-page__form--signup">
             <SignupForm />
           </div>
         </div>
@@ -15,4 +20,4 @@ const SignupPage: React.FC = () => {
   );
 };
 
-export default SignupPage;
+export default memo(SignupPage);

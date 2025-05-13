@@ -1,12 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
+import clsx from 'clsx';
 import Avatar from '../components/Avatar';
+import Button from '../components/Button';
 
-/*
- * CreatePost Component
- * Allows users to create a new post with text, image, or video content.
- * Used in social feeds or user dashboards for posting updates.
- */
+// Form to create a new post with text, image, or video
 interface CreatePostProps {
   user: {
     name: string;
@@ -20,34 +18,65 @@ const CreatePost: React.FC<CreatePostProps> = ({ user, onPostSubmit }) => {
   const [content, setContent] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);
+  const [error, setError] = useState<string>('');
 
-  // Handle image file selection
+  // Validate and handle image selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImage(e.target.files[0]);
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload a valid image file.');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB.');
+        return;
+      }
+      setImage(file);
+      setError('');
     }
   };
 
-  // Handle video file selection
+  // Validate and handle video selection
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setVideo(e.target.files[0]);
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('video/')) {
+        setError('Please upload a valid video file.');
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        setError('Video size must be less than 50MB.');
+        return;
+      }
+      setVideo(file);
+      setError('');
     }
   };
 
-  // Submit the post if content, image, or video is provided
-  const handleSubmit = () => {
+  // Submit post if valid
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (content.trim() || image || video) {
       onPostSubmit(content, image || undefined, video || undefined);
       setContent('');
       setImage(null);
       setVideo(null);
+      setError('');
+    } else {
+      setError('Please add content, an image, or a video.');
     }
   };
 
   return (
-    <div className="create-post-container" data-testid="create-post">
-      <div className="create-post-header">
+    <form
+      className="create-post"
+      role="form"
+      aria-label="Create a new post"
+      onSubmit={handleSubmit}
+      data-testid="create-post"
+    >
+      <div className="create-post__header">
         <Avatar
           imageSrc={user.profilePicture}
           username={user.username}
@@ -57,52 +86,82 @@ const CreatePost: React.FC<CreatePostProps> = ({ user, onPostSubmit }) => {
         <input
           type="text"
           placeholder={`What's on your mind, ${user.name.split(' ')[0]}?`}
-          className="create-post-field"
+          className="create-post__field"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          aria-label="Create a new post"
+          aria-label="Post content"
+          maxLength={280}
+          itemProp="comment"
         />
       </div>
-      <div className="create-post-divider"></div>
-      <div className="create-post-options">
-        <label className="create-post-option image-option">
+      <div className="create-post__divider"></div>
+      <div className="create-post__options">
+        <label
+          className="create-post__option create-post__option--image"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.querySelector('input')?.click()}
+        >
           <img
             src="/icons/image.svg"
-            alt="Upload image"
-            className="create-post-option-icon"
+            alt=""
+            className="create-post__option-icon"
             loading="lazy"
+            width={20}
+            height={20}
+            aria-hidden="true"
           />
           <span>Image</span>
           <input
             type="file"
             accept="image/*"
             onChange={handleImageChange}
-            className="create-post-file-input"
+            className="create-post__file-input"
+            id="image-upload"
             aria-label="Upload an image"
+            aria-describedby={error ? 'create-post-error' : undefined}
           />
         </label>
-        <label className="create-post-option video-option">
+        <label
+          className="create-post__option create-post__option--video"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.querySelector('input')?.click()}
+        >
           <img
             src="/icons/upload-video.svg"
-            alt="Upload video"
-            className="create-post-option-icon"
+            alt=""
+            className="create-post__option-icon"
             loading="lazy"
+            width={20}
+            height={20}
+            aria-hidden="true"
           />
           <span>Video</span>
           <input
             type="file"
             accept="video/*"
             onChange={handleVideoChange}
-            className="create-post-file-input"
+            className="create-post__file-input"
+            id="video-upload"
             aria-label="Upload a video"
+            aria-describedby={error ? 'create-post-error' : undefined}
           />
         </label>
-        <button onClick={handleSubmit} className="create-post-option submit-option">
-          <span>Post</span>
-        </button>
+        <Button type="submit" ariaLabel="Submit post" variant="primary" size="medium">
+          Post
+        </Button>
       </div>
-    </div>
+      {error && (
+        <span
+          id="create-post-error"
+          className="create-post__error"
+          role="alert"
+          aria-live="polite"
+        >
+          {error}
+        </span>
+      )}
+    </form>
   );
 };
 
-export default CreatePost;
+export default memo(CreatePost);

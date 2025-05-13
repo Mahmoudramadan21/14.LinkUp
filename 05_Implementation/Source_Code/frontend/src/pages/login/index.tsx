@@ -1,27 +1,29 @@
-import AuthLayout from "@/layout/AuthLayout";
-import LoginForm from "@/sections/LoginForm";
-import Image from "next/image";
-import loginIllustration from "@/../public/illustrations/login-illustration.svg"
+import React, { memo } from 'react';
+import AuthLayout from '@/layout/AuthLayout';
+import LoginForm from '@/sections/LoginForm';
+import Image from 'next/image';
 
+/**
+ * LoginPage Component
+ * Renders the login page with a form and an illustration within the AuthLayout.
+ */
 const LoginPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Sign In">
       <div className="auth-page">
         <div className="auth-page__container">
-          {/* Left Side: Form */}
           <div className="auth-page__form">
             <LoginForm />
           </div>
-
-          {/* Right Side: Illustration */}
-          <div className="auth-page__illustration">
+          <div className="auth-page__illustration" aria-hidden="true">
             <Image
-              src={loginIllustration}
+              src="/illustrations/login-illustration.svg"
               alt="People connecting on LinkUp"
               width={500}
               height={500}
-              priority
-              className="auth-page__illustration-image"
+              className="auth-page__image--illustration"
+              loading="lazy"
+              sizes="(max-width: 1024px) 50vw, 500px"
             />
           </div>
         </div>
@@ -30,4 +32,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default memo(LoginPage);

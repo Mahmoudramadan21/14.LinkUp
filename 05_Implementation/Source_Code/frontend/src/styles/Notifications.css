@@ -2,77 +2,153 @@
 @tailwind components;
 @tailwind utilities;
 
-.notifications-dialog {
-  @apply relative w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all h-full;
+@layer utilities {
+  /* Hide scrollbar for a cleaner look */
+  .no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer and Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and other WebKit browsers */
+  }
 }
 
-.notifications-container {
-  @apply w-full bg-white rounded-lg max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar;
+.notifications {
+  @apply fixed inset-0 z-50;
 }
 
-.notification-item {
-  @apply flex items-start space-x-3 p-2 hover:bg-gray-100 rounded;
+.notifications__overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm;
 }
 
-.notification-link {
-  @apply flex items-start space-x-3 w-full p-2 hover:bg-gray-100 rounded no-underline text-current;
+.notifications__overlay-enter {
+  @apply ease-out duration-300;
 }
 
-.notification-content {
-  @apply flex-1;
+.notifications__overlay-enter-from {
+  @apply opacity-0;
 }
 
-.notification-text {
-  @apply text-sm text-gray-800;
+.notifications__overlay-enter-to {
+  @apply opacity-100;
 }
 
-.notification-unread {
-  @apply w-2 h-2 bg-blue-500 rounded-full inline-block ml-2;
+.notifications__overlay-leave {
+  @apply ease-in duration-200;
 }
 
-.notification-time {
-  @apply text-xs text-gray-500;
+.notifications__overlay-leave-from {
+  @apply opacity-100;
 }
 
-.dialog-overlay {
-  @apply fixed inset-0 bg-black bg-opacity-50;
+.notifications__overlay-leave-to {
+  @apply opacity-0;
 }
 
-.dialog-wrapper {
+.notifications__wrapper {
   @apply fixed inset-0 overflow-y-auto;
 }
 
-.dialog-content {
-  @apply flex min-h-full justify-end mt-4 mr-8;
+.notifications__content {
+  @apply flex min-h-full justify-end mt-4 mx-4;
 }
 
-.dialog-title {
-  @apply text-lg font-semibold text-gray-900 mb-4 relative;
+.notifications__panel {
+  @apply relative w-full max-w-md h-full bg-white rounded-lg shadow-xl p-6 transform transition-all;
 }
 
-.close-button {
-  @apply absolute top-4 right-4 text-gray-500 hover:text-gray-700;
+.notifications__panel-enter {
+  @apply ease-out duration-300;
 }
 
-.close-icon {
+.notifications__panel-enter-from {
+  @apply opacity-0 translate-x-full;
+}
+
+.notifications__panel-enter-to {
+  @apply opacity-100 translate-x-0;
+}
+
+.notifications__panel-leave {
+  @apply ease-in duration-200;
+}
+
+.notifications__panel-leave-from {
+  @apply opacity-100 translate-x-0;
+}
+
+.notifications__panel-leave-to {
+  @apply opacity-0 translate-x-full;
+}
+
+.notifications__header {
+  @apply relative mb-4;
+}
+
+.notifications__title {
+  @apply text-lg font-semibold text-gray-900;
+}
+
+.notifications__close {
+  @apply absolute top-0 right-0 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1;
+}
+
+.notifications__close-icon {
   @apply w-6 h-6;
 }
 
-.empty-message {
-  @apply text-center text-gray-500;
+.notifications__container {
+  @apply w-full max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar;
 }
 
-.loading-text {
-  @apply text-center py-4;
+.notifications__item {
+  @apply flex items-center p-2 rounded hover:bg-gray-100;
 }
 
-@layer utilities {
-  .no-scrollbar {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  }
+.notifications__link {
+  @apply flex items-start w-full p-2 rounded no-underline text-current hover:bg-gray-100;
+}
 
-  .no-scrollbar::-webkit-scrollbar {
-    display: none; /* Safari and Chrome */
-  }
+.notifications__static {
+  @apply flex items-start space-x-3;
+}
+
+.notifications__content {
+  @apply flex-1;
+}
+
+.notifications__text {
+  @apply text-sm text-gray-800;
+}
+
+.notifications__unread {
+  @apply w-2 h-2 bg-blue-500 rounded-full inline-block ml-2 align-middle;
+}
+
+.notifications__time {
+  @apply text-xs text-center text-gray-500;
+}
+
+.notifications__actions {
+  @apply flex space-x-2 mt-2;
+}
+
+.notifications__action {
+  @apply text-sm px-3 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.notifications__action--mark-read {
+  @apply bg-blue-500 text-white hover:bg-blue-600;
+}
+
+.notifications__action--delete {
+  @apply bg-red-500 text-white hover:bg-red-600;
+}
+
+.notifications__empty {
+  @apply text-center text-gray-500 py-4;
+}
+
+.notifications__loading {
+  @apply text-center text-gray-500 py-4;
 }

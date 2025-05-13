@@ -1,33 +1,46 @@
-import React from 'react';
+import React, { memo } from 'react';
 import Button from '@/components/Button';
 import Image from 'next/image';
-import successCheckmark from "../../public/svgs/success-checkmark.svg"
+import successCheckmark from '/svgs/success-checkmark.svg';
 
+// Interface for component props
 interface PasswordResetSuccessSectionProps {
   onContinue: () => void;
 }
 
+/**
+ * PasswordResetSuccessSection Component
+ * Renders a success message and button after a successful password reset.
+ */
 const PasswordResetSuccessSection: React.FC<PasswordResetSuccessSectionProps> = ({ onContinue }) => {
   return (
-    <section className="auth-form auth-form--password-reset-success">
+    <section
+      className="auth-form auth-form--password-reset-success"
+      role="region"
+      aria-labelledby="password-reset-success-title"
+    >
       <div className="auth-form__container">
         <Image
           src={successCheckmark}
-          alt="Success checkmark"
+          alt=""
           width={64}
           height={64}
-          className="auth-form__success-image"
-          priority
+          className="auth-form__image--success"
+          loading="lazy"
+          sizes="64px"
+          aria-hidden="true"
         />
-        <h1 className="auth-form__title">Successfully</h1>
-        <p className="auth-form__subtitle">
+        <h1 id="password-reset-success-title" className="auth-form__title auth-form__title--password-reset-success">
+          Successfully
+        </h1>
+        <p className="auth-form__subtitle auth-form__subtitle--password-reset-success" aria-hidden="true">
           Your password has been reset successfully
         </p>
         <Button
+          type="button"
           onClick={onContinue}
           variant="primary"
-          size='small'
-        //   className="auth-form__button"
+          size="small"
           aria-label="Continue to login"
         >
           CONTINUE
@@ -37,4 +50,4 @@ const PasswordResetSuccessSection: React.FC<PasswordResetSuccessSectionProps> = 
   );
 };
 
-export default PasswordResetSuccessSection;
+export default memo(PasswordResetSuccessSection);

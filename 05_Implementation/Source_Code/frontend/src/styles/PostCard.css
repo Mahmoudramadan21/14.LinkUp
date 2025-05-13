@@ -1,11 +1,14 @@
+/* PostCard component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Main container */
 .post-card {
   @apply w-full bg-white rounded-xl p-4 shadow-sm mb-4;
 }
 
+/* Header */
 .post-card__header {
   @apply flex items-start justify-between mb-2;
 }
@@ -15,7 +18,7 @@
 }
 
 .post-card__username {
-  @apply text-sm font-semibold text-gray-800;
+  @apply text-sm font-semibold text-gray-800 hover:underline;
 }
 
 .post-card__meta {
@@ -34,18 +37,15 @@
   @apply flex gap-1;
 }
 
-.post-card__action-button {
-  @apply text-gray-500 hover:text-gray-700;
+.post-card__button--more {
+  @apply text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500;
 }
 
 .post-card__dots {
   @apply text-lg;
 }
 
-.post-card__close {
-  @apply text-lg;
-}
-
+/* Content */
 .post-card__content {
   @apply mb-2;
 }
@@ -63,18 +63,14 @@
 }
 
 .post-card__video {
-  @apply w-full h-full object-cover shadow-md transition-transform duration-300;
-}
-
-.post-card__video:hover {
-  @apply transform scale-105 brightness-110;
+  @apply w-full h-full object-cover shadow-md transition-transform duration-300 hover:scale-105 hover:brightness-110;
 }
 
 .post-card__video-control {
   @apply absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-50 rounded-full p-3 opacity-0 transition-opacity duration-300;
 }
 
-.post-card__video-control.visible {
+.post-card__video-control--visible {
   @apply opacity-100;
 }
 
@@ -82,12 +78,15 @@
   @apply w-6 h-6 text-white;
 }
 
+/* Actions bar */
 .post-card__actions-bar {
   @apply flex items-center gap-6 mb-2;
 }
 
-.post-card__action {
-  @apply flex items-center gap-1 text-gray-500 hover:text-gray-700;
+.post-card__button--like,
+.post-card__button--comment,
+.post-card__button--save {
+  @apply flex items-center gap-1 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500;
 }
 
 .post-card__action-icon {
@@ -98,10 +97,7 @@
   @apply text-sm;
 }
 
-.post-card__views {
-  @apply text-sm text-linkup-purple;
-}
-
+/* Likes */
 .post-card__likes {
   @apply flex items-center gap-2 mb-2;
 }
@@ -110,14 +106,19 @@
   @apply flex;
 }
 
-.post-card__likes-avatar {
+.post-card__avatar--like {
   @apply w-6 h-6 rounded-full border-2 border-white;
+}
+
+.post-card__avatar--like:not(:first-child) {
+  @apply -ml-2.5;
 }
 
 .post-card__likes-text {
   @apply text-sm text-gray-600;
 }
 
+/* Comments */
 .post-card__comments {
   @apply mt-2;
 }
@@ -150,14 +151,16 @@
   @apply flex gap-2 text-xs text-gray-500 mt-1;
 }
 
-.post-card__comment-action {
-  @apply hover:text-gray-700;
+.post-card__button--comment-like,
+.post-card__button--reply {
+  @apply hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500;
 }
 
 .post-card__comment-time {
   @apply text-gray-500;
 }
 
+/* Replies */
 .post-card__replies {
   @apply mt-2 ml-6 border-l-2 border-gray-200 pl-4;
 }
@@ -190,30 +193,27 @@
   @apply flex gap-2 text-xs text-gray-500 mt-1;
 }
 
-.post-card__reply-action {
-  @apply hover:text-gray-700;
+.post-card__button--reply-like {
+  @apply hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500;
 }
 
 .post-card__reply-time {
   @apply text-gray-500;
 }
 
+/* Comment input */
 .post-card__comment-input {
   @apply flex items-center gap-2 mt-2;
 }
 
-.post-card__comment-input-field {
-  @apply flex-1 p-2 rounded-lg border border-gray-300 text-sm;
+.post-card__input--comment {
+  @apply flex-1 p-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600;
 }
 
-.post-card__comment-submit {
-  @apply bg-linkup-purple text-white px-4 py-1 rounded-lg text-sm;
+.post-card__button--submit {
+  @apply bg-purple-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500;
 }
 
-.post-card__comment-cancel {
-  @apply text-gray-500 px-4 py-1 rounded-lg text-sm hover:text-gray-700;
-}
-
-.post-card__comment-avatar {
-  @apply w-5 h-5 rounded-full;
+.post-card__button--cancel {
+  @apply text-gray-500 px-4 py-1 rounded-lg text-sm hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500;
 }

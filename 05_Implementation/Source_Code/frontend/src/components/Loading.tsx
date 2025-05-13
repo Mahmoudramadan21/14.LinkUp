@@ -1,17 +1,18 @@
 'use client';
-import React from 'react';
+import React, { memo } from 'react';
 
 /*
  * Loading Component
- * Displays a loading spinner with an optional message.
- * Used to indicate ongoing processes like data fetching.
+ * Displays a spinner to indicate ongoing processes like data fetching.
+ * Accessible with ARIA attributes for screen readers.
  */
 const Loading: React.FC = () => {
   return (
-    <div className="loading-container">
-      <div className="loading-spinner"></div>
+    <div className="loading__container" role="status" aria-live="polite" aria-busy="true">
+      <div className="loading__spinner" />
+      <span className="loading__sr-only">Loading content, please wait...</span>
     </div>
   );
 };
 
-export default Loading;
+export default memo(Loading);

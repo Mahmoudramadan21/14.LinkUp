@@ -1,63 +1,58 @@
+/* CreatePost component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.create-post-container {
+/* Base form styles */
+.create-post {
   @apply w-full my-4 mx-auto bg-white rounded-xl shadow-lg p-4;
 }
 
-.create-post-header {
+/* Header section */
+.create-post__header {
   @apply flex items-center space-x-3;
 }
 
-.create-post-field {
-  @apply flex-1 p-3 bg-gray-100 rounded-full text-gray-700 focus:outline-none;
+.create-post__field {
+  @apply flex-1 p-3 bg-gray-100 rounded-full text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500;
 }
 
-.create-post-divider {
+/* Divider */
+.create-post__divider {
   @apply border-t border-gray-200 my-4;
 }
 
-.create-post-actions {
-  @apply flex justify-between;
+/* Options section */
+.create-post__options {
+  @apply flex justify-between items-center;
 }
 
-.create-post-action {
+.create-post__option {
   @apply flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-gray-900;
 }
 
-.create-post-action-icon {
+.create-post__option-icon {
   @apply w-5 h-5;
 }
 
-.create-post-live {
-  @apply text-red-500 hover:text-red-600;
-}
-
-.create-post-image-video {
-  @apply text-green-500 hover:text-green-600;
-}
-
-.create-post-activity {
-  @apply text-yellow-500 hover:text-yellow-600;
-}
-
-.create-post-options {
-  @apply flex justify-between mt-4;
-}
-
-.create-post-option {
-  @apply flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-gray-900;
-}
-
-.create-post-option-icon {
-  @apply w-5 h-5;
-}
-
-.create-post-file-input {
+.create-post__file-input {
   @apply hidden;
 }
 
-.create-post-submit {
-  @apply px-4 py-1 bg-blue-500 text-white rounded-full hover:bg-blue-600;
+.create-post .button-block {
+  @apply w-40;
+}
+
+/* Option variants */
+.create-post__option--image {
+  @apply text-green-500 hover:text-green-600;
+}
+
+.create-post__option--video {
+  @apply text-blue-500 hover:text-blue-600;
+}
+
+/* Error message */
+.create-post__error {
+  @apply mt-2 text-sm text-red-500;
 }

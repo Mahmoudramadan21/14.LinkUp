@@ -1,27 +1,34 @@
+/* HeaderSection component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Main header */
 .header-section {
   @apply flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-8 px-4 py-2 bg-white shadow-sm;
 }
 
+/* Logo container */
 .header-section__logo {
-  @apply flex items-center flex-shrink;
+  @apply flex items-center flex-shrink-0;
 }
 
+/* Logo image */
 .header-section__logo-img {
   @apply w-32 sm:w-44;
 }
 
+/* Center section with search and nav */
 .header-section__center {
   @apply flex items-center justify-center md:justify-between gap-4 w-full md:w-auto mt-2 md:mt-0 order-3 md:order-none lg:gap-16;
 }
 
+/* Navigation bar */
 .header-section__nav {
   @apply flex items-center space-x-4;
 }
 
+/* Navigation icon group */
 .header-section__nav-group {
   @apply flex items-center gap-4;
 }

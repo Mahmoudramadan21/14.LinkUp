@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
-import StoriesList from "../components/StoriesList";
-import StoryViewer from "../components/StoryViewer";
-import { Transition } from "@headlessui/react";
-import { toggleStoryLike } from "../utils/api";
+import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
+import StoriesList from '../components/StoriesList';
+import StoryViewer from '../components/StoryViewer';
+import { Transition } from '@headlessui/react';
+import { toggleStoryLike } from '../utils/api';
 
 interface Story {
   storyId: number;
@@ -38,6 +38,10 @@ interface StoryDetails {
   hasLiked: boolean;
 }
 
+interface ToggleStoryLikeResponse {
+  action: 'liked' | 'unliked';
+}
+
 interface StoriesDialogSectionProps {
   stories: UserStory[];
   initialStoryId: number;
@@ -46,6 +50,10 @@ interface StoriesDialogSectionProps {
   token: string;
 }
 
+/**
+ * StoriesDialogSection Component
+ * Renders a dialog for viewing stories with a list and viewer.
+ */
 const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
   stories,
   initialStoryId,
@@ -63,23 +71,27 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const storyDuration = 15000;
 
-  useEffect(() => {
-    const loadInitialStory = () => {
+  // Select a story
+  const handleStorySelect = useCallback(
+    (storyId: number) => {
       try {
         setLoading(true);
-        const initialStory = stories
+        const selected = stories
           .flatMap((user) => user.stories)
-          .find((story) => story.storyId === initialStoryId);
-        if (initialStory) {
-          const userIndex = stories.findIndex((user) => user.stories.some((s) => s.storyId === initialStoryId));
+          .find((story) => story.storyId === storyId);
+        if (selected) {
+          const userIndex = stories.findIndex((user) =>
+            user.stories.some((s) => s.storyId === storyId)
+          );
           const user = stories[userIndex];
           setSelectedStory({
-            StoryID: initialStory.storyId,
-            MediaURL: initialStory.mediaUrl,
-            CreatedAt: initialStory.createdAt,
-            ExpiresAt: initialStory.expiresAt,
+            StoryID: selected.storyId,
+            MediaURL: selected.mediaUrl,
+            CreatedAt: selected.createdAt,
+            ExpiresAt: selected.expiresAt,
             User: {
               UserID: user.userId,
               Username: user.username,
@@ -92,84 +104,22 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
           setActiveUserId(user.userId);
           setCurrentUserIndex(userIndex >= 0 ? userIndex : 0);
           setUserStoryIds(user.stories.map((s) => s.storyId));
-          setCurrentStoryIndex(user.stories.findIndex((s) => s.storyId === initialStoryId));
+          setCurrentStoryIndex(user.stories.findIndex((s) => s.storyId === storyId));
           setError(null);
         } else {
-          setError("Story not found");
+          setError('Story not found');
         }
       } catch (err: any) {
-        setError("Failed to load story");
-        console.error(err);
+        setError('Failed to load story');
       } finally {
         setLoading(false);
       }
-    };
-    loadInitialStory();
-  }, [initialStoryId, stories]);
+    },
+    [stories]
+  );
 
-  useEffect(() => {
-    if (isPlaying && selectedStory && userStoryIds.length > 0) {
-      timerRef.current = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            handleNextStory();
-            return 0;
-          }
-          return prev + (100 / (storyDuration / 100));
-        });
-      }, 100);
-    } else if (!isPlaying && timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isPlaying, currentUserIndex, currentStoryIndex, selectedStory, userStoryIds]);
-
-  useEffect(() => {
-    setProgress(0);
-  }, [currentStoryIndex]);
-
-  const handleStorySelect = (storyId: number) => {
-    try {
-      setLoading(true);
-      const selected = stories
-        .flatMap((user) => user.stories)
-        .find((story) => story.storyId === storyId);
-      if (selected) {
-        const userIndex = stories.findIndex((user) => user.stories.some((s) => s.storyId === storyId));
-        const user = stories[userIndex];
-        setSelectedStory({
-          StoryID: selected.storyId,
-          MediaURL: selected.mediaUrl,
-          CreatedAt: selected.createdAt,
-          ExpiresAt: selected.expiresAt,
-          User: {
-            UserID: user.userId,
-            Username: user.username,
-            ProfilePicture: user.profilePicture,
-            IsPrivate: false,
-          },
-          _count: { StoryLikes: 0, StoryViews: 0 },
-          hasLiked: false,
-        });
-        setActiveUserId(user.userId);
-        setCurrentUserIndex(userIndex >= 0 ? userIndex : 0);
-        setUserStoryIds(user.stories.map((s) => s.storyId));
-        setCurrentStoryIndex(user.stories.findIndex((s) => s.storyId === storyId));
-        setError(null);
-      } else {
-        setError("Story not found");
-      }
-    } catch (err: any) {
-      setError("Failed to load story");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNextStory = () => {
+  // Navigate to next story
+  const handleNextStory = useCallback(() => {
     if (currentStoryIndex !== null && currentUserIndex !== null) {
       const currentUser = stories[currentUserIndex];
       if (currentStoryIndex + 1 < userStoryIds.length) {
@@ -193,9 +143,10 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
         }
       }
     }
-  };
+  }, [currentStoryIndex, currentUserIndex, stories, userStoryIds, handleStorySelect]);
 
-  const handlePrevStory = () => {
+  // Navigate to previous story
+  const handlePrevStory = useCallback(() => {
     if (currentStoryIndex !== null && currentUserIndex !== null) {
       if (currentStoryIndex > 0) {
         setCurrentStoryIndex(currentStoryIndex - 1);
@@ -210,30 +161,175 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
         }
       }
     }
-  };
+  }, [currentStoryIndex, currentUserIndex, stories, userStoryIds, handleStorySelect]);
 
-  const togglePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
-
-  const handleLike = async (storyId: number) => {
+  // Load initial story
+  const loadInitialStory = useCallback(() => {
     try {
-      const result = await toggleStoryLike(storyId, token);
-      setSelectedStory((prev) =>
-        prev ? { ...prev, hasLiked: result.action === "liked", _count: { ...prev._count, StoryLikes: result.action === "liked" ? prev._count.StoryLikes + 1 : prev._count.StoryLikes - 1 } } : prev
-      );
+      setLoading(true);
+      const initialStory = stories
+        .flatMap((user) => user.stories)
+        .find((story) => story.storyId === initialStoryId);
+      if (initialStory) {
+        const userIndex = stories.findIndex((user) =>
+          user.stories.some((s) => s.storyId === initialStoryId)
+        );
+        const user = stories[userIndex];
+        setSelectedStory({
+          StoryID: initialStory.storyId,
+          MediaURL: initialStory.mediaUrl,
+          CreatedAt: initialStory.createdAt,
+          ExpiresAt: initialStory.expiresAt,
+          User: {
+            UserID: user.userId,
+            Username: user.username,
+            ProfilePicture: user.profilePicture,
+            IsPrivate: false,
+          },
+          _count: { StoryLikes: 0, StoryViews: 0 },
+          hasLiked: false,
+        });
+        setActiveUserId(user.userId);
+        setCurrentUserIndex(userIndex >= 0 ? userIndex : 0);
+        setUserStoryIds(user.stories.map((s) => s.storyId));
+        setCurrentStoryIndex(user.stories.findIndex((s) => s.storyId === initialStoryId));
+        setError(null);
+      } else {
+        setError('Story not found');
+      }
     } catch (err: any) {
-      console.error("Failed to toggle like:", err);
+      setError('Failed to load story');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [initialStoryId, stories]);
 
-  const handleReply = (storyId: number, reply: string) => {
-    console.log(`Replying to story with ID: ${storyId}, Reply: ${reply}`);
-  };
+  // Toggle play/pause
+  const togglePlayPause = useCallback(() => {
+    setIsPlaying((prev) => !prev);
+  }, []);
+
+  // Handle like action
+  const handleLike = useCallback(
+    async (storyId: number) => {
+      try {
+        const result = await toggleStoryLike(storyId, token);
+        setSelectedStory((prev) =>
+          prev
+            ? {
+                ...prev,
+                hasLiked: result.action === 'liked',
+                _count: {
+                  ...prev._count,
+                  StoryLikes:
+                    result.action === 'liked'
+                      ? prev._count.StoryLikes + 1
+                      : prev._count.StoryLikes - 1,
+                },
+              }
+            : prev
+        );
+      } catch (err: any) {
+        setError('Failed to toggle like');
+      }
+    },
+    [token]
+  );
+
+  // Handle reply action
+  const handleReply = useCallback((storyId: number, reply: string) => {
+    // Implement reply logic here
+  }, []);
+
+  // Close dialog on outside click
+  const handleOverlayClick = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  // Load initial story on mount
+  useEffect(() => {
+    loadInitialStory();
+  }, [loadInitialStory]);
+
+  // Handle story timer
+  useEffect(() => {
+    if (isPlaying && selectedStory && userStoryIds.length > 0) {
+      timerRef.current = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            handleNextStory();
+            return 0;
+          }
+          return prev + 100 / (storyDuration / 200);
+        });
+      }, 200);
+    } else if (!isPlaying && timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPlaying, selectedStory, userStoryIds, handleNextStory]);
+
+  // Reset progress on story change
+  useEffect(() => {
+    setProgress(0);
+  }, [currentStoryIndex]);
+
+  // Focus trap for dialog
+  useEffect(() => {
+    if (dialogRef.current) {
+      const focusableElements = dialogRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          if (e.shiftKey && document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          } else if (!e.shiftKey && document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+        if (e.key === 'Escape') {
+          onClose();
+        }
+        if (e.key === 'ArrowRight') {
+          handleNextStory();
+        }
+        if (e.key === 'ArrowLeft') {
+          handlePrevStory();
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      firstElement?.focus();
+
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [onClose, handleNextStory, handlePrevStory]);
 
   return (
-    <div className="stories-dialog__overlay">
-      <div className="stories-dialog__wrapper" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="stories-dialog__overlay"
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="stories-dialog-title"
+      itemscope
+      itemtype="http://schema.org/CreativeWork"
+    >
+      <div
+        className="stories-dialog__wrapper"
+        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
+      >
         <div className="stories-dialog__content">
           <Transition
             show={true}
@@ -247,7 +343,11 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
             <div className="stories-dialog__panel">
               <div className="stories-dialog__title">
                 Stories
-                <button className="stories-dialog__close-button" onClick={onClose}>
+                <button
+                  className="stories-dialog__close-button"
+                  onClick={onClose}
+                  aria-label="Close stories dialog"
+                >
                   <span className="stories-dialog__close-icon">✖</span>
                 </button>
               </div>
@@ -257,9 +357,15 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
                   onStorySelect={handleStorySelect}
                   activeUserId={activeUserId}
                 />
-                {error && <div className="error-message">{error}</div>}
+                {error && (
+                  <div className="stories-dialog__error" aria-live="polite">
+                    {error}
+                  </div>
+                )}
                 {loading ? (
-                  <div className="story-viewer__loading">Loading...</div>
+                  <div className="stories-dialog__loading" aria-live="polite">
+                    Loading...
+                  </div>
                 ) : selectedStory ? (
                   <StoryViewer
                     story={selectedStory}
@@ -275,7 +381,9 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
                     onTogglePlayPause={togglePlayPause}
                   />
                 ) : (
-                  <div className="story-viewer__loading">Select a story to view</div>
+                  <div className="stories-dialog__loading" aria-live="polite">
+                    Select a story to view
+                  </div>
                 )}
               </div>
             </div>
@@ -286,4 +394,4 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
   );
 };
 
-export default StoriesDialogSection;
+export default memo(StoriesDialogSection);

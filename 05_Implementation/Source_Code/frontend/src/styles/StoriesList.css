@@ -1,35 +1,44 @@
+/* StoriesList component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.stories-list-container {
+/* Main container */
+.stories-list__container {
   @apply w-[260px] overflow-hidden bg-white rounded-lg shadow-lg p-4;
 }
 
-.stories-list-title {
+/* Title */
+.stories-list__title {
   @apply text-sm font-semibold text-gray-600 mb-4;
 }
 
-.stories-list-items {
+/* Stories list */
+.stories-list__items {
   @apply space-y-3;
 }
 
-.story-item {
-  @apply flex items-center space-x-3 cursor-pointer hover:bg-gray-100 p-1 rounded;
+/* Story item button */
+.stories-list__button--item {
+  @apply flex items-center space-x-3 cursor-pointer hover:bg-gray-100 p-1 rounded focus:outline-none focus:ring-2 focus:ring-gray-500;
 }
 
-.story-avatar-active {
-  @apply ring-2 ring-red-500;
+/* Active story item */
+.stories-list__button--item-active {
+  @apply bg-blue-100;
 }
-zzz
-.story-details {
+
+/* Avatar active state */
+.avatar--active {
+  @apply ring-2 ring-green-500;
+}
+
+/* Story details */
+.stories-list__details {
   @apply hidden md:block flex-1;
 }
 
-.story-username {
-  @apply text-xs text-gray-600;
-}
-
-.story-active {
-  @apply text-xs text-green-500 ml-1;
+/* Username */
+.stories-list__username {
+  @apply text-xs text-gray-600 hover:underline;
 }

@@ -1,43 +1,54 @@
+/* FollowRequests component styles using Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.follow-requests-container {
-  @apply md:w-72 2xl:w-96  mx-auto p-4 bg-white;
+/* Main container */
+.follow-requests__container {
+  @apply hidden 2xl:block 2xl:min-w-80 mx-auto p-4 bg-white;
 }
 
-.follow-requests-title {
+/* Title */
+.follow-requests__title {
   @apply text-lg font-bold mb-4 text-gray-800;
 }
 
-.follow-requests-list {
+/* List of follow requests */
+.follow-requests__list {
   @apply space-y-4;
 }
 
-.follow-request-item {
+/* Individual request item */
+.follow-request__item {
   @apply flex items-center justify-between rounded-lg transition-all duration-200;
 }
 
-.follow-request-details {
+/* User details */
+.follow-request__details {
   @apply flex items-center space-x-4;
 }
 
-.follow-request-username {
+/* Username */
+.follow-requests__username {
   @apply text-sm font-semibold text-gray-500;
 }
 
-.follow-request-time {
+/* Timestamp */
+.follow-requests__time {
   @apply text-xs text-gray-500;
 }
 
-.follow-request-actions {
+/* Action buttons */
+.follow-request__actions {
   @apply flex items-center ml-4 space-x-2;
 }
 
-.follow-request-confirm {
-  @apply px-5 py-1 bg-[rgba(140,103,246,1)] text-white rounded-3xl hover:bg-[rgba(120,83,226,1)];
+/* Confirm button */
+.follow-request__button--confirm {
+  @apply px-5 py-1 bg-purple-600 text-white rounded-3xl hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2;
 }
 
-.follow-request-delete {
-  @apply px-5 py-1 bg-[rgba(240,242,245,1)] text-[rgba(143,143,143,1)] rounded-3xl hover:bg-[rgba(220,222,225,1)];
+/* Delete button */
+.follow-request__button--delete {
+  @apply px-5 py-1 bg-gray-200 text-gray-600 rounded-3xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
 }

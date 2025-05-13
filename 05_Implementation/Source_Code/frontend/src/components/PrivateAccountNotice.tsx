@@ -1,22 +1,34 @@
-import React from 'react';
+'use client';
+import React, { memo } from 'react';
 import Image from 'next/image';
+
+/*
+ * PrivateAccountNotice Component
+ * Displays a notice for private accounts, indicating restricted access.
+ * Optimized for accessibility and SEO with semantic HTML and ARIA attributes.
+ */
 
 const PrivateAccountNotice: React.FC = () => {
   return (
-    <div className="private-account-notice flex flex-col items-center justify-center py-12 w-full bg-white rounded-lg">
-      <Image
-        src="/icons/locked-profile.svg"
-        alt="Locked Profile Icon"
-        width={48}
-        height={48}
-        className="mb-4"
-      />
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">This Account is Private</h2>
-      <p className="text-gray-600 text-center">
-        Follow this account to see their posts and activity.
-      </p>
-    </div>
+    <section className="private-notice__container" role="alert" aria-labelledby="private-notice-title">
+      <article className="private-notice__content">
+        <Image
+          src="/icons/locked-profile.svg"
+          alt="Locked profile indicating private account"
+          width={48}
+          height={48}
+          className="private-notice__icon"
+          loading="lazy"
+        />
+        <h2 id="private-notice-title" className="private-notice__title">
+          This Account is Private
+        </h2>
+        <p className="private-notice__description">
+          Follow this account to see their posts and activity.
+        </p>
+      </article>
+    </section>
   );
 };
 
-export default PrivateAccountNotice;
+export default memo(PrivateAccountNotice);

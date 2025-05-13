@@ -1,54 +1,102 @@
 import Image from 'next/image';
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 
-// Define the Props interface for the Bio
+// Props interface for Bio component
 interface BioProps {
-  bio: string;
-  address: string;
-  jobTitle: string;
-  dateOfBirth: string;
+  bio?: string;
+  address?: string;
+  jobTitle?: string;
+  dateOfBirth?: string;
 }
 
+/*
+ * Bio Component
+ * Displays user bio, job title, address, and date of birth with icons.
+ * Optimized for SEO, accessibility, performance, and best practices.
+ */
 const Bio: React.FC<BioProps> = ({
-  bio,
-  address,
-  jobTitle,
-  dateOfBirth,
+  bio = 'No bio available.',
+  address = 'Not specified',
+  jobTitle = 'Not specified',
+  dateOfBirth = '',
 }) => {
-  // Format the date of birth to a readable format (e.g., "January 1, 1970")
-  const formattedDateOfBirth = new Date(dateOfBirth).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  // Format date of birth with validation
+  const formattedDateOfBirth = useMemo(() => {
+    if (!dateOfBirth || isNaN(new Date(dateOfBirth).getTime())) {
+      return 'Not specified';
+    }
+    return new Date(dateOfBirth).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }, [dateOfBirth]);
 
   return (
-    <div className="bio">
-      {/* Bio Section */}
-      <div className="bio__bio">
-        <h3 className="bio__title">Bio</h3>
-        <p className="bio__text">{bio || 'No bio available.'}</p>
+    <section className="bio__container" aria-labelledby="bio-title">
+      {/* Bio Description */}
+      <div className="bio__section">
+        <h3 id="bio-title" className="bio__title">
+          Bio
+        </h3>
+        <p className="bio__text">{bio}</p>
       </div>
 
-      {/* Job Title Section */}
-      <div className="bio__job-title">
-        <Image src='/icons/job.svg' width={18} height={18} alt="Job Icon" />
-        <p className="bio__text">{jobTitle || 'Not specified'}</p>
-      </div>
+      {/* Profile Details */}
+      <dl className="bio__details">
+        {/* Job Title */}
+        <div className="bio__field">
+          <dt className="bio__field-label">
+            <Image
+              src="/icons/job.svg"
+              width={20}
+              height={20}
+              alt=""
+              className="bio__field-icon"
+              aria-hidden="true"
+              loading="lazy"
+            />
+            <span className="sr-only">Job Title</span>
+          </dt>
+          <dd className="bio__field-value">{jobTitle}</dd>
+        </div>
 
-      {/* Address Section */}
-      <div className="bio__address">
-        <Image src='/icons/location.svg' width={18} height={18} alt="Location Icon" />
-        <p className="bio__text">{address || 'Not specified'}</p>
-      </div>
+        {/* Address */}
+        <div className="bio__field">
+          <dt className="bio__field-label">
+            <Image
+              src="/icons/location.svg"
+              width={20}
+              height={20}
+              alt=""
+              className="bio__field-icon"
+              aria-hidden="true"
+              loading="lazy"
+            />
+            <span className="sr-only">Address</span>
+          </dt>
+          <dd className="bio__field-value">{address}</dd>
+        </div>
 
-      {/* Date of Birth Section */}
-      <div className="bio__date-of-birth">
-        <Image src='/icons/date.svg' width={18} height={18} alt="Date Icon" />
-        <p className="bio__text">{formattedDateOfBirth || 'Not specified'}</p>
-      </div>
-    </div>
+        {/* Date of Birth */}
+        <div className="bio__field">
+          <dt className="bio__field-label">
+            <Image
+              src="/icons/date.svg"
+              width={20}
+              height={20}
+              alt=""
+              className="bio__field-icon"
+              aria-hidden="true"
+              loading="lazy"
+            />
+            <span className="sr-only">Date of Birth</span>
+          </dt>
+          <dd className="bio__field-value">{formattedDateOfBirth}</dd>
+        </div>
+      </dl>
+    </section>
   );
 };
 
-export default Bio;
+export default memo(Bio);

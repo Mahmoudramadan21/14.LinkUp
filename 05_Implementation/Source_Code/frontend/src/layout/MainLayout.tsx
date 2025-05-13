@@ -1,78 +1,117 @@
-// layouts/MainLayout.tsx
-import React from 'react';
+import React, { memo, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import HeaderSection from '@/sections/HeaderSection';
-import UserMenu from '@/components/UserMenu'; // استيراد UserMenu
-import { useProfileStore } from '@/store/profileStore'; // استيراد الـ Store لجلب بيانات المستخدم
-import { removeAuthData } from '@/utils/auth'; // استيراد دالة الخروج
+import UserMenu from '@/components/UserMenu';
+import { useProfileStore } from '@/store/profileStore';
+import { removeAuthData } from '@/utils/auth';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   title?: string;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children, title = "LinkUp" }) => {
+interface User {
+  name: string;
+  username: string;
+  profilePicture: string;
+}
+
+/**
+ * PageHead Component
+ * Renders SEO meta tags for the page.
+ */
+const PageHead: React.FC<{ title: string }> = ({ title }) => (
+  <Head>
+    <title>{title}</title>
+    <meta name="description" content={`Connect with friends and share your moments on ${title}.`} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charSet="UTF-8" />
+    <meta name="csrf-token" content="dummy-csrf-token" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={`Connect with friends and share your moments on ${title}.`} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LinkUp" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={`Connect with friends and share your moments on ${title}.`} />
+  </Head>
+);
+
+/**
+ * MainLayout Component
+ * Renders the main layout with header, content, and sidebar.
+ */
+const MainLayout: React.FC<MainLayoutProps> = ({ children, title = 'LinkUp' }) => {
+  const router = useRouter();
   const { authData, initializeAuth } = useProfileStore();
 
-  // جلب بيانات المستخدم عند تحميل الـ Layout
-  React.useEffect(() => {
+  // Initialize auth on mount
+  useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // دالة الخروج
-  const handleLogout = () => {
+  // Handle logout
+  const handleLogout = useCallback(() => {
     removeAuthData();
-    window.location.href = '/login'; // إعادة توجيه لصفحة الـ Login بعد الخروج
-  };
+    router.push('/login');
+  }, [router]);
 
-  // التأكد من وجود بيانات المستخدم
+  // Memoized user object
+  const user = useMemo<User>(
+    () => ({
+      name: authData?.name || 'User',
+      username: authData?.username || 'username',
+      profilePicture: authData?.profilePicture || '/avatars/default.jpg',
+    }),
+    [authData]
+  );
+
+  // Render loading state if no auth data
   if (!authData) {
     return (
-      <>
-        <Head>
-          <title>{title}</title>
-          <meta name="description" content="Connect with friends and share your moments on LinkUp." />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta charSet="UTF-8" />
-          <meta name="csrf-token" content="dummy-csrf-token" />
-        </Head>
-        <div>Loading...</div>
-      </>
+      <div className="main-layout">
+        <PageHead title={title} />
+        <div className="main-layout__loading" aria-live="polite">
+          Loading...
+        </div>
+      </div>
     );
   }
 
-  const user = {
-    name: authData.name || 'User', // اسم المستخدم
-    username: authData.username || 'username', // الـ Username
-    profilePicture: authData.profilePicture || '/avatars/default.jpg', // الصورة الشخصية
-  };
-
   return (
-    <>
-      <Head>
-        <title>{title}</title>
-        <meta name="description" content="Connect with friends and share your moments on LinkUp." />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta charSet="UTF-8" />
-        <meta name="csrf-token" content="dummy-csrf-token" />
-      </Head>
-
-      <div className="main-layout">
-        {/* Header Section */}
-        <HeaderSection />
-        
-        <div className="main-layout__content container">
-          {/* Main Content */}
-          <main className="main-layout__container">{children}</main>
-          
-          {/* Sidebar with UserMenu */}
-          <aside className="main-layout__sidebar">
-              <UserMenu user={user} onLogout={handleLogout} />
-          </aside>
-        </div>
+    <div
+      className="main-layout"
+      itemscope
+      itemtype="http://schema.org/WebPage"
+    >
+      <PageHead title={title} />
+      <a href="#main-content" className="main-layout__skip-link">
+        Skip to main content
+      </a>
+      <HeaderSection />
+      <div className="main-layout__content">
+        <main
+          id="main-content"
+          className="main-layout__container"
+          role="main"
+          aria-labelledby="main-content-title"
+        >
+          <h1 id="main-content-title" className="sr-only">
+            {title}
+          </h1>
+          {children}
+        </main>
+        <aside
+          className="main-layout__sidebar"
+          role="complementary"
+          aria-label="User menu"
+        >
+          <UserMenu user={user} onLogout={handleLogout} />
+        </aside>
       </div>
-    </>
+    </div>
   );
 };
 
-export default MainLayout;
+export default memo(MainLayout);

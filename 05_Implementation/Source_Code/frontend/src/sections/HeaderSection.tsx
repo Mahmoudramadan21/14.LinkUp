@@ -1,8 +1,6 @@
-'use client';
-import React, { useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useMemo, useCallback } from 'react';
 import io from 'socket.io-client';
 import NavIcon from '../components/NavIcon';
-import SearchBar from '../components/SearchBar';
 import Notifications from '../components/Notifications';
 import { useNotificationsStore } from '@/store/notificationStore';
 import { getAuthData } from '@/utils/auth';
@@ -10,11 +8,21 @@ import { getAuthData } from '@/utils/auth';
 // Backend WebSocket URL
 const BACKEND_WS_URL = 'http://localhost:3000';
 
+/**
+ * HeaderSection Component
+ * Renders the main header with logo, navigation icons, and notifications.
+ */
 const HeaderSection: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { unreadCount, fetchUnreadCount } = useNotificationsStore();
   const authData = getAuthData();
-  const userId = authData?.userId || 1; // Fallback to 1 if authData is not available
+  const userId = authData?.userId;
+  const username = authData?.username;
+
+  // Toggle notifications visibility
+  const toggleNotifications = useCallback(() => {
+    setIsNotificationsOpen((prev) => !prev);
+  }, []);
 
   // Fetch unread notifications count on mount
   useEffect(() => {
@@ -22,39 +30,51 @@ const HeaderSection: React.FC = () => {
   }, [fetchUnreadCount]);
 
   // Setup WebSocket connection
-  useEffect(() => {
-    const socket = io(BACKEND_WS_URL, {
+  const socket = useMemo(() => {
+    if (!userId) return null;
+    const socketInstance = io(BACKEND_WS_URL, {
       withCredentials: true,
     });
 
-    socket.emit('joinRoom', `user_${userId}`);
+    socketInstance.emit('joinRoom', `user_${userId}`);
 
-    socket.on('unreadNotificationsCount', (data: { count: number }) => {
+    socketInstance.on('unreadNotificationsCount', (data: { count: number }) => {
       useNotificationsStore.getState().setUnreadCount(data.count);
     });
 
-    socket.on('notification', () => {
+    socketInstance.on('notification', () => {
       useNotificationsStore.getState().setUnreadCount(unreadCount + 1);
     });
 
-    return () => {
-      socket.disconnect();
-    };
+    return socketInstance;
   }, [userId, unreadCount]);
 
+  // Cleanup WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [socket]);
+
   return (
-    <header className="header-section" data-testid="header-section">
+    <header
+      className="header-section"
+      data-testid="header-section"
+      role="banner"
+      itemscope
+      itemtype="http://schema.org/Organization"
+    >
       <div className="header-section__logo">
         <img
           src="/svgs/logo.svg"
           alt="LinkUp Logo"
           className="header-section__logo-img"
-          aria-label="LinkUp Logo"
-          loading="lazy"
+          aria-hidden="true"
+          width={176}
+          height={44}
         />
       </div>
       <div className="header-section__center">
-        {/* <SearchBar /> */}
         <div className="header-section__nav-group">
           <NavIcon
             iconSrc="/icons/home.svg"
@@ -63,30 +83,16 @@ const HeaderSection: React.FC = () => {
             ariaLabel="Go to Home"
             to="/feed"
           />
-          {/* <NavIcon
-            iconSrc="/icons/video.svg"
-            activeIconSrc="/icons/video-active.svg"
-            alt="Video Icon"
-            ariaLabel="Go to Videos"
-            to="/video"
-          /> */}
-          {/* <NavIcon
-            iconSrc="/icons/add-friend.svg"
-            activeIconSrc="/icons/add-friend-active.svg"
-            alt="Add Friend Icon"
-            ariaLabel="Add Friend"
-            to="/friends"
-          /> */}
           <NavIcon
             iconSrc="/icons/profile.svg"
             activeIconSrc="/icons/profile-active.svg"
             alt="Profile Icon"
             ariaLabel="Go to Profile"
-            to={`/profile/${authData?.username}`}
+            to={username ? `/profile/${username}` : '/profile'}
           />
         </div>
       </div>
-      <nav className="header-section__nav" aria-label="Main navigation">
+      <nav className="header-section__nav" aria-label="Main navigation" role="navigation">
         <NavIcon
           iconSrc="/icons/search.svg"
           alt="Search Icon"
@@ -95,18 +101,13 @@ const HeaderSection: React.FC = () => {
           variant="mobile"
         />
         <div className="header-section__nav-group">
-          {/* <NavIcon
-            iconSrc="/icons/message.svg"
-            alt="Messages Icon"
-            ariaLabel="Go to Messages"
-            to="/messages"
-          /> */}
           <NavIcon
             iconSrc="/icons/notification.svg"
             alt="Notifications Icon"
             ariaLabel="View Notifications"
-            onClick={() => setIsNotificationsOpen(true)}
+            onClick={toggleNotifications}
             badgeCount={unreadCount}
+            aria-expanded={isNotificationsOpen}
           />
           <NavIcon
             iconSrc="/icons/hamburger.svg"
@@ -119,11 +120,11 @@ const HeaderSection: React.FC = () => {
       </nav>
       <Notifications
         isOpen={isNotificationsOpen}
-        onClose={() => setIsNotificationsOpen(false)}
-        userId={userId}
+        onClose={toggleNotifications}
+        userId={userId || 0}
       />
     </header>
   );
 };
 
-export default HeaderSection;
+export default memo(HeaderSection);

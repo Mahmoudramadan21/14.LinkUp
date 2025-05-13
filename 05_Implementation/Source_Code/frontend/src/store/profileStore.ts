@@ -16,7 +16,7 @@ import { getAuthData } from '@/utils/auth';
 interface Profile {
   userId: number;
   username: string;
-  profileName: string; // حقل جديد
+  profileName: string;
   profilePicture: string | null;
   coverPicture: string | null;
   bio: string | null;
@@ -31,8 +31,8 @@ interface Profile {
   followerCount: number;
   followingCount: number;
   likeCount: number;
-  isFollowing: boolean; // حالة المتابعة الحالية
-  followStatus: 'PENDING' | 'ACCEPTED' | null; // حقل جديد لتحديد حالة الـ Follow
+  isFollowing: boolean;
+  followStatus: 'PENDING' | 'ACCEPTED' | null;
 }
 
 // Define AuthData type
@@ -190,7 +190,7 @@ interface SavedPostsResponse {
 
 interface FollowResponse {
   message: string;
-  status?: "PENDING" | "ACCEPTED";
+  status?: 'PENDING' | 'ACCEPTED';
 }
 
 interface FollowingFollower {
@@ -236,6 +236,7 @@ interface ProfileState {
   setPostsLoading: (loading: boolean) => void;
   setPostsError: (error: string | null) => void;
   setAuthData: (data: AuthData | null) => void;
+  setInitialAuthData: (data: AuthData | null) => void;
 
   fetchProfile: (username: string) => Promise<void>;
   fetchHighlights: (userId: number) => Promise<void>;
@@ -243,12 +244,15 @@ interface ProfileState {
   fetchPosts: (userId: number) => Promise<void>;
   followUser: (userId: number) => Promise<void>;
   unfollowUser: (userId: number) => Promise<void>;
-  fetchFollowers: (userId: number) => Promise<FollowingFollowersResponse>;
-  fetchFollowing: (userId: number) => Promise<FollowingFollowersResponse>;
+  fetchFollowers: (userId: number, signal?: AbortSignal) => Promise<FollowingFollowersResponse>;
+  fetchFollowing: (userId: number, signal?: AbortSignal) => Promise<FollowingFollowersResponse>;
   removeFollower: (followerId: number) => Promise<{ message: string }>;
-  initializeAuth: () => void;
+  initializeAuth: () => Promise<void>;
 }
 
+/**
+ * Zustand store for profile and authentication data.
+ */
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   highlights: [],
@@ -262,7 +266,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   savedPostsError: null,
   postsLoading: false,
   postsError: null,
-  authData: getAuthData(),
+  authData: null,
 
   setProfile: (profile) => set({ profile }),
   setLoading: (loading) => set({ loading }),
@@ -277,6 +281,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   setPostsLoading: (loading) => set({ postsLoading: loading }),
   setPostsError: (error) => set({ postsError: error }),
   setAuthData: (data) => set({ authData: data }),
+  setInitialAuthData: (data) => {
+    if (!get().authData) {
+      set({ authData: data });
+    }
+  },
 
   fetchProfile: async (username: string) => {
     set({ loading: true, error: null });
@@ -306,7 +315,6 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ savedPostsLoading: true, savedPostsError: null });
     try {
       const response = await fetchSavedPosts();
-      console.log('Raw saved posts response:', response);
       if (!Array.isArray(response)) {
         throw new Error('Invalid saved posts data format');
       }
@@ -374,10 +382,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  fetchFollowers: async (userId: number) => {
+  fetchFollowers: async (userId: number, signal?: AbortSignal) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetchFollowers(userId);
+      const response = await fetchFollowers(userId, signal);
       return response;
     } catch (err: any) {
       set({ error: err.message || 'Failed to fetch followers' });
@@ -387,10 +395,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  fetchFollowing: async (userId: number) => {
+  fetchFollowing: async (userId: number, signal?: AbortSignal) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetchFollowing(userId);
+      const response = await fetchFollowing(userId, signal);
       return response;
     } catch (err: any) {
       set({ error: err.message || 'Failed to fetch following' });
@@ -413,10 +421,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  initializeAuth: () => {
+  initializeAuth: async () => {
     const auth = getAuthData();
     set({ authData: auth });
   },
 }));
-
-useProfileStore.getState().initializeAuth();

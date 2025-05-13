@@ -1,45 +1,54 @@
-/* .bio {
-  height: fit-content;
-  padding: 16px 16px 24px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background-color: #fff;
-  max-width: 400px;
-  margin-right: 1.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  position: sticky;
-  left: 0;
-  top: 20px;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Bio Container */
+.bio__container {
+  @apply h-fit bg-white p-4 pb-6 rounded-lg shadow-md mb-4 mr-4;
 }
-  .bio__bio {
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-  padding-bottom: 1.2rem;
-  border-bottom: 1px solid rgb(215, 219, 224);
+
+/* Bio Section */
+.bio__section {
+  @apply mb-4;
 }
-.bio__bio .bio__text {
-    color: #64748B;
-}
+
 .bio__title {
-  font-size: 1.1rem;
-  font-weight: 600;
+  @apply text-lg font-semibold text-gray-900 mb-2;
 }
+
 .bio__text {
-  font-size: 1rem;
-  line-height: 1.5;
+  @apply text-gray-700;
 }
 
-.bio__bio .bio__title{
-  color: #8F8F8F;
+/* Profile Details */
+.bio__details {
+  @apply space-y-3;
 }
 
-.bio__job-title,
-.bio__address,
-.bio__date-of-birth {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-} */
+.bio__field {
+  @apply flex items-center gap-3;
+}
+
+.bio__field-label {
+  @apply flex items-center;
+}
+
+.bio__field-icon {
+  @apply w-5 h-5 text-gray-500;
+}
+
+.bio__field-value {
+  @apply text-gray-700;
+}
+
+/* Screen Reader Only */
+.sr-only {
+  @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .bio__container {
+    @apply p-3;
+  }
+}

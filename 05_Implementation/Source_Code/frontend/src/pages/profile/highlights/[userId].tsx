@@ -1,7 +1,7 @@
 // pages/profile/highlights/[userId].tsx
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useProfileStore } from '@/store/profileStore';
@@ -221,4 +221,4 @@ const HighlightsPage = () => {
   );
 };
 
-export default HighlightsPage;
+export default memo(HighlightsPage);

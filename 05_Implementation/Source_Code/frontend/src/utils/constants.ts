@@ -38,7 +38,7 @@ export const API_ENDPOINTS = {
   GET_FOLLOWERS: "/profile/followers/:userId",
   GET_FOLLOWING: "/profile/following/:userId",
   GET_PROFILE_BY_USERNAME: "/profile/:username",
-  REMOVE_FOLLOWER: "/profile/remove-follower/:followerId", // New endpoint
+  REMOVE_FOLLOWER: "/profile/remove-follower/:followerId",
   // Highlights
   GET_USER_HIGHLIGHTS: "/highlights/user/:userId",
 } as const;

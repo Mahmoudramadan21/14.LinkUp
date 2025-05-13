@@ -1,35 +1,42 @@
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import Head from 'next/head';
-import Image from 'next/image';
-import PasswordResetSuccessSection from '@/sections/PasswordResetSuccessSection';
+import React, { memo, useCallback } from 'react';
+import { useRouter } from 'next/router'; // Changed to Pages Router
 import AuthLayout from '@/layout/AuthLayout';
-import authSecurityIllustration from '@/../public/illustrations/auth-security-illustration.svg';
+import PasswordResetSuccessSection from '@/sections/PasswordResetSuccessSection';
+import Image from 'next/image';
 
-const PasswordResetSuccess: React.FC = () => {
+// Interface for component props
+interface PasswordResetSuccessProps {
+  onContinue?: () => void;
+}
+
+/**
+ * PasswordResetSuccess Component
+ * Renders the password reset success page with a message and an illustration within the AuthLayout.
+ */
+const PasswordResetSuccess: React.FC<PasswordResetSuccessProps> = () => {
   const router = useRouter();
 
-  const handleContinue = () => {
+  // Handle continue navigation
+  const handleContinue = useCallback(() => {
     router.push('/login');
-  };
+  }, [router]);
 
   return (
     <AuthLayout title="LinkUp | Password Reset Success">
       <div className="auth-page">
         <div className="auth-page__container">
-          {/* Left Side: Success Message */}
           <div className="auth-page__form">
             <PasswordResetSuccessSection onContinue={handleContinue} />
           </div>
-          {/* Right Side: Illustration */}
-          <div className="auth-page__illustration">
+          <div className="auth-page__illustration" aria-hidden="true">
             <Image
-              src={authSecurityIllustration}
+              src="/illustrations/auth-security-illustration.svg"
               alt="Illustration of a person resetting their password securely"
               width={500}
               height={500}
-              priority
-              className="auth-page__illustration-image"
+              className="auth-page__image--illustration"
+              loading="lazy"
+              sizes="(max-width: 1024px) 50vw, 500px"
             />
           </div>
         </div>
@@ -38,4 +45,4 @@ const PasswordResetSuccess: React.FC = () => {
   );
 };
 
-export default PasswordResetSuccess;
+export default memo(PasswordResetSuccess);

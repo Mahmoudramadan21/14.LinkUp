@@ -6,7 +6,7 @@
 @import "./Input.css";
 @import "./Button.css";
 @import "./CodeInput.css";
-@import "./auth.css";
+@import "./AuthLayout.css";
 @import "./NavIcon.css";
 @import "./SearchBar.css";
 @import "./HeaderSection.css";
@@ -22,12 +22,14 @@
 @import "./FeedPage.css";
 @import "./loading.css";
 @import "./StoriesDialogSection.css";
-@import "./UserBanner.css";
+@import "./profile.css";
 @import "./FollowerFollowingDialog.css";
 @import "./highlights.css";
 @import "./Bio.css";
 @import "./MainLayout.css";
 @import "./EditProfile.css";
+@import "./PrivateAccountNotice.css";
+@import "./PostModal.css";
 
 body {
     @apply bg-gray-50;

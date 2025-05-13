@@ -1,22 +1,46 @@
-import React, { ChangeEvent, InputHTMLAttributes, useState } from 'react';
-import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
+'use client';
+import React, { memo, useState, useCallback, useEffect } from 'react';
+import clsx from 'clsx';
+import dynamic from 'next/dynamic';
 
-/*
+// Lazy-load icons
+const AiOutlineEye = dynamic(() => import('react-icons/ai').then((mod) => mod.AiOutlineEye), {
+  ssr: false,
+});
+const AiOutlineEyeInvisible = dynamic(() =>
+  import('react-icons/ai').then((mod) => mod.AiOutlineEyeInvisible),
+  { ssr: false }
+);
+
+// Interface for component props
+interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  id: string;
+  type?: 'text' | 'password' | 'email' | 'number';
+  placeholder?: string;
+  label?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+  required?: boolean;
+}
+
+// Custom hook for debouncing input changes
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+/**
  * Input Component
  * A reusable input field with support for labels, error messages, and password visibility toggle.
  * Used in forms for user input, such as login, signup, or profile editing.
  */
-interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
-  id: string; // Unique identifier for the input
-  type?: string; // Input type (e.g., text, password)
-  placeholder?: string; // Placeholder text for the input
-  label?: string; // Label for the input field
-  value: string; // Current value of the input
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void; // Callback for input changes
-  error?: string; // Optional error message to display
-  required?: boolean; // Indicates if the input is required
-}
-
 const Input: React.FC<InputProps> = ({
   id,
   type = 'text',
@@ -29,16 +53,30 @@ const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const debouncedValue = useDebounce(value, 300);
 
-  // Toggle password visibility for password inputs
-  const togglePasswordVisibility = () => {
+  // Toggle password visibility
+  const togglePasswordVisibility = useCallback(() => {
     setShowPassword((prev) => !prev);
-  };
+  }, []);
 
+  // Determine input type for password toggle
   const inputType = type === 'password' && showPassword ? 'text' : type;
 
+  // Get itemprop based on input type
+  const getItemProp = () => {
+    switch (type) {
+      case 'password':
+        return 'password';
+      case 'email':
+        return 'email';
+      default:
+        return 'name';
+    }
+  };
+
   return (
-    <div className="input-block" data-testid="input">
+    <fieldset className="input-block" data-testid="input" itemscope>
       <div className="input-block__header">
         {label && (
           <label htmlFor={id} className="input-block__label">
@@ -54,11 +92,14 @@ const Input: React.FC<InputProps> = ({
           <button
             type="button"
             onClick={togglePasswordVisibility}
-            className="input-block__toggle-password"
+            className="input-block__toggle--password"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
           >
             {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
-            <span className="input-block__toggle-text">{showPassword ? 'Hide' : 'Show'}</span>
+            <span className="input-block__toggle-text sr-only">
+              {showPassword ? 'Hide' : 'Show'}
+            </span>
           </button>
         )}
       </div>
@@ -66,21 +107,28 @@ const Input: React.FC<InputProps> = ({
         id={id}
         type={inputType}
         placeholder={placeholder}
-        value={value}
+        value={debouncedValue}
         onChange={onChange}
-        className={`input-block__input ${error ? 'error' : ''}`}
+        className={clsx('input-block__input', { 'input-block__input--invalid': error })}
         required={required}
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${id}-error` : undefined}
+        aria-required={required}
+        itemProp={getItemProp()}
         {...props}
       />
       {error && (
-        <span id={`${id}-error`} className="input-block__error" role="alert">
+        <span
+          id={`${id}-error`}
+          className="input-block__error"
+          role="alert"
+          aria-live="polite"
+        >
           {error}
         </span>
       )}
-    </div>
+    </fieldset>
   );
 };
 
-export default Input;
+export default memo(Input);
