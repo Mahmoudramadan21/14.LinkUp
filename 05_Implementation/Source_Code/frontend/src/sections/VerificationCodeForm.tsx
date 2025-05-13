@@ -5,7 +5,7 @@ import Button from '@/components/Button';
 import api from '@/utils/api';
 import { API_ENDPOINTS, ERROR_MESSAGES } from '@/utils/constants';
 import Link from 'next/link';
-=
+
 // Interface for form data
 interface FormData {
   email: string;

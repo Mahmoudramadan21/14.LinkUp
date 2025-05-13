@@ -3,13 +3,13 @@ import clsx from 'clsx';
 
 // Reusable button with customizable variants, sizes, and states
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  type?: 'button' | 'submit' | 'reset'; // Button type for forms
-  children: React.ReactNode; // Button content
-  onClick?: () => void; // Click event handler
-  disabled?: boolean; // Disables button
-  variant?: 'primary' | 'secondary' | 'tertiary'; // Visual style
-  size?: 'small' | 'medium' | 'large'; // Button size
-  ariaLabel?: string; // Accessibility label for icon-only buttons
+  type?: 'button' | 'submit' | 'reset';
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'tertiary';
+  size?: 'small' | 'medium' | 'large';
+  ariaLabel?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -22,7 +22,6 @@ const Button: React.FC<ButtonProps> = ({
   ariaLabel,
   ...props
 }) => {
-  // Prevent clicks on disabled buttons
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) {
       e.preventDefault();

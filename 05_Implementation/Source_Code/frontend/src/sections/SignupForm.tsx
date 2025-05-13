@@ -75,32 +75,29 @@ const SignupForm: React.FC = () => {
     if (!data.profileName.trim()) {
       errors.profileName = 'Profile name is required';
     } else if (!profileNameRegex.test(data.profileName)) {
-      errors.profileName =
-        'Profile name must be between 2 and 50 characters and contain only letters and spaces';
+      errors.profileName = 'Profile name: 2-50 letters/spaces';
     }
 
     if (!data.username.trim()) {
       errors.username = 'Username is required';
     } else if (!usernameRegex.test(data.username)) {
-      errors.username =
-        'Username must be 3-30 characters and can only contain letters, numbers, or underscores';
+      errors.username = 'Username: 3-30 letters/numbers/underscores';
     }
 
     if (!data.email.trim()) {
       errors.email = 'Email is required';
     } else if (!emailRegex.test(data.email)) {
-      errors.email = 'Please enter a valid email address';
+      errors.email = 'Invalid email address';
     }
 
     if (!data.password.trim()) {
       errors.password = 'Password is required';
     } else if (!passwordRegex.test(data.password)) {
-      errors.password =
-        'Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character (@$!%*?&)';
+      errors.password = 'Password: 8+ chars, upper, lower, number, special';
     }
 
     if (!data.confirmPassword.trim()) {
-      errors.confirmPassword = 'Please confirm your password';
+      errors.confirmPassword = 'Confirm password';
     } else if (data.confirmPassword !== data.password) {
       errors.confirmPassword = 'Passwords do not match';
     }
@@ -108,11 +105,11 @@ const SignupForm: React.FC = () => {
     if (!data.gender) {
       errors.gender = 'Gender is required';
     } else if (!['MALE', 'FEMALE'].includes(data.gender)) {
-      errors.gender = 'Gender must be either Male or Female';
+      errors.gender = 'Select Male or Female';
     }
 
     if (!data.dateOfBirth) {
-      errors.dateOfBirth = 'Date of birth is required';
+      errors.dateOfBirth = 'Date of birth required';
     } else {
       const dob = new Date(data.dateOfBirth);
       const today = new Date();
@@ -122,11 +119,11 @@ const SignupForm: React.FC = () => {
       const adjustedAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
       if (isNaN(dob.getTime())) {
-        errors.dateOfBirth = 'Please enter a valid date of birth';
+        errors.dateOfBirth = 'Invalid date of birth';
       } else if (adjustedAge < 13) {
-        errors.dateOfBirth = 'You must be at least 13 years old to sign up';
+        errors.dateOfBirth = 'Must be 13+';
       } else if (dob > today) {
-        errors.dateOfBirth = 'Date of birth cannot be in the future';
+        errors.dateOfBirth = 'Date cannot be future';
       }
     }
 
@@ -197,20 +194,22 @@ const SignupForm: React.FC = () => {
         router.push('/feed');
       } catch (error: any) {
         setIsLoading(false);
-        if (error.status === 400 && error.errors) {
+        if (error.response?.status === 400 && error.response?.data?.errors) {
           const newErrors: FormErrors = {};
-          error.errors.forEach((err: { path: string; msg: string }) => {
+          error.response.data.errors.forEach((err: { path: string; msg: string }) => {
             const field = err.path === 'profilename' ? 'profileName' : err.path;
             newErrors[field as keyof FormErrors] = err.msg;
           });
           setErrors(newErrors);
-        } else if (error.status === 409) {
+        } else if (error.response?.status === 409) {
           setServerError('Email or username already exists');
-        } else if (error.status === 400) {
-          setServerError('Invalid registration data. Please check your inputs.');
+        } else if (error.response?.status === 400) {
+          setServerError('Invalid data. Check inputs.');
         } else {
           setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
         }
+      } finally {
+        setIsLoading(false);
       }
     },
     [formData, router]
@@ -293,7 +292,7 @@ const SignupForm: React.FC = () => {
             autoComplete="new-password"
           />
           <p className="auth-form__info" aria-hidden="true">
-            Use 8 or more characters with a mix of letters, numbers & symbols
+            Use 8+ characters with letters, numbers, symbols
           </p>
           <Input
             id="gender"
@@ -305,7 +304,7 @@ const SignupForm: React.FC = () => {
             error={errors.gender}
             required
             options={[
-              { value: '', label: 'Select your gender', disabled: true },
+              { value: '', label: 'Select gender', disabled: true },
               { value: 'MALE', label: 'Male' },
               { value: 'FEMALE', label: 'Female' },
             ]}
@@ -330,14 +329,14 @@ const SignupForm: React.FC = () => {
                 className="auth-form__checkbox-input"
               />
               <span className="auth-form__checkbox-label">
-                Share my registration data with our content providers for marketing purposes.
+                Share data with content providers for marketing.
               </span>
             </label>
           </div>
           <p className="auth-form__info" aria-hidden="true">
-            By creating an account, you agree to the{' '}
+            By signing up, you agree to the{' '}
             <Link href="/terms" className="auth-form__link" prefetch={false}>
-              Terms of Use
+              Terms
             </Link>{' '}
             and{' '}
             <Link href="/privacy" className="auth-form__link" prefetch={false}>
@@ -358,7 +357,7 @@ const SignupForm: React.FC = () => {
             {isLoading ? 'Signing up...' : 'Sign up'}
           </Button>
           <p className="auth-form__signup">
-            Already have an account?{' '}
+            Have an account?{' '}
             <Link href="/login" className="auth-form__link" prefetch={false}>
               Log in
             </Link>

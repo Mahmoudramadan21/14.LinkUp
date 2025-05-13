@@ -15,11 +15,11 @@
 
 /* Progress bar */
 .story-viewer__progress {
-  @apply absolute top-0 left-0 w-full flex items-center space-x-2 py-2 px-4 rounded-3xl overflow-hidden;
+  @apply hidden absolute top-0 left-0 w-full flex items-center space-x-2 py-2 px-4 rounded-3xl overflow-hidden;
 }
 
 .story-viewer__progress-bar {
-  @apply flex space-x-0.5 flex-1;
+  @apply hidden flex space-x-0.5 flex-1;
 }
 
 .story-viewer__progress-bar--item {
@@ -57,7 +57,7 @@
 
 /* Header */
 .story-viewer__header {
-  @apply flex items-center space-x-2 absolute top-4 left-4 bg-black/50 p-2 rounded;
+  @apply flex items-center space-x-2 absolute top-4 left-4 p-2 rounded;
 }
 
 .story-viewer__username {
@@ -66,7 +66,7 @@
 
 /* Actions */
 .story-viewer__actions {
-  @apply absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/50 p-2 rounded;
+  @apply hidden absolute bottom-4 left-4 right-4 flex items-center justify-between p-2 rounded;
 }
 
 .story-viewer__stats {
@@ -79,7 +79,7 @@
 
 /* Buttons */
 .story-viewer__button--play-pause {
-  @apply bg-black/50 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-white;
+  @apply hidden bg-black/50 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-white;
 }
 
 .story-viewer__button--prev,

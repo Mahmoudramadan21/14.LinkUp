@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import Button from '@/components/Button';
 import Image from 'next/image';
-import successCheckmark from '/svgs/success-checkmark.svg';
 
 // Interface for component props
 interface PasswordResetSuccessSectionProps {
@@ -21,7 +20,7 @@ const PasswordResetSuccessSection: React.FC<PasswordResetSuccessSectionProps> = 
     >
       <div className="auth-form__container">
         <Image
-          src={successCheckmark}
+          src="svgs/success-checkmark.svg"
           alt=""
           width={64}
           height={64}

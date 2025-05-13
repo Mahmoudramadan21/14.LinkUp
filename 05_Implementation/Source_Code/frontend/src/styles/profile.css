@@ -107,7 +107,7 @@
 
 /* Actions Section */
 .profile-page__actions {
-  @apply w-44 flex justify-center items-center gap-4 md:w-full md:justify-center;
+  @apply w-full flex justify-center items-center gap-4 md:w-44 md:justify-center;
 }
 
 .profile-page__message-btn {

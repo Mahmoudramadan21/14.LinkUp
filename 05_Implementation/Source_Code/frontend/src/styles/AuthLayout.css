@@ -81,6 +81,10 @@
   @apply text-center;
 }
 
+.auth-form__title--password-reset-success .button-block {
+  @apply w-full;
+}
+
 .auth-form__title--verify-code {
   @apply text-center;
 }
@@ -126,7 +130,7 @@
 }
 
 .auth-form__timer {
-  @apply text-red-500 text-sm text-center mt-2;
+  @apply hidden text-red-500 text-sm text-center mt-2;
 }
 
 .auth-form__options {
@@ -203,13 +207,13 @@
   @apply w-16 h-16 mb-4 mx-auto;
 }
 
-/* Input block (for SignupForm select and date inputs) */
+/* Input block */
 .input-block {
   @apply space-y-1;
 }
 
 .input-block__header {
-  @apply flex items-center;
+  @apply flex items-center justify-between;
 }
 
 .input-block__label {
@@ -224,10 +228,14 @@
   @apply w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-linkup-purple;
 }
 
-.input-block__input--error {
+.input-block__input--invalid {
   @apply border-red-500;
 }
 
 .input-block__error {
   @apply text-red-500 text-xs mt-1;
+}
+
+.input-block__toggle--password {
+  @apply flex items-center gap-1;
 }

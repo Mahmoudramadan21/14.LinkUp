@@ -105,7 +105,7 @@ interface PostsResponse {
   posts: Post[];
 }
 
-// Define Highlight Story type (للـ Stories داخل الـ Highlight)
+// Define Highlight Story type 
 interface HighlightStory {
   storyId: number;
   mediaUrl: string;

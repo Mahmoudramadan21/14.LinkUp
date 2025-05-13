@@ -12,16 +12,30 @@ const AiOutlineEyeInvisible = dynamic(() =>
   { ssr: false }
 );
 
+// Interface for select options
+interface SelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
 // Interface for component props
-interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+interface InputProps
+  extends Omit<
+    React.InputHTMLAttributes<HTMLInputElement | HTMLSelectElement>,
+    'onChange' | 'type'
+  > {
   id: string;
-  type?: 'text' | 'password' | 'email' | 'number';
+  type?: 'text' | 'password' | 'email' | 'number' | 'date' | 'select';
   placeholder?: string;
   label?: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  value: string | boolean;
+  onChange: (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => void;
   error?: string;
   required?: boolean;
+  options?: SelectOption[]; // For select inputs
 }
 
 // Custom hook for debouncing input changes
@@ -38,8 +52,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 /**
  * Input Component
- * A reusable input field with support for labels, error messages, and password visibility toggle.
- * Used in forms for user input, such as login, signup, or profile editing.
+ * A reusable input field with support for text, password, email, date, select, and error messages.
  */
 const Input: React.FC<InputProps> = ({
   id,
@@ -50,10 +63,11 @@ const Input: React.FC<InputProps> = ({
   onChange,
   error,
   required = false,
+  options = [],
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const debouncedValue = useDebounce(value, 300);
+  const debouncedValue = useDebounce(value, 10);
 
   // Toggle password visibility
   const togglePasswordVisibility = useCallback(() => {
@@ -70,16 +84,29 @@ const Input: React.FC<InputProps> = ({
         return 'password';
       case 'email':
         return 'email';
+      case 'date':
+        return 'birthDate';
+      case 'select':
+        return 'gender';
       default:
         return 'name';
     }
   };
 
   return (
-    <fieldset className="input-block" data-testid="input" itemscope>
+    <fieldset
+      className="input-block"
+      data-testid="input"
+      itemscope
+      itemType="http://schema.org/Person"
+    >
       <div className="input-block__header">
         {label && (
-          <label htmlFor={id} className="input-block__label">
+          <label
+            htmlFor={id}
+            className="input-block__label"
+            id={`${id}-label`}
+          >
             {label}
             {required && (
               <span className="input-block__required" aria-hidden="true">
@@ -96,27 +123,63 @@ const Input: React.FC<InputProps> = ({
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             aria-pressed={showPassword}
           >
-            {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
+            {showPassword ? (
+              <AiOutlineEyeInvisible size={20} />
+            ) : (
+              <AiOutlineEye size={20} />
+            )}
             <span className="input-block__toggle-text sr-only">
               {showPassword ? 'Hide' : 'Show'}
             </span>
           </button>
         )}
       </div>
-      <input
-        id={id}
-        type={inputType}
-        placeholder={placeholder}
-        value={debouncedValue}
-        onChange={onChange}
-        className={clsx('input-block__input', { 'input-block__input--invalid': error })}
-        required={required}
-        aria-invalid={error ? 'true' : 'false'}
-        aria-describedby={error ? `${id}-error` : undefined}
-        aria-required={required}
-        itemProp={getItemProp()}
-        {...props}
-      />
+      {type === 'select' ? (
+        <select
+          id={id}
+          name={props.name}
+          value={value as string}
+          onChange={onChange}
+          className={clsx('input-block__input', {
+            'input-block__input--invalid': error,
+          })}
+          required={required}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${id}-error` : undefined}
+          aria-required={required}
+          aria-labelledby={`${id}-label`}
+          itemProp={getItemProp()}
+          {...props}
+        >
+          {options.map((option) => (
+            <option
+              key={option.value}
+              value={option.value}
+              disabled={option.disabled}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          id={id}
+          type={inputType}
+          placeholder={placeholder}
+          value={debouncedValue as string}
+          onChange={onChange}
+          className={clsx('input-block__input', {
+            'input-block__input--invalid': error,
+          })}
+          required={required}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${id}-error` : undefined}
+          aria-required={required}
+          aria-labelledby={`${id}-label`}
+          itemProp={getItemProp()}
+          {...props}
+        />
+      )}
       {error && (
         <span
           id={`${id}-error`}

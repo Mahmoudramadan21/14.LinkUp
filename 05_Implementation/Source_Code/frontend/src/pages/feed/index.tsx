@@ -110,7 +110,9 @@ const FeedPage: React.FC = () => {
       <div className="feed-page-main">
         <aside className="feed-page-sidebar">
           {followLoading ? (
-            <Loading />
+            <div className="follow-requests__container">
+              <Loading />
+            </div>
           ) : (
             <>
               <FollowRequests
@@ -123,7 +125,7 @@ const FeedPage: React.FC = () => {
           )}
         </aside>
         <main className="feed-page-content">
-          <StoriesSection currentUserId={authData?.userId} token={token} user={user} /> {/* تمرير الـ Token */}
+          <StoriesSection currentUserId={authData?.userId} token={token} user={user} />
           {authData && (
             <CreatePost
               user={user}
