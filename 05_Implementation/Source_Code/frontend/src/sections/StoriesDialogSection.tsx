@@ -322,8 +322,8 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="stories-dialog-title"
-      itemscope
-      itemtype="http://schema.org/CreativeWork"
+      itemScope
+      itemType="http://schema.org/CreativeWork"
     >
       <div
         className="stories-dialog__wrapper"
