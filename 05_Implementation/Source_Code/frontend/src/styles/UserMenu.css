@@ -5,7 +5,7 @@
 
 /* Main container */
 .user-menu__container {
-  @apply hidden lg:block w-fit 2xl:w-80 bg-white rounded-lg shadow-lg py-4 px-8;
+  @apply hidden lg:block w-full bg-white rounded-lg shadow-lg py-4 px-8;
 }
 
 /* Header */

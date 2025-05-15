@@ -67,8 +67,8 @@ const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
       data-testid="user-menu"
       role="navigation"
       aria-labelledby="user-menu-title"
-      itemscope
-      itemtype="http://schema.org/Person"
+      itemScope
+      itemType="http://schema.org/Person"
     >
       <h2 id="user-menu-title" className="sr-only">
         User Menu
