@@ -1,9 +1,9 @@
 import React, { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Avatar from '../components/Avatar';
 import StoriesDialogSection from './StoriesDialogSection';
-import { fetchStoryFeed } from '../utils/api';
 import CreateStories from '../components/CreateStories';
 import { Transition } from '@headlessui/react';
+import api from '@/utils/api';
 
 interface Story {
   storyId: number;
@@ -21,6 +21,13 @@ interface UserStory {
   stories: Story[];
 }
 
+interface StoryListItem {
+  username: string;
+  imageSrc: string;
+  hasPlus?: boolean;
+  hasUnviewedStories?: boolean;
+}
+
 interface User {
   name: string;
   username: string;
@@ -31,70 +38,51 @@ interface StoriesSectionProps {
   currentUserId?: number;
   token: string;
   user: User;
+  stories: StoryListItem[];
+  onPostStory: (media: File, text?: string, backgroundColor?: string, textColor?: string, position?: { x: number; y: number }, fontSize?: number) => Promise<void>;
 }
 
 /**
  * StoriesSection Component
  * Renders a list of user stories with avatars and a create story dialog.
  */
-const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, user }) => {
+const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, user, stories, onPostStory }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedStoryId, setSelectedStoryId] = useState<number | null>(null);
-  const [stories, setStories] = useState<UserStory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [userStories, setUserStories] = useState<UserStory[]>([]);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Fetch stories on mount
+  // Fetch user stories for dialog
   useEffect(() => {
-    if (!token) {
-      setError('No authentication token available');
-      setLoading(false);
-      return;
-    }
-    const loadStories = async () => {
+    const loadUserStories = async () => {
+      if (!token) {
+        setDialogError('No authentication token available');
+        return;
+      }
       try {
-        setLoading(true);
-        const data = await fetchStoryFeed(token);
-        setStories(data);
-        setError(null);
+        const response = await api.get<UserStory[]>('/stories/feed', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        console.log('Fetched user stories:', response.data, 'Status:', response.status);
+        setUserStories(response.data);
+        setDialogError(null);
       } catch (err: any) {
-        setError(err.response?.data?.message || err.message || 'Failed to load stories');
-      } finally {
-        setLoading(false);
+        console.error('Failed to load user stories:', err.response?.data, err.response?.status);
+        setDialogError(err.response?.data?.message || err.message || 'Failed to load stories');
       }
     };
-    loadStories();
+    loadUserStories();
   }, [token]);
-
-  // Memoized story list
-  const storyList = useMemo(
-    () => [
-      {
-        username: 'You',
-        imageSrc: user.profilePicture || '/avatars/placeholder.png',
-        hasUnviewedStories: false,
-      },
-      ...stories.map((userStory) => ({
-        username: userStory.username,
-        imageSrc:
-          userStory.stories.length > 0
-            ? userStory.stories[0].mediaUrl
-            : userStory.profilePicture || '/avatars/placeholder.png',
-        hasUnviewedStories: userStory.hasUnviewedStories,
-      })),
-    ],
-    [stories, user.profilePicture]
-  );
 
   // Handle story click
   const handleStoryClick = useCallback(
     (userIndex: number) => {
       if (userIndex === 0) {
         setIsCreateDialogOpen(true);
-      } else if (userIndex > 0 && userIndex - 1 < stories.length) {
-        const userStory = stories[userIndex - 1];
+      } else if (userIndex > 0 && userIndex - 1 < userStories.length) {
+        const userStory = userStories[userIndex - 1];
         if (userStory?.stories?.length > 0) {
           const firstUnviewedStory = userStory.stories.find((story) => !story.isViewed);
           const storyToSelect = firstUnviewedStory || userStory.stories[0];
@@ -103,12 +91,12 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
         }
       }
     },
-    [stories]
+    [userStories]
   );
 
   // Handle share story
   const handleShareStory = useCallback(
-    (storyData: {
+    async (storyData: {
       text: string;
       media?: File;
       backgroundColor?: string;
@@ -116,9 +104,23 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
       position: { x: number; y: number };
       fontSize: number;
     }) => {
+      if (storyData.media) {
+        try {
+          await onPostStory(
+            storyData.media,
+            storyData.text,
+            storyData.backgroundColor,
+            storyData.textColor,
+            storyData.position,
+            storyData.fontSize
+          );
+        } catch (err: any) {
+          console.error('Failed to post story:', err);
+        }
+      }
       setIsCreateDialogOpen(false);
     },
-    []
+    [onPostStory]
   );
 
   // Handle discard story
@@ -170,57 +172,49 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
       data-testid="stories-section"
       role="region"
       aria-labelledby="stories-section-title"
-      itemscope
-      itemtype="http://schema.org/CreativeWork"
+      itemScope
+      itemType="http://schema.org/CreativeWork"
     >
       <h2 id="stories-section-title" className="stories-section__title">
         Stories
       </h2>
-      {loading ? (
-        <div className="stories-section__loading" aria-live="polite">
-          Loading stories...
-        </div>
-      ) : error ? (
-        <div className="stories-section__error" aria-live="polite">
-          {error}
-        </div>
-      ) : (
-        <div className="stories-section__list">
-          {storyList.length > 0 ? (
-            storyList.map((story, index) => (
-              <div
-                key={index}
-                onClick={() => handleStoryClick(index)}
-                className="stories-section__item"
-                role="button"
-                aria-label={`View ${story.username}'s story`}
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleStoryClick(index)}
-              >
-                <Avatar
-                  imageSrc={story.imageSrc}
-                  username={story.username}
-                  size="medium"
-                  showUsername={true}
-                  hasUnviewedStories={story.hasUnviewedStories}
-                  status={story.hasUnviewedStories ? 'Super Active' : ''}
-                />
-              </div>
-            ))
-          ) : (
-            <p className="stories-section__empty" aria-live="polite">
-              No stories available
-            </p>
-          )}
-        </div>
-      )}
+      <div className="stories-section__list">
+        {stories.length > 0 ? (
+          stories.map((story, index) => (
+            <div
+              key={index}
+              onClick={() => handleStoryClick(index)}
+              className="stories-section__item"
+              role="button"
+              aria-label={`View ${story.username}'s story`}
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleStoryClick(index)}
+            >
+              <Avatar
+                imageSrc={story.imageSrc}
+                username={story.username}
+                size="medium"
+                showUsername={true}
+                hasUnviewedStories={story.hasUnviewedStories}
+                status={story.hasUnviewedStories ? 'Super Active' : ''}
+                hasPlus={story.hasPlus}
+              />
+            </div>
+          ))
+        ) : (
+          <p className="stories-section__empty" aria-live="polite">
+            No stories available
+          </p>
+        )}
+      </div>
       {isDialogOpen && selectedStoryId !== null && (
         <StoriesDialogSection
-          stories={stories}
+          stories={userStories}
           initialStoryId={selectedStoryId}
           currentUserId={currentUserId || 0}
           onClose={() => setIsDialogOpen(false)}
           token={token}
+          error={dialogError}
         />
       )}
       <Transition
