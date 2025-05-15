@@ -6,6 +6,7 @@ import api from '@/utils/api';
 import { useAppStore } from '@/store/feedStore';
 import { v4 as uuidv4 } from 'uuid';
 import { API_ENDPOINTS } from '@/utils/constants';
+import PostCardLoading from './PostCardLoading';
 
 // Interface for user data
 interface User {
@@ -50,6 +51,7 @@ interface PostCardProps {
   isLiked: boolean;
   likedBy: User[];
   comments: Comment[];
+  isLoading?: boolean;
   onPostUpdate: (postId: number, updatedFields: Partial<PostCardProps>) => void;
 }
 
@@ -69,6 +71,7 @@ function useDebounce<T>(value: T, delay: number): T {
  * PostCard Component
  * Displays a social media post with media, likes, comments, and replies.
  * Supports optimistic updates for likes and comments with rollback on failure.
+ * Shows a loading skeleton when isLoading is true.
  */
 const PostCard: React.FC<PostCardProps> = ({
   postId,
@@ -85,8 +88,13 @@ const PostCard: React.FC<PostCardProps> = ({
   isLiked: initialIsLiked,
   likedBy: initialLikedBy,
   comments: initialComments,
+  isLoading = false,
   onPostUpdate,
 }) => {
+  if (isLoading) {
+    return <PostCardLoading />;
+  }
+
   const { authData, setError } = useAppStore() as AppStore;
   const [showComments, setShowComments] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -546,8 +554,8 @@ const PostCard: React.FC<PostCardProps> = ({
     <article
       className="post-card"
       data-testid="post-card"
-      itemscope
-      itemtype="http://schema.org/SocialMediaPosting"
+      itemScope
+      itemType="http://schema.org/SocialMediaPosting"
     >
       <div className="post-card__header">
         <Avatar
@@ -579,9 +587,7 @@ const PostCard: React.FC<PostCardProps> = ({
         <div className="post-card__actions">
           <button
             type="button"
-            className="post
-
--card__button--more"
+            className="post-card__button--more"
             aria-label="More options for post"
           >
             <span className="post-card__dots">⋯</span>
@@ -617,7 +623,6 @@ const PostCard: React.FC<PostCardProps> = ({
               src={videoUrl}
               className="post-card__video"
               controls={false}
-              muted
               playsInline
               preload="metadata"
               width={600}
