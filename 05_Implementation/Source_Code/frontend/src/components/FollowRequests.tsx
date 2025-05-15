@@ -76,8 +76,8 @@ const FollowRequests: React.FC<FollowRequestsProps> = ({ initialData, onAccept, 
     <section
       className="follow-requests__container"
       data-testid="follow-requests"
-      itemscope
-      itemtype="http://schema.org/ItemList"
+      itemScope
+      itemType="http://schema.org/ItemList"
     >
       <h2
         className="follow-requests__title"
@@ -97,7 +97,7 @@ const FollowRequests: React.FC<FollowRequestsProps> = ({ initialData, onAccept, 
               key={request.requestId}
               className="follow-request__item"
               role="listitem"
-              itemprop="itemListElement"
+              itemProp="itemListElement"
             >
               <div className="follow-request__details">
                 <Avatar

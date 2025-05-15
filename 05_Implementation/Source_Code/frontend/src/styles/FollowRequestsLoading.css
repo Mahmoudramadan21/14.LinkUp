@@ -1,0 +1,63 @@
+/* FollowRequestsLoading component styles using Tailwind */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Skeleton base styles */
+.follow-requests-loading__title-skeleton,
+.follow-requests-loading__avatar-skeleton,
+.follow-requests-loading__username-skeleton,
+.follow-requests-loading__time-skeleton,
+.follow-requests-loading__button-skeleton {
+  @apply bg-gray-200 rounded animate-pulse;
+}
+
+/* Title skeleton */
+.follow-requests-loading__title-skeleton {
+  @apply h-6 w-48 mb-4;
+}
+
+/* Avatar skeleton */
+.follow-requests-loading__avatar-skeleton {
+  @apply w-12 h-12 rounded-full;
+}
+
+/* Text container */
+.follow-requests-loading__text-container {
+  @apply space-y-2;
+}
+
+/* Username skeleton */
+.follow-requests-loading__username-skeleton {
+  @apply h-4 w-24 rounded;
+}
+
+/* Time skeleton */
+.follow-requests-loading__time-skeleton {
+  @apply h-3 w-16 rounded;
+}
+
+/* Button skeleton */
+.follow-requests-loading__button-skeleton {
+  @apply h-8 w-20 rounded-3xl;
+}
+
+/* Shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+.follow-requests-loading__title-skeleton,
+.follow-requests-loading__avatar-skeleton,
+.follow-requests-loading__username-skeleton,
+.follow-requests-loading__time-skeleton,
+.follow-requests-loading__button-skeleton {
+  background: linear-gradient(90deg, #e5e7eb 25%, #d1d5db 50%, #e5e7eb 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite linear;
+}

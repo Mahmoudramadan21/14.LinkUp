@@ -5,7 +5,7 @@
 
 /* Main container */
 .follow-requests__container {
-  @apply hidden 2xl:block 2xl:min-w-80 mx-auto p-4 bg-white;
+  @apply w-full mx-auto p-4 bg-white;
 }
 
 /* Title */
