@@ -73,6 +73,7 @@ interface AppState {
   authData: ReturnType<typeof getAuthData> | null;
   followRequests: FollowRequest[];
   stories: Story[];
+  storiesError: string | null;
   posts: Post[];
   error: string | null;
   page: number;
@@ -86,19 +87,20 @@ interface AppState {
   setAuthData: (data: ReturnType<typeof getAuthData> | null) => void;
   setFollowRequests: (requests: FollowRequest[]) => void;
   setStories: (stories: Story[]) => void;
+  setStoriesError: (error: string | null) => void;
   setPosts: (posts: Post[]) => void;
   setError: (error: string | null) => void;
   setPage: (page: number) => void;
   setHasMore: (hasMore: boolean) => void;
 
   fetchFollowRequests: () => Promise<void>;
-  fetchStories: () => Promise<void>;
+  fetchStories: (token: string) => Promise<void>;
   fetchPosts: () => Promise<void>;
   handleAcceptRequest: (requestId: number) => Promise<void>;
   handleRejectRequest: (requestId: number) => Promise<void>;
   handlePostSubmit: (content: string, image?: File, video?: File) => Promise<void>;
   handlePostUpdate: (postId: number, updatedFields: Partial<Post>) => void;
-  handlePostStory: (media: File) => Promise<void>;
+  handlePostStory: (media: File, text?: string, backgroundColor?: string, textColor?: string, position?: { x: number; y: number }, fontSize?: number) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -110,6 +112,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   authData: getAuthData(),
   followRequests: [],
   stories: [],
+  storiesError: null,
   posts: [],
   error: null,
   page: 1,
@@ -123,6 +126,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAuthData: (data) => set({ authData: data }),
   setFollowRequests: (requests) => set({ followRequests: requests }),
   setStories: (stories) => set({ stories }),
+  setStoriesError: (error) => set({ storiesError: error }),
   setPosts: (posts) => set({ posts }),
   setError: (error) => set({ error }),
   setPage: (page) => set({ page }),
@@ -141,11 +145,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  fetchStories: async () => {
-    set({ storiesLoading: true });
+  fetchStories: async (token: string) => {
+    set({ storiesLoading: true, storiesError: null });
     try {
-      const response = await api.get<StoryUser[]>('/stories/feed');
-      console.log('Fetched stories:', response.data);
+      const response = await api.get<StoryUser[]>('/stories/feed', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched stories:', response.data, 'Status:', response.status);
       const mappedStories: Story[] = [
         {
           username: 'You',
@@ -160,7 +166,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       ];
       set({ stories: mappedStories });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to load stories' });
+      console.error('Fetch stories error:', err.response?.data, err.response?.status);
+      set({ storiesError: err.response?.data?.message || err.message || 'Failed to load stories' });
     } finally {
       set({ storiesLoading: false });
     }
@@ -274,17 +281,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  handlePostStory: async (media: File) => {
-    set({ storiesLoading: true });
+  handlePostStory: async (media: File, text?: string, backgroundColor?: string, textColor?: string, position?: { x: number; y: number }, fontSize?: number) => {
+    set({ storiesLoading: true, storiesError: null });
     try {
       const formData = new FormData();
-      formData.append('media', media, 'story.png');
-      await api.post('/stories', formData, {
+      formData.append('media', media);
+      if (text) formData.append('text', text);
+      if (backgroundColor) formData.append('backgroundColor', backgroundColor);
+      if (textColor) formData.append('textColor', textColor);
+      if (position) formData.append('position', JSON.stringify(position));
+      if (fontSize) formData.append('fontSize', fontSize.toString());
+
+      const response = await api.post('/stories', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      await get().fetchStories();
+      console.log('Story posted successfully:', response.data);
+      await get().fetchStories(get().authData?.accessToken || '');
     } catch (err: any) {
-      set({ error: err.message || 'Failed to post story' });
+      console.error('Post story error:', err.response?.data, err.response?.status);
+      set({ storiesError: err.response?.data?.message || err.message || 'Failed to post story' });
     } finally {
       set({ storiesLoading: false });
     }
