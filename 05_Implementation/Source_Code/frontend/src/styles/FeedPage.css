@@ -12,13 +12,13 @@
 }
 
 .feed-page-sidebar {
-  @apply hidden lg:flex lg:flex-col
-    w-full lg:w-fit p-4;
+  @apply hidden xl:flex xl:flex-col
+    min-w-[430px] mr-4;
 }
 
 .feed-page-content {
   @apply flex flex-col
-    w-full lg:w-3/4 p-4;
+    w-full;
 }
 
 .feed-page-posts {
