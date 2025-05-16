@@ -5,7 +5,11 @@
 
 /* Main header */
 .header-section {
-  @apply flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-8 px-4 py-2 bg-white shadow-sm;
+  @apply bg-white shadow-sm;
+}
+
+.header-section__container {
+  @apply container flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-8 px-4 py-2;
 }
 
 /* Logo container */

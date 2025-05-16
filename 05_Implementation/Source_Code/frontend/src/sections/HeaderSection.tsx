@@ -61,10 +61,11 @@ const HeaderSection: React.FC = () => {
       className="header-section"
       data-testid="header-section"
       role="banner"
-      itemscope
-      itemtype="http://schema.org/Organization"
+      itemScope
+      itemType="http://schema.org/Person"
     >
-      <div className="header-section__logo">
+    <div className="header-section__container">
+            <div className="header-section__logo">
         <img
           src="/svgs/logo.svg"
           alt="LinkUp Logo"
@@ -123,6 +124,7 @@ const HeaderSection: React.FC = () => {
         onClose={toggleNotifications}
         userId={userId || 0}
       />
+    </div>
     </header>
   );
 };
