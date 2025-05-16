@@ -82,8 +82,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, title = 'LinkUp' }) =
   return (
     <div
       className="main-layout"
-      itemscope
-      itemtype="http://schema.org/WebPage"
+      itemScope
+      itemType="http://schema.org/WebPage"
     >
       <PageHead title={title} />
       <a href="#main-content" className="main-layout__skip-link">

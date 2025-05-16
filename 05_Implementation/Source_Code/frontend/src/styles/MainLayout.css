@@ -25,7 +25,7 @@
 
 /* Sidebar */
 .main-layout__sidebar {
-  @apply w-64 h-fit bg-white border-r border-gray-200 hidden lg:block;
+  @apply w-72 h-fit bg-white border-r border-gray-200 hidden lg:block;
 }
 
 /* Loading message */
