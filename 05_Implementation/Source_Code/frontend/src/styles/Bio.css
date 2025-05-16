@@ -4,7 +4,7 @@
 
 /* Bio Container */
 .bio__container {
-  @apply h-fit bg-white p-4 pb-6 rounded-lg shadow-md mb-4 mr-4;
+  @apply h-fit xl:w-96 bg-white p-4 pb-6 rounded-lg shadow-md mb-4 xl:mr-4;
 }
 
 /* Bio Section */
