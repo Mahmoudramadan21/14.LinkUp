@@ -185,8 +185,8 @@ const VerificationCodeForm: React.FC = () => {
         className="auth-form auth-form--verify-code"
         role="region"
         aria-labelledby="verify-code-error-title"
-        itemscope
-        itemtype="http://schema.org/Person"
+        itemScope
+        itemType="http://schema.org/Person"
       >
         <div className="auth-form__container">
           <h1 id="verify-code-error-title" className="auth-form__title auth-form__title--verify-code">
