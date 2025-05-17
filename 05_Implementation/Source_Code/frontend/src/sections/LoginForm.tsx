@@ -146,8 +146,8 @@ const LoginForm: React.FC = () => {
       className="auth-form"
       role="form"
       aria-labelledby="login-form-title"
-      itemscope
-      itemtype="http://schema.org/Person"
+      itemScope
+      itemType="http://schema.org/Person"
     >
       <div className="auth-form__container">
         <h1 id="login-form-title" className="auth-form__title">
