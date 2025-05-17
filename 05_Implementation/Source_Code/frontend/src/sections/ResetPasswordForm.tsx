@@ -187,8 +187,8 @@ const ResetPasswordForm: React.FC = () => {
         className="auth-form auth-form--reset-password"
         role="region"
         aria-labelledby="reset-password-error-title"
-        itemscope
-        itemtype="http://schema.org/Person"
+        itemScope
+        itemType="http://schema.org/Person"
       >
         <div className="auth-form__container">
           <h1 id="reset-password-error-title" className="auth-form__title">
