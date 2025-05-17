@@ -11,8 +11,12 @@
 @import "./SearchBar.css";
 @import "./HeaderSection.css";
 @import "./StoriesSection.css";
+@import "./StoriesSectionLoading.css";
 @import "./PostCard.css";
+@import "./PostCardLoading.css";
+@import "./PostModal.css";
 @import "./FollowRequests.css";
+@import "./FollowRequestsLoading.css";
 @import "./UserMenu.css";
 @import "./CreatePost.css";
 @import "./Notifications.css";
@@ -29,7 +33,6 @@
 @import "./MainLayout.css";
 @import "./EditProfile.css";
 @import "./PrivateAccountNotice.css";
-@import "./PostModal.css";
 
 body {
     @apply bg-gray-50;
