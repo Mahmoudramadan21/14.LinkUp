@@ -288,14 +288,14 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   fetchProfile: async (username: string) => {
-    set({ loading: true, error: null });
+    console.log('Starting fetchProfile for:', username);
     try {
       const response = await fetchProfileByUsername(username);
-      set({ profile: response.profile });
+      console.log('fetchProfile response:', response.profile);
+      set({ profile: response.profile, loading: false, error: null });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch profile' });
-    } finally {
-      set({ loading: false });
+      console.error('fetchProfile error:', err);
+      set({ error: err.message || 'Failed to fetch profile', loading: false });
     }
   },
 
@@ -303,11 +303,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ highlightsLoading: true, highlightsError: null });
     try {
       const highlights = await fetchUserHighlights(userId);
-      set({ highlights });
+      set({ highlights, highlightsLoading: false });
     } catch (err: any) {
-      set({ highlightsError: err.message || 'Failed to fetch highlights' });
-    } finally {
-      set({ highlightsLoading: false });
+      set({ highlightsError: err.message || 'Failed to fetch highlights', highlightsLoading: false });
     }
   },
 
@@ -318,11 +316,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       if (!Array.isArray(response)) {
         throw new Error('Invalid saved posts data format');
       }
-      set({ savedPosts: response });
+      set({ savedPosts: response, savedPostsLoading: false });
     } catch (err: any) {
-      set({ savedPostsError: err.message || 'Failed to fetch saved posts' });
-    } finally {
-      set({ savedPostsLoading: false });
+      set({ savedPostsError: err.message || 'Failed to fetch saved posts', savedPostsLoading: false });
     }
   },
 
@@ -330,16 +326,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ postsLoading: true, postsError: null });
     try {
       const response = await fetchUserPosts(userId);
-      set({ posts: response.posts || [] });
+      set({ posts: response.posts || [], postsLoading: false });
     } catch (err: any) {
-      set({ postsError: err.message || 'Failed to fetch posts', posts: [] });
-    } finally {
-      set({ postsLoading: false });
+      set({ postsError: err.message || 'Failed to fetch posts', posts: [], postsLoading: false });
     }
   },
 
   followUser: async (userId: number) => {
-    set({ loading: true, error: null });
     try {
       const response = await followUser(userId);
       if (response.status === 'PENDING' || response.status === 'ACCEPTED') {
@@ -355,14 +348,11 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         }));
       }
     } catch (err: any) {
-      set({ error: err.message || 'Failed to follow user' });
-    } finally {
-      set({ loading: false });
+      throw new Error(err.message || 'Failed to follow user');
     }
   },
 
   unfollowUser: async (userId: number) => {
-    set({ loading: true, error: null });
     try {
       const response = await unfollowUser(userId);
       set((state) => ({
@@ -376,53 +366,47 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           : null,
       }));
     } catch (err: any) {
-      set({ error: err.message || 'Failed to unfollow user' });
-    } finally {
-      set({ loading: false });
+      throw new Error(err.message || 'Failed to unfollow user');
     }
   },
 
   fetchFollowers: async (userId: number, signal?: AbortSignal) => {
-    set({ loading: true, error: null });
     try {
       const response = await fetchFollowers(userId, signal);
       return response;
     } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch followers' });
-      return { count: 0, followers: [] };
-    } finally {
-      set({ loading: false });
+      throw new Error(err.message || 'Failed to fetch followers');
     }
   },
 
   fetchFollowing: async (userId: number, signal?: AbortSignal) => {
-    set({ loading: true, error: null });
     try {
       const response = await fetchFollowing(userId, signal);
       return response;
     } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch following' });
-      return { count: 0, following: [] };
-    } finally {
-      set({ loading: false });
+      throw new Error(err.message || 'Failed to fetch following');
     }
   },
 
   removeFollower: async (followerId: number) => {
-    set({ loading: true, error: null });
     try {
       const response = await removeFollower(followerId);
+      set((state) => ({
+        profile: state.profile
+          ? {
+              ...state.profile,
+              followerCount: state.profile.followerCount - 1,
+            }
+          : null,
+      }));
       return response;
     } catch (err: any) {
-      set({ error: err.message || 'Failed to remove follower' });
-      throw err;
-    } finally {
-      set({ loading: false });
+      throw new Error(err.message || 'Failed to remove follower');
     }
   },
 
   initializeAuth: async () => {
-    const auth = getAuthData();
+    const auth = await getAuthData();
     set({ authData: auth });
   },
 }));

@@ -1,5 +1,6 @@
 import api from './api';
 import { Story } from '@/components/StoryViewer';
+import { useRouter } from 'next/router';
 
 // Define TypeScript interfaces for function parameters
 interface Comment {
@@ -159,4 +160,69 @@ export const handleOpenModal = (
 
   setSelectedPost(transformedPost);
   setIsModalOpen(true);
+};
+
+/*
+ * Handles follow/unfollow action
+ * Updates profile after action
+ */
+export const handleFollowAction = async (
+  isFollowing: boolean,
+  followStatus: string | undefined,
+  userId: number,
+  username: string,
+  followUser: (userId: number) => Promise<void>,
+  unfollowUser: (userId: number) => Promise<void>,
+  fetchProfile: (username: string) => Promise<void>,
+  setIsFollowingLoading: React.Dispatch<React.SetStateAction<boolean>>
+): Promise<void> => {
+  setIsFollowingLoading(true);
+  try {
+    if (isFollowing || followStatus === 'PENDING') {
+      await unfollowUser(userId);
+    } else {
+      await followUser(userId);
+    }
+    await fetchProfile(username);
+  } catch (err: any) {
+    console.error(`Failed to ${isFollowing ? 'unfollow' : 'follow'}:`, err);
+    alert(`Failed to ${isFollowing ? 'unfollow' : 'follow'} user. Please try again.`);
+  } finally {
+    setIsFollowingLoading(false);
+  }
+};
+
+/*
+ * Opens followers/following dialog
+ * Updates URL with shallow routing
+ */
+export const openDialog = (
+  type: 'followers' | 'following',
+  profile: any,
+  username: string | string[] | undefined,
+  setDialogType: React.Dispatch<React.SetStateAction<'followers' | 'following'>>,
+  setIsDialogOpen: React.Dispatch<React.SetStateAction<boolean>>,
+  router: ReturnType<typeof useRouter>
+): void => {
+  if (!profile || !username) return;
+  setDialogType(type);
+  setIsDialogOpen(true);
+  const newPath = `/profile/${username}?tab=${type}`;
+  router.push(newPath, undefined, { shallow: true });
+};
+
+/*
+ * Closes followers/following dialog
+ * Resets URL with shallow routing
+ */
+export const closeDialog = (
+  username: string | string[] | undefined,
+  setIsDialogOpen: React.Dispatch<React.SetStateAction<boolean>>,
+  router: ReturnType<typeof useRouter>
+): void => {
+  setIsDialogOpen(false);
+  if (username) {
+    const basePath = `/profile/${username}`;
+    router.replace(basePath, undefined, { shallow: true });
+  }
 };
