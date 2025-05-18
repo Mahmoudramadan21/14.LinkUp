@@ -1,11 +1,5 @@
 import React, { memo, useState, useRef, useEffect, ChangeEvent, KeyboardEvent } from 'react';
-
-// Multi-input field for verification codes or PINs
-interface CodeInputProps {
-  length: number; // Number of input fields
-  onChange: (code: string) => void; // Callback for combined code
-  error?: string; // Error message to display
-}
+import { CodeInputProps } from '@/types';
 
 const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
   const [digits, setDigits] = useState<string[]>(Array(length).fill(''));

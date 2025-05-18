@@ -2,6 +2,7 @@
 import React, { memo, useState, useCallback, useEffect } from 'react';
 import clsx from 'clsx';
 import dynamic from 'next/dynamic';
+import { InputProps } from '@/types';
 
 // Lazy-load icons
 const AiOutlineEye = dynamic(() => import('react-icons/ai').then((mod) => mod.AiOutlineEye), {
@@ -11,44 +12,6 @@ const AiOutlineEyeInvisible = dynamic(() =>
   import('react-icons/ai').then((mod) => mod.AiOutlineEyeInvisible),
   { ssr: false }
 );
-
-// Interface for select options
-interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
-
-// Interface for component props
-interface InputProps
-  extends Omit<
-    React.InputHTMLAttributes<HTMLInputElement | HTMLSelectElement>,
-    'onChange' | 'type'
-  > {
-  id: string;
-  type?: 'text' | 'password' | 'email' | 'number' | 'date' | 'select';
-  placeholder?: string;
-  label?: string;
-  value: string | boolean;
-  onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => void;
-  error?: string;
-  required?: boolean;
-  options?: SelectOption[]; // For select inputs
-}
-
-// Custom hook for debouncing input changes
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 /**
  * Input Component
@@ -193,5 +156,17 @@ const Input: React.FC<InputProps> = ({
     </fieldset>
   );
 };
+
+// Custom hook for debouncing input changes
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default memo(Input);
