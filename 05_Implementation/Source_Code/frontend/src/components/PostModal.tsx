@@ -2,89 +2,10 @@
 import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import dynamic from 'next/dynamic';
-
-// Interface for user data
-interface User {
-  username: string;
-  profilePicture: string;
-}
-
-// Interface for comment data
-interface Comment {
-  commentId: string;
-  userId: number;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture?: string;
-  isLiked?: boolean;
-  likeCount?: number;
-  replies?: Comment[];
-  isPending?: boolean;
-  replyingToUsername?: string;
-}
-
-// Interface for post data
-interface Post {
-  postId: number;
-  userId: number;
-  username: string;
-  profilePicture: string;
-  privacy: string;
-  content: string;
-  imageUrl: string | null;
-  videoUrl: string | null;
-  createdAt: string;
-  likeCount: number;
-  commentCount: number;
-  isLiked: boolean;
-  likedBy: User[];
-  comments: Comment[];
-}
-
-// Interface for component props
-interface PostModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  post: Post;
-  onPostUpdate: (postId: number, updatedFields: Partial<Post>) => void;
-}
+import { PostModalProps } from '@/types';
 
 // Lazy-load PostCard
 const PostCard = dynamic(() => import('./PostCard'), { ssr: false });
-
-// Custom hook for focus trapping
-function useFocusTrap(dialogRef: React.RefObject<HTMLElement>) {
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const focusableElements = dialog.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const firstElement = focusableElements[0] as HTMLElement;
-    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        if (e.shiftKey && document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement.focus();
-        } else if (!e.shiftKey && document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement.focus();
-        }
-      }
-    };
-
-    dialog.addEventListener('keydown', handleKeyDown);
-    firstElement?.focus();
-
-    return () => {
-      dialog.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [dialogRef]);
-}
 
 /**
  * PostModal Component
@@ -214,5 +135,38 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post, onPostUpda
     </Transition>
   );
 };
+
+// Custom hook for focus trapping
+function useFocusTrap(dialogRef: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableElements = dialog.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0] as HTMLElement;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    firstElement?.focus();
+
+    return () => {
+      dialog.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [dialogRef]);
+}
 
 export default memo(PostModal);

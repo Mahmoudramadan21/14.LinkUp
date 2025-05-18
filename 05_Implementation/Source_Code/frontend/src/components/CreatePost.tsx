@@ -1,18 +1,9 @@
 'use client';
 import React, { memo, useState } from 'react';
 import clsx from 'clsx';
-import Avatar from '../components/Avatar';
-import Button from '../components/Button';
-
-// Form to create a new post with text, image, or video
-interface CreatePostProps {
-  user: {
-    name: string;
-    username: string;
-    profilePicture: string;
-  };
-  onPostSubmit: (content: string, image?: File, video?: File) => void;
-}
+import Avatar from './Avatar';
+import Button from './Button';
+import { CreatePostProps } from '@/types';
 
 const CreatePost: React.FC<CreatePostProps> = ({ user, onPostSubmit }) => {
   const [content, setContent] = useState('');

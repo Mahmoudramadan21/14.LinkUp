@@ -1,71 +1,13 @@
 'use client';
 import React, { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import Avatar from '../components/Avatar';
+import Avatar from './Avatar';
 import api from '@/utils/api';
 import { useAppStore } from '@/store/feedStore';
 import { v4 as uuidv4 } from 'uuid';
 import { API_ENDPOINTS } from '@/utils/constants';
 import PostCardLoading from './PostCardLoading';
-
-// Interface for user data
-interface User {
-  username: string;
-  profilePicture: string;
-}
-
-// Interface for comment data
-interface Comment {
-  commentId: string;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture?: string;
-  isLiked: boolean;
-  likeCount: number;
-  replies?: Comment[];
-  isPending?: boolean;
-  userId?: number;
-  replyingToUsername?: string;
-}
-
-// Interface for app store
-interface AppStore {
-  authData: { userId: number; username: string; profilePicture: string } | null;
-  setError: (error: string) => void;
-}
-
-// Interface for component props
-interface PostCardProps {
-  postId: number;
-  userId: number;
-  username: string;
-  profilePicture: string;
-  privacy: string;
-  content: string;
-  imageUrl?: string | null;
-  videoUrl?: string | null;
-  createdAt: string;
-  likeCount: number;
-  commentCount: number;
-  isLiked: boolean;
-  likedBy: User[];
-  comments: Comment[];
-  isLoading?: boolean;
-  onPostUpdate: (postId: number, updatedFields: Partial<PostCardProps>) => void;
-}
-
-// Custom hook for debouncing input
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { PostCardProps, PostCardAppStore } from '@/types';
 
 /**
  * PostCard Component
@@ -95,7 +37,7 @@ const PostCard: React.FC<PostCardProps> = ({
     return <PostCardLoading />;
   }
 
-  const { authData, setError } = useAppStore() as AppStore;
+  const { authData, setError } = useAppStore() as PostCardAppStore;
   const [showComments, setShowComments] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -103,8 +45,8 @@ const PostCard: React.FC<PostCardProps> = ({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [localIsLiked, setLocalIsLiked] = useState(initialIsLiked);
   const [localLikeCount, setLocalLikeCount] = useState(initialLikeCount);
-  const [localLikedBy, setLocalLikedBy] = useState<User[]>(initialLikedBy);
-  const [localComments, setLocalComments] = useState<Comment[]>(initialComments);
+  const [localLikedBy, setLocalLikedBy] = useState(initialLikedBy);
+  const [localComments, setLocalComments] = useState(initialComments);
   const [localCommentCount, setLocalCommentCount] = useState(initialCommentCount);
   const debouncedNewComment = useDebounce(newComment, 300);
 
@@ -137,7 +79,7 @@ const PostCard: React.FC<PostCardProps> = ({
     const previousLikeCount = localLikeCount;
     const previousLikedBy = localLikedBy;
 
-    const currentUserData: User = {
+    const currentUserData = {
       username: authData?.username || 'you',
       profilePicture: authData?.profilePicture || '/avatars/placeholder.jpg',
     };
@@ -188,7 +130,7 @@ const PostCard: React.FC<PostCardProps> = ({
         [key]: { isLiked: newIsLiked, likeCount: newLikeCount },
       }));
 
-      const updateComments = (commentsToUpdate: Comment[]): Comment[] =>
+      const updateComments = (commentsToUpdate) =>
         commentsToUpdate.map((comment) =>
           comment.commentId === commentId
             ? { ...comment, isLiked: newIsLiked, likeCount: newLikeCount }
@@ -234,13 +176,13 @@ const PostCard: React.FC<PostCardProps> = ({
 
     const tempCommentId = `temp-${uuidv4()}`;
     const commentContent = debouncedNewComment;
-    const currentUserData: User & { userId?: number } = {
+    const currentUserData = {
       username: authData?.username || 'you',
       profilePicture: authData?.profilePicture || '/avatars/placeholder.jpg',
       userId: authData?.userId,
     };
 
-    const newCommentObj: Comment = {
+    const newCommentObj = {
       commentId: tempCommentId,
       userId: currentUserData.userId,
       username: currentUserData.username,
@@ -271,7 +213,7 @@ const PostCard: React.FC<PostCardProps> = ({
         { content: commentContent }
       );
       const newCommentData = response.data;
-      const updatedComment: Comment = {
+      const updatedComment = {
         commentId: newCommentData.commentId || newCommentData.CommentID || tempCommentId,
         userId: newCommentData.user?.userId || newCommentData.User?.UserID || currentUserData.userId,
         username:
@@ -327,11 +269,11 @@ const PostCard: React.FC<PostCardProps> = ({
 
   // Submit reply
   const handleReplySubmit = useCallback(
-    async (parentCommentId: string) => {
+    async (parentCommentId) => {
       if (!debouncedNewComment.trim()) return;
 
       const tempReplyId = `temp-${uuidv4()}`;
-      const currentUserData: User & { userId?: number } = {
+      const currentUserData = {
         username: authData?.username || 'you',
         profilePicture: authData?.profilePicture || '/avatars/placeholder.jpg',
         userId: authData?.userId,
@@ -344,7 +286,7 @@ const PostCard: React.FC<PostCardProps> = ({
       }
       const parentUsername = parentComment.username || 'Unknown';
 
-      const newReplyObj: Comment = {
+      const newReplyObj = {
         commentId: tempReplyId,
         userId: currentUserData.userId,
         username: currentUserData.username,
@@ -386,7 +328,7 @@ const PostCard: React.FC<PostCardProps> = ({
         });
         const newReplyData = response.data;
 
-        const updatedReply: Comment = {
+        const updatedReply = {
           commentId: newReplyData.CommentID,
           userId: newReplyData.UserID,
           username: newReplyData.User.Username,
@@ -432,7 +374,7 @@ const PostCard: React.FC<PostCardProps> = ({
           ),
           commentCount: localCommentCount + 1,
         });
-      } catch (error: any) {
+      } catch (error) {
         let errorMessage = 'Failed to add reply. Please try again.';
         if (error.status === 400) {
           errorMessage = 'Invalid input or content violation. Please check your reply.';
@@ -491,7 +433,7 @@ const PostCard: React.FC<PostCardProps> = ({
       const response = await api.post(API_ENDPOINTS.SAVE_POST.replace(':postId', postId.toString()));
       const action = response.data.action;
       setError(action === 'saved' ? 'Post saved successfully.' : 'Post unsaved.');
-    } catch (error: any) {
+    } catch (error) {
       setError('Failed to toggle save. Please try again.');
     }
   }, [postId, setError]);
@@ -502,7 +444,7 @@ const PostCard: React.FC<PostCardProps> = ({
   }, []);
 
   // Toggle video playback
-  const handleVideoToggle = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleVideoToggle = useCallback((e) => {
     const video = e.currentTarget.querySelector('video');
     if (video) {
       if (isPlaying) {
@@ -515,7 +457,7 @@ const PostCard: React.FC<PostCardProps> = ({
   }, [isPlaying, setError]);
 
   // Format time ago
-  const formatTimeAgo = useCallback((date: string) => {
+  const formatTimeAgo = useCallback((date) => {
     const now = new Date();
     const postDate = new Date(date);
     const diffInMs = now.getTime() - postDate.getTime();
@@ -528,7 +470,7 @@ const PostCard: React.FC<PostCardProps> = ({
   }, []);
 
   // Format count
-  const formatCount = useCallback((count: number) => {
+  const formatCount = useCallback((count) => {
     if (count >= 1000) {
       return `${(count / 1000).toFixed(1)}K`;
     }
@@ -536,7 +478,7 @@ const PostCard: React.FC<PostCardProps> = ({
   }, []);
 
   // Handle reply click
-  const handleReplyClick = useCallback((commentId: string, username: string) => {
+  const handleReplyClick = useCallback((commentId, username) => {
     setReplyingTo(commentId);
     setNewComment(`@${username} `);
   }, []);
@@ -892,5 +834,17 @@ const PostCard: React.FC<PostCardProps> = ({
     </article>
   );
 };
+
+// Custom hook for debouncing input
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default memo(PostCard);
