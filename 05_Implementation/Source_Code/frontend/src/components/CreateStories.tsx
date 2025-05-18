@@ -3,28 +3,10 @@ import React, { memo, useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
 import { Transition } from '@headlessui/react';
 import html2canvas from 'html2canvas';
-import Avatar from '../components/Avatar';
-import Button from '../components/Button';
+import Avatar from './Avatar';
+import Button from './Button';
 import { useAppStore } from '@/store/feedStore';
-
-// Interface for user data
-interface User {
-  name: string;
-  username: string;
-  profilePicture?: string;
-}
-
-// Interface for store actions
-interface AppStore {
-  handlePostStory: (file: File) => Promise<void>;
-  setError: (error: string) => void;
-}
-
-// Props for CreateStories component
-interface CreateStoriesProps {
-  user?: User;
-  onDiscard: () => void;
-}
+import { CreateStoriesProps, AppStore } from '@/types';
 
 const CreateStories: React.FC<CreateStoriesProps> = ({
   user = {

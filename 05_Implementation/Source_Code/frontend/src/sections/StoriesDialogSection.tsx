@@ -3,52 +3,7 @@ import StoriesList from '../components/StoriesList';
 import StoryViewer from '../components/StoryViewer';
 import { Transition } from '@headlessui/react';
 import { toggleStoryLike } from '../utils/api';
-
-interface Story {
-  storyId: number;
-  createdAt: string;
-  mediaUrl: string;
-  expiresAt: string;
-  isViewed: boolean;
-}
-
-interface UserStory {
-  userId: number;
-  username: string;
-  profilePicture: string;
-  hasUnviewedStories: boolean;
-  stories: Story[];
-}
-
-interface StoryDetails {
-  StoryID: number;
-  MediaURL: string;
-  CreatedAt: string;
-  ExpiresAt: string;
-  User: {
-    UserID: number;
-    Username: string;
-    ProfilePicture: string;
-    IsPrivate: boolean;
-  };
-  _count: {
-    StoryLikes: number;
-    StoryViews: number;
-  };
-  hasLiked: boolean;
-}
-
-interface ToggleStoryLikeResponse {
-  action: 'liked' | 'unliked';
-}
-
-interface StoriesDialogSectionProps {
-  stories: UserStory[];
-  initialStoryId: number;
-  currentUserId: number;
-  onClose: () => void;
-  token: string;
-}
+import { Story, UserStory, StoryDetails, ToggleStoryLikeResponse, StoriesDialogSectionProps } from '@/types';
 
 /**
  * StoriesDialogSection Component
@@ -95,7 +50,7 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
             User: {
               UserID: user.userId,
               Username: user.username,
-              ProfilePicture: user.profilePicture,
+              ProfilePicture: user.profilePicture || '/avatars/placeholder.jpg',
               IsPrivate: false,
             },
             _count: { StoryLikes: 0, StoryViews: 0 },
@@ -183,7 +138,7 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
           User: {
             UserID: user.userId,
             Username: user.username,
-            ProfilePicture: user.profilePicture,
+            ProfilePicture: user.profilePicture || '/avatars/placeholder.jpg',
             IsPrivate: false,
           },
           _count: { StoryLikes: 0, StoryViews: 0 },
@@ -213,7 +168,7 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
   const handleLike = useCallback(
     async (storyId: number) => {
       try {
-        const result = await toggleStoryLike(storyId, token);
+        const result: ToggleStoryLikeResponse = await toggleStoryLike(storyId, token);
         setSelectedStory((prev) =>
           prev
             ? {
@@ -372,7 +327,6 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
                     currentUserId={currentUserId}
                     onLike={handleLike}
                     onReply={handleReply}
-                    token={token}
                     onPrev={handlePrevStory}
                     onNext={handleNextStory}
                     totalStories={userStoryIds.length}
@@ -393,5 +347,4 @@ const StoriesDialogSection: React.FC<StoriesDialogSectionProps> = ({
     </div>
   );
 };
-
 export default memo(StoriesDialogSection);

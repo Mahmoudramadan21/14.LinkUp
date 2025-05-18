@@ -1,46 +1,10 @@
-import React, { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { memo, useState, useEffect, useCallback, useRef } from 'react';
 import Avatar from '../components/Avatar';
 import StoriesDialogSection from './StoriesDialogSection';
 import CreateStories from '../components/CreateStories';
 import { Transition } from '@headlessui/react';
 import api from '@/utils/api';
-
-interface Story {
-  storyId: number;
-  createdAt: string;
-  mediaUrl: string;
-  expiresAt: string;
-  isViewed: boolean;
-}
-
-interface UserStory {
-  userId: number;
-  username: string;
-  profilePicture: string;
-  hasUnviewedStories: boolean;
-  stories: Story[];
-}
-
-interface StoryListItem {
-  username: string;
-  imageSrc: string;
-  hasPlus?: boolean;
-  hasUnviewedStories?: boolean;
-}
-
-interface User {
-  name: string;
-  username: string;
-  profilePicture?: string;
-}
-
-interface StoriesSectionProps {
-  currentUserId?: number;
-  token: string;
-  user: User;
-  stories: StoryListItem[];
-  onPostStory: (media: File, text?: string, backgroundColor?: string, textColor?: string, position?: { x: number; y: number }, fontSize?: number) => Promise<void>;
-}
+import { UserStory, StoryListItem, StoriesSectionUser, StoriesSectionProps } from '@/types';
 
 /**
  * StoriesSection Component
@@ -92,35 +56,6 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
       }
     },
     [userStories]
-  );
-
-  // Handle share story
-  const handleShareStory = useCallback(
-    async (storyData: {
-      text: string;
-      media?: File;
-      backgroundColor?: string;
-      textColor: string;
-      position: { x: number; y: number };
-      fontSize: number;
-    }) => {
-      if (storyData.media) {
-        try {
-          await onPostStory(
-            storyData.media,
-            storyData.text,
-            storyData.backgroundColor,
-            storyData.textColor,
-            storyData.position,
-            storyData.fontSize
-          );
-        } catch (err: any) {
-          console.error('Failed to post story:', err);
-        }
-      }
-      setIsCreateDialogOpen(false);
-    },
-    [onPostStory]
   );
 
   // Handle discard story
@@ -214,7 +149,6 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
           currentUserId={currentUserId || 0}
           onClose={() => setIsDialogOpen(false)}
           token={token}
-          error={dialogError}
         />
       )}
       <Transition
@@ -241,7 +175,6 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
             <CreateStories
               user={user}
               onDiscard={handleDiscardStory}
-              onShare={handleShareStory}
             />
           </div>
         </div>

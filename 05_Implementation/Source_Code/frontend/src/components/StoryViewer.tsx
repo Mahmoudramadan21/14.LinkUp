@@ -1,57 +1,9 @@
 'use client';
 import React, { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Avatar from '../components/Avatar';
+import Avatar from './Avatar';
 import { AiOutlineEye } from 'react-icons/ai';
 import Link from 'next/link';
-
-// Interface for user data
-interface User {
-  UserID: number;
-  Username: string;
-  ProfilePicture: string | null;
-  IsPrivate: boolean;
-}
-
-// Interface for story details
-interface StoryDetails {
-  StoryID: number;
-  MediaURL: string;
-  CreatedAt: string;
-  ExpiresAt: string;
-  User: User;
-  _count: {
-    StoryLikes: number;
-    StoryViews: number;
-  };
-  hasLiked: boolean;
-}
-
-// Interface for component props
-interface StoryViewerProps {
-  story: StoryDetails;
-  currentUserId: number;
-  onLike: (storyId: number) => void;
-  onReply: (storyId: number, reply: string) => void;
-  onPrev: () => void;
-  onNext: () => void;
-  totalStories: number;
-  currentStoryIndex: number;
-  isPlaying: boolean;
-  onTogglePlayPause: () => void;
-  duration?: number; // Added for dynamic progress bar duration
-}
-
-// Custom hook for debouncing input
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { StoryViewerProps } from '@/types';
 
 /**
  * StoryViewer Component
@@ -304,5 +256,17 @@ const StoryViewer: React.FC<StoryViewerProps> = ({
     </article>
   );
 };
+
+// Custom hook for debouncing input
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default memo(StoryViewer);

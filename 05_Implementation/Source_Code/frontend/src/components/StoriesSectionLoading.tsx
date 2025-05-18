@@ -1,9 +1,6 @@
 'use client';
 import React, { memo } from 'react';
-
-interface StoriesSectionLoadingProps {
-  title?: string;
-}
+import { StoriesSectionLoadingProps } from '@/types';
 
 /**
  * StoriesSectionLoading Component

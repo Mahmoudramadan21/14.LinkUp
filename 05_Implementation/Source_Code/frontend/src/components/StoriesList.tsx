@@ -1,32 +1,8 @@
 'use client';
 import React, { memo, useCallback } from 'react';
 import Link from 'next/link';
-import Avatar from '../components/Avatar';
-
-// Interface for story data
-interface Story {
-  storyId: number;
-  createdAt: string;
-  mediaUrl: string;
-  expiresAt: string;
-  isViewed: boolean;
-}
-
-// Interface for user story data
-interface UserStory {
-  userId: number;
-  username: string;
-  profilePicture: string | null;
-  hasUnviewedStories: boolean;
-  stories: Story[];
-}
-
-// Interface for component props
-interface StoriesListProps {
-  data: UserStory[];
-  onStorySelect: (storyId: number) => void;
-  activeUserId?: number;
-}
+import Avatar from './Avatar';
+import { StoriesListProps } from '@/types';
 
 /**
  * StoriesList Component
@@ -36,7 +12,7 @@ interface StoriesListProps {
 const StoriesList: React.FC<StoriesListProps> = ({ data, onStorySelect, activeUserId }) => {
   // Handle story selection
   const handleStoryClick = useCallback(
-    (user: UserStory) => {
+    (user) => {
       const firstUnviewedStory = user.stories.find((story) => !story.isViewed);
       const storyToSelect = firstUnviewedStory || user.stories[0];
       if (storyToSelect) {
