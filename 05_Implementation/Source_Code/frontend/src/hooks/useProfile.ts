@@ -2,50 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useProfileStore } from '@/store/profileStore';
 import { fetchUserStories, handleOpenModal } from '@/utils/profileUtils';
-
-interface FollowingFollower {
-  userId: number;
-  username: string;
-  profileName: string;
-  profilePicture: string | null;
-  isPrivate: boolean;
-  bio: string | null;
-}
-
-interface Story {
-  storyId: number;
-  mediaUrl: string;
-  createdAt: string;
-}
-
-interface Comment {
-  commentId: number;
-  userId: number;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture: string;
-  isLiked: boolean;
-  likeCount: number;
-  replies: Comment[];
-}
-
-interface Post {
-  postId: number;
-  userId: number;
-  username: string;
-  profilePicture: string;
-  privacy: string;
-  content: string;
-  imageUrl: string | null;
-  videoUrl: string | null;
-  createdAt: string;
-  likeCount: number;
-  commentCount: number;
-  comments: Comment[];
-  isLiked: boolean;
-  likedBy: { username: string; profilePicture: string }[];
-}
+import { FollowingFollower, Story, Comment, Post } from '@/types';
 
 export const useProfile = () => {
   const {

@@ -1,23 +1,12 @@
-// Types for auth data
-interface AuthData {
-  accessToken: string;
-  refreshToken: string;
-  userId: number;
-  username: string;
-  profileName: string;
-  profilePicture: string;
-  email: string;
-}
+import { FeedStoreAuthData } from '@/types';
 
-// Store auth data in localStorage
-export const setAuthData = (data: AuthData): void => {
+export const setAuthData = (data: FeedStoreAuthData): void => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('authData', JSON.stringify(data));
   }
 };
 
-// Retrieve auth data from localStorage
-export const getAuthData = (): AuthData | null => {
+export const getAuthData = (): FeedStoreAuthData | null => {
   if (typeof window !== 'undefined') {
     const data = localStorage.getItem('authData');
     return data ? JSON.parse(data) : null;
@@ -25,26 +14,22 @@ export const getAuthData = (): AuthData | null => {
   return null;
 };
 
-// Remove auth data from localStorage
 export const removeAuthData = (): void => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('authData');
   }
 };
 
-// Get access token
 export const getAccessToken = (): string | null => {
   const authData = getAuthData();
   return authData ? authData.accessToken : null;
 };
 
-// Get refresh token
 export const getRefreshToken = (): string | null => {
   const authData = getAuthData();
   return authData ? authData.refreshToken : null;
 };
 
-// Refresh access token using refresh token
 export const refreshAccessToken = async (): Promise<string | null> => {
   if (typeof window === 'undefined') return null;
 
@@ -66,14 +51,14 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     }
 
     const data = await response.json();
-    const newAuthData: AuthData = {
+    const newAuthData: FeedStoreAuthData = {
       accessToken: data.data.accessToken,
       refreshToken: data.data.refreshToken || refreshToken,
       userId: data.data.userId,
       username: data.data.username,
       profileName: data.data.profileName,
       profilePicture: data.data.profilePicture,
-      email: data.data.email || '', 
+      email: data.data.email || '',
     };
 
     setAuthData(newAuthData);

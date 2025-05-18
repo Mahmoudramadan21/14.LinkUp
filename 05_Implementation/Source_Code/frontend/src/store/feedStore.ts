@@ -1,109 +1,18 @@
 import { create } from 'zustand';
 import api from '@/utils/api';
 import { getAuthData } from '@/utils/auth';
+import {
+  FeedStoreAuthData,
+  FeedStoreFollowRequest,
+  FeedStoreFollowRequestsResponse,
+  FeedStoreStoryUser,
+  StoryListItem,
+  FeedStoreComment,
+  Post,
+  FeedStoreAppState,
+} from '@/types';
 
-// Define interfaces
-interface User {
-  UserID: number;
-  Username: string;
-  ProfilePicture: string | null;
-  Bio: string | null;
-}
-
-interface FollowRequest {
-  requestId: number;
-  user: User;
-  createdAt: string;
-}
-
-interface FollowRequestsResponse {
-  count: number;
-  pendingRequests: FollowRequest[];
-}
-
-interface StoryUser {
-  userId: number;
-  username: string;
-  profilePicture: string;
-  hasUnviewedStories: boolean;
-  stories: { storyId: number; createdAt: string; mediaUrl: string; expiresAt: string; isViewed: boolean }[];
-}
-
-interface Story {
-  username: string;
-  imageSrc: string;
-  hasPlus?: boolean;
-  hasUnviewedStories?: boolean;
-}
-
-interface Comment {
-  commentId: number;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture?: string;
-  isLiked: boolean;
-  likeCount: number;
-  replies?: Comment[];
-}
-
-interface Post {
-  postId: number;
-  userId: number;
-  username: string;
-  profilePicture: string;
-  privacy: string;
-  content: string;
-  imageUrl?: string | null;
-  videoUrl?: string | null;
-  createdAt: string;
-  likeCount: number;
-  commentCount: number;
-  isLiked: boolean;
-  likedBy: { username: string; profilePicture: string }[];
-  comments: Comment[];
-}
-
-interface AppState {
-  authLoading: boolean;
-  followLoading: boolean;
-  postLoading: boolean;
-  storiesLoading: boolean;
-  postsLoading: boolean;
-  authData: ReturnType<typeof getAuthData> | null;
-  followRequests: FollowRequest[];
-  stories: Story[];
-  storiesError: string | null;
-  posts: Post[];
-  error: string | null;
-  page: number;
-  hasMore: boolean;
-
-  setAuthLoading: (loading: boolean) => void;
-  setFollowLoading: (loading: boolean) => void;
-  setPostLoading: (loading: boolean) => void;
-  setStoriesLoading: (loading: boolean) => void;
-  setPostsLoading: (loading: boolean) => void;
-  setAuthData: (data: ReturnType<typeof getAuthData> | null) => void;
-  setFollowRequests: (requests: FollowRequest[]) => void;
-  setStories: (stories: Story[]) => void;
-  setStoriesError: (error: string | null) => void;
-  setPosts: (posts: Post[]) => void;
-  setError: (error: string | null) => void;
-  setPage: (page: number) => void;
-  setHasMore: (hasMore: boolean) => void;
-
-  fetchFollowRequests: () => Promise<void>;
-  fetchStories: (token: string) => Promise<void>;
-  fetchPosts: () => Promise<void>;
-  handleAcceptRequest: (requestId: number) => Promise<void>;
-  handleRejectRequest: (requestId: number) => Promise<void>;
-  handlePostSubmit: (content: string, image?: File, video?: File) => Promise<void>;
-  handlePostUpdate: (postId: number, updatedFields: Partial<Post>) => void;
-  handlePostStory: (media: File, text?: string, backgroundColor?: string, textColor?: string, position?: { x: number; y: number }, fontSize?: number) => Promise<void>;
-}
-
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<FeedStoreAppState>((set, get) => ({
   authLoading: true,
   followLoading: false,
   postLoading: false,
@@ -135,7 +44,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchFollowRequests: async () => {
     set({ followLoading: true });
     try {
-      const response = await api.get<FollowRequestsResponse>('/profile/follow-requests/pending');
+      const response = await api.get<FeedStoreFollowRequestsResponse>('/profile/follow-requests/pending');
       console.log('Fetched follow requests:', response.data);
       set({ followRequests: response.data.pendingRequests || [] });
     } catch (err: any) {
@@ -148,11 +57,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchStories: async (token: string) => {
     set({ storiesLoading: true, storiesError: null });
     try {
-      const response = await api.get<StoryUser[]>('/stories/feed', {
+      const response = await api.get<FeedStoreStoryUser[]>('/stories/feed', {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Fetched stories:', response.data, 'Status:', response.status);
-      const mappedStories: Story[] = [
+      const mappedStories: StoryListItem[] = [
         {
           username: 'You',
           imageSrc: get().authData?.profilePicture || '/avatars/placeholder.jpg',
@@ -263,7 +172,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       console.log('Post created successfully:', response.data);
 
-      // Reset page to 1 to fetch updated posts, but keep current posts until fetch is done
       set({ page: 1, hasMore: true });
       await get().fetchPosts();
     } catch (err: any) {

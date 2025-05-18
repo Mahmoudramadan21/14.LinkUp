@@ -1,69 +1,12 @@
 import { create } from 'zustand';
 import api from '@/utils/api';
-
-// Define types for notifications
-interface NotificationMetadata {
-  postId?: number;
-  commentId?: number;
-  replierId?: number;
-  replierUsername?: string;
-  requestId?: number;
-  requesterId?: number;
-  requesterUsername?: string;
-  followerId?: number;
-  followerUsername?: string;
-  reason?: string;
-  reporterId?: number;
-  reporterUsername?: string;
-  signupDate?: string;
-}
-
-interface Sender {
-  userId: number;
-  username: string;
-  profilePicture: string | null;
-}
-
-interface Notification {
-  notificationId: number;
-  type: string;
-  content: string;
-  isRead: boolean;
-  createdAt: string;
-  sender: Sender | null;
-  metadata: NotificationMetadata;
-}
-
-interface NotificationsResponse {
-  notifications: Notification[];
-  totalCount: number;
-  page: number;
-  totalPages: number;
-}
-
-interface NotificationsState {
-  notifications: Notification[];
-  totalCount: number;
-  totalPages: number;
-  page: number;
-  unreadCount: number;
-  loading: boolean;
-  error: string | null;
-
-  setNotifications: (notifications: Notification[]) => void;
-  setTotalCount: (totalCount: number) => void;
-  setTotalPages: (totalPages: number) => void;
-  setPage: (page: number) => void;
-  setUnreadCount: (count: number) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-
-  fetchNotifications: (page: number, limit?: number, readStatus?: string) => Promise<void>;
-  fetchUnreadCount: () => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-  markNotificationAsRead: (notificationId: number) => Promise<void>;
-  deleteNotification: (notificationId: number) => Promise<void>;
-}
+import {
+  NotificationMetadata,
+  NotificationSender,
+  Notification,
+  NotificationsResponse,
+  NotificationsState,
+} from '@/types';
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   notifications: [],
@@ -161,4 +104,3 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }
   },
 }));
-

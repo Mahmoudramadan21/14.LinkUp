@@ -1,41 +1,7 @@
 import api from './api';
-import { Story } from '@/components/StoryViewer';
+import { Story, Comment, Post } from '@/types';
 import { useRouter } from 'next/router';
 
-// Define TypeScript interfaces for function parameters
-interface Comment {
-  commentId: number;
-  userId: number;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture: string;
-  isLiked: boolean;
-  likeCount: number;
-  replies: Comment[];
-}
-
-interface Post {
-  postId: number;
-  userId: number;
-  username: string;
-  profilePicture: string;
-  privacy: string;
-  content: string;
-  imageUrl: string | null;
-  videoUrl: string | null;
-  createdAt: string;
-  likeCount: number;
-  commentCount: number;
-  comments: Comment[];
-  isLiked: boolean;
-  likedBy: { username: string; profilePicture: string }[];
-}
-
-/*
- * Fetches user stories for highlight creation
- * Updates the stories state with fetched data
- */
 export const fetchUserStories = async (
   setUserStories: React.Dispatch<React.SetStateAction<Story[]>>
 ): Promise<void> => {
@@ -47,10 +13,6 @@ export const fetchUserStories = async (
   }
 };
 
-/*
- * Submits a new highlight with title, stories, and cover image
- * Handles API call and state updates on success
- */
 export const handleAddHighlightSubmit = async (
   userId: number | undefined,
   highlightTitle: string,
@@ -111,10 +73,6 @@ export const handleAddHighlightSubmit = async (
   }
 };
 
-/*
- * Opens a post modal with transformed post data
- * Formats comments and post details for display
- */
 export const handleOpenModal = (
   savedPost: any,
   setSelectedPost: React.Dispatch<React.SetStateAction<Post | null>>,
@@ -162,10 +120,6 @@ export const handleOpenModal = (
   setIsModalOpen(true);
 };
 
-/*
- * Handles follow/unfollow action
- * Updates profile after action
- */
 export const handleFollowAction = async (
   isFollowing: boolean,
   followStatus: string | undefined,
@@ -192,10 +146,6 @@ export const handleFollowAction = async (
   }
 };
 
-/*
- * Opens followers/following dialog
- * Updates URL with shallow routing
- */
 export const openDialog = (
   type: 'followers' | 'following',
   profile: any,
@@ -211,10 +161,6 @@ export const openDialog = (
   router.push(newPath, undefined, { shallow: true });
 };
 
-/*
- * Closes followers/following dialog
- * Resets URL with shallow routing
- */
 export const closeDialog = (
   username: string | string[] | undefined,
   setIsDialogOpen: React.Dispatch<React.SetStateAction<boolean>>,
