@@ -1,16 +1,6 @@
 import React, { memo } from 'react';
 import clsx from 'clsx';
-
-// Reusable button with customizable variants, sizes, and states
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  type?: 'button' | 'submit' | 'reset';
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: 'primary' | 'secondary' | 'tertiary';
-  size?: 'small' | 'medium' | 'large';
-  ariaLabel?: string;
-}
+import { ButtonProps } from '@/types';
 
 const Button: React.FC<ButtonProps> = ({
   type = 'button',

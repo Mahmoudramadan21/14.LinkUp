@@ -1,13 +1,6 @@
 import Image from 'next/image';
 import React, { memo, useMemo } from 'react';
-
-// Props interface for Bio component
-interface BioProps {
-  bio?: string;
-  address?: string;
-  jobTitle?: string;
-  dateOfBirth?: string;
-}
+import { BioProps } from '@/types';
 
 /*
  * Bio Component

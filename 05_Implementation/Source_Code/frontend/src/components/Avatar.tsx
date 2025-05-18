@@ -1,19 +1,11 @@
 import React from 'react';
+import { AvatarProps } from '@/types';
 
 /*
  * Avatar Component
  * Displays a user's profile picture with an optional username and plus indicator.
  * Used in user profiles, story previews, and other areas where user identity is shown.
  */
-interface AvatarProps {
-  imageSrc: string; // URL of the user's profile picture
-  username: string; // User's display name for alt text and optional username display
-  hasPlus?: boolean; // Shows a plus sign (e.g., for new content indication)
-  size?: 'xsmall' | 'small' | 'medium' | 'large'; // Determines the avatar size
-  showUsername?: boolean; // Toggles visibility of the username below the avatar
-  isInteractive?: boolean; // Indicates if the avatar is clickable (e.g., profile link)
-}
-
 const Avatar: React.FC<AvatarProps> = ({
   imageSrc,
   username,
