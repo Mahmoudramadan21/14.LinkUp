@@ -1,16 +1,13 @@
 'use client';
 import React from 'react';
 import './SearchBar.css';
+import { SearchBarProps } from '@/types';
 
 /*
  * SearchBar Component
  * A search input with an icon for finding users or content.
  * Optimized for accessibility with ARIA attributes and semantic HTML.
  */
-interface SearchBarProps {
-  // Reserved for future props (e.g., onSearch callback, default value)
-}
-
 const SearchBar: React.FC<SearchBarProps> = () => {
   // Handle form submission (extendable for search logic)
   const handleSubmit = (e: React.FormEvent) => {

@@ -2,18 +2,13 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import io from 'socket.io-client';
 import { Dialog, Transition } from '@headlessui/react';
-import Avatar from '../components/Avatar';
+import Avatar from './Avatar';
 import Link from 'next/link';
 import { useNotificationsStore } from '../store/notificationStore';
+import { NotificationsProps } from '@/types';
 
 // Backend WebSocket URL
 const BACKEND_WS_URL = 'http://localhost:3000';
-
-interface NotificationsProps {
-  isOpen: boolean;
-  onClose: () => void;
-  userId: number;
-}
 
 const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }) => {
   // Access notification store
@@ -45,7 +40,7 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
     return () => {
       socket.disconnect();
     };
-  }, [userId]); // Only reconnect if userId changes
+  }, [userId, notifications]);
 
   // Fetch notifications and mark as read when dialog opens
   useEffect(() => {

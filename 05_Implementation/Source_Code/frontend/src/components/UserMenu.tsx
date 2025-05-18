@@ -1,20 +1,8 @@
 'use client';
 import React, { memo, useState, useCallback, useMemo, useEffect } from 'react';
-import Avatar from '../components/Avatar';
+import Avatar from './Avatar';
 import Link from 'next/link';
-
-// Interface for user data
-interface User {
-  name: string;
-  username: string;
-  profilePicture: string | null;
-}
-
-// Interface for component props
-interface UserMenuProps {
-  user: User;
-  onLogout: () => void;
-}
+import { UserMenuProps } from '@/types';
 
 /**
  * UserMenu Component

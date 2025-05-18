@@ -2,22 +2,7 @@
 import React, { memo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-/*
- * NavIcon Component
- * A navigation icon with optional badge and active state support.
- * Used for routing or triggering actions in navigation menus.
- */
-interface NavIconProps {
-  iconSrc: string; // URL of the default icon
-  activeIconSrc?: string; // URL of the icon when active (optional)
-  alt: string; // Alt text for the icon
-  ariaLabel: string; // Accessibility label for the link or button
-  to?: string; // Destination URL for navigation (optional)
-  badgeCount?: number; // Optional badge count for notifications
-  variant?: 'default' | 'mobile'; // Style variant for different layouts
-  onClick?: () => void; // Optional click handler for actions
-}
+import { NavIconProps } from '@/types';
 
 const NavIcon: React.FC<NavIconProps> = ({
   iconSrc,
