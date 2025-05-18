@@ -1,13 +1,9 @@
 import React, { memo, useCallback } from 'react';
-import { useRouter } from 'next/router'; // Changed to Pages Router
+import { useRouter } from 'next/router';
 import AuthLayout from '@/layout/AuthLayout';
 import PasswordResetSuccessSection from '@/sections/PasswordResetSuccessSection';
 import Image from 'next/image';
-
-// Interface for component props
-interface PasswordResetSuccessProps {
-  onContinue?: () => void;
-}
+import { PasswordResetSuccessProps } from '@/types';
 
 /**
  * PasswordResetSuccess Component

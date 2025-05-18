@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import MainLayout from '@/layout/MainLayout';
@@ -7,51 +6,7 @@ import Input from '@/components/Input';
 import Button from '@/components/Button';
 import { useProfileStore } from '@/store/profileStore';
 import { changePassword, updateProfile } from '@/utils/api';
-
-// Define interfaces for form data and errors
-interface FormData {
-  firstName: string;
-  lastName: string;
-  username: string;
-  email: string;
-  address: string;
-  bio: string;
-  jobTitle: string;
-  dateOfBirth: string;
-  isPrivate: boolean;
-  profilePicture: File | null;
-  coverPicture: File | null;
-  oldPassword?: string;
-  newPassword?: string;
-  confirmNewPassword?: string;
-}
-
-interface FormErrors {
-  firstName?: string;
-  lastName?: string;
-  username?: string;
-  email?: string;
-  address?: string;
-  bio?: string;
-  jobTitle?: string;
-  dateOfBirth?: string;
-  isPrivate?: string;
-  profilePicture?: string;
-  coverPicture?: string;
-  oldPassword?: string;
-  newPassword?: string;
-  confirmNewPassword?: string;
-  general?: string;
-}
-
-// Define interface for authData to ensure type safety
-interface AuthData {
-  userId: number;
-  username: string;
-  profilePicture: string | null;
-  email: string;
-  token: string;
-}
+import { FormData, FormErrors, AuthData } from '@/types';
 
 /**
  * EditProfilePage Component

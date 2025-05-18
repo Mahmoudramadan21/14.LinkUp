@@ -5,17 +5,7 @@ import HeaderSection from '@/sections/HeaderSection';
 import UserMenu from '@/components/UserMenu';
 import { useProfileStore } from '@/store/profileStore';
 import { removeAuthData } from '@/utils/auth';
-
-interface MainLayoutProps {
-  children: React.ReactNode;
-  title?: string;
-}
-
-interface User {
-  name: string;
-  username: string;
-  profilePicture: string;
-}
+import { MainLayoutProps, User } from '@/types';
 
 /**
  * PageHead Component

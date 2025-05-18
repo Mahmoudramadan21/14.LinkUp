@@ -14,19 +14,7 @@ import StoriesSectionLoading from '@/components/StoriesSectionLoading';
 import { handleAddHighlightSubmit } from '@/utils/profileUtils';
 import { useProfile } from '@/hooks/useProfile';
 import { useProfileStore } from '@/store/profileStore';
-
-// Define TypeScript interfaces
-interface Comment {
-  commentId: number;
-  userId: number;
-  username: string;
-  content: string;
-  createdAt: string;
-  profilePicture: string;
-  isLiked: boolean;
-  likeCount: number;
-  replies: Comment[];
-}
+import { Comment } from '@/types';
 
 /*
  * ProfilePage Component

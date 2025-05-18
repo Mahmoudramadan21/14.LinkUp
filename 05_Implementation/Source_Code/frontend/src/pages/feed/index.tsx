@@ -13,6 +13,7 @@ import MainLayout from '@/layout/MainLayout';
 import FollowRequestsLoading from '@/components/FollowRequestsLoading';
 import PostCardLoading from '@/components/PostCardLoading';
 import StoriesSectionLoading from '@/components/StoriesSectionLoading';
+import { User } from '@/types';
 
 const FeedPage: React.FC = () => {
   const {

@@ -1,12 +1,7 @@
 import React, { memo, useMemo } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-
-// Interface for component props
-interface AuthLayoutProps {
-  children: React.ReactNode;
-  title?: string;
-}
+import { AuthLayoutProps } from '@/types';
 
 /**
  * AuthLayout Component
