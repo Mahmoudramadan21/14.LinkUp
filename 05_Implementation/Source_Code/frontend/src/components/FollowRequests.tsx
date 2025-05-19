@@ -1,32 +1,8 @@
 'use client';
 import React, { memo, useState, useEffect, useCallback } from 'react';
-import Avatar from '../components/Avatar';
-import Button from '../components/Button';
-
-// Interface for user data
-interface User {
-  UserID: number;
-  Username: string;
-  ProfilePicture: string | null;
-  Bio: string | null;
-}
-
-// Interface for follow request data
-interface FollowRequest {
-  requestId: number;
-  user: User;
-  createdAt: string;
-}
-
-// Interface for component props
-interface FollowRequestsProps {
-  initialData: {
-    count: number;
-    followRequests: FollowRequest[];
-  };
-  onAccept: (requestId: number) => void;
-  onReject: (requestId: number) => void;
-}
+import Avatar from './Avatar';
+import Button from './Button';
+import { FollowRequestsProps, FollowRequest } from '@/types';
 
 /**
  * FollowRequests Component

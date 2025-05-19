@@ -57,6 +57,7 @@ app.use((err, req, res, next) => {
 
 // Socket.IO setup
 const io = configureSocket(httpServer);
+app.set("io", io); // Attach io to app for use in controllers
 
 // Start server
 const PORT = process.env.PORT || 3000;

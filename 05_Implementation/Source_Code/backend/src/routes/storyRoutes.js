@@ -8,6 +8,7 @@ const {
   getStoryById,
   toggleStoryLike,
   getStoryViews,
+  recordStoryView,
 } = require("../controllers/storyController");
 const { authMiddleware } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
@@ -63,34 +64,120 @@ router.post(
 
 /**
  * @swagger
- * /stories/user/{userId}:
+ * /stories/feed:
  *   get:
- *     summary: Get story IDs for a specific user
+ *     summary: Get users with active stories from followed users
  *     tags: [Stories]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
+ *       - in: query
+ *         name: limit
  *         schema:
  *           type: integer
- *         description: ID of the user whose stories to retrieve
+ *           default: 20
+ *         description: Number of stories to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
  *     responses:
  *       200:
- *         description: List of story IDs
+ *         description: List of users with active stories and view status
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 type: integer
+ *                 type: object
+ *                 properties:
+ *                   userId:
+ *                     type: integer
+ *                     example: 1
+ *                   username:
+ *                     type: string
+ *                     example: "johndoe"
+ *                   profilePicture:
+ *                     type: string
+ *                     example: "https://example.com/profile.jpg"
+ *                   hasUnviewedStories:
+ *                     type: boolean
+ *                     example: true
+ *                   stories:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         storyId:
+ *                           type: integer
+ *                           example: 101
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2025-05-12T10:00:00Z"
+ *                         mediaUrl:
+ *                           type: string
+ *                           example: "https://res.cloudinary.com/example/story.jpg"
+ *                         expiresAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2025-05-13T10:00:00Z"
+ *                         isViewed:
+ *                           type: boolean
+ *                           example: false
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/feed", authMiddleware, (req, res, next) => {
+  console.log("Entering getStoryFeed for user:", req.user.UserID);
+  getStoryFeed(req, res, next);
+});
+
+/**
+ * @swagger
+ * /stories/{username}:
+ *   get:
+ *     summary: Get active stories for a specific user by username
+ *     tags: [Stories]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Username of the user whose stories to retrieve
+ *     responses:
+ *       200:
+ *         description: List of active stories with details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   StoryID:
+ *                     type: integer
+ *                   MediaURL:
+ *                     type: string
+ *                   CreatedAt:
+ *                     type: string
+ *                     format: date-time
+ *                   ExpiresAt:
+ *                     type: string
+ *                     format: date-time
+ *                   isViewed:
+ *                     type: boolean
  *       403:
  *         description: Private account - cannot view stories
  *       404:
  *         description: User not found
  */
-router.get("/user/:userId", authMiddleware, getUserStories);
+router.get("/:username", authMiddleware, getUserStories);
 
 /**
  * @swagger
@@ -156,60 +243,39 @@ router.get("/:storyId/views", authMiddleware, getStoryViews);
 
 /**
  * @swagger
- * /stories/feed:
- *   get:
- *     summary: Get users with active stories from followed users
+ * /stories/{storyId}/view:
+ *   post:
+ *     summary: Record a view for a specific story
  *     tags: [Stories]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: storyId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the story to record a view for
  *     responses:
  *       200:
- *         description: List of users with active stories and view status
+ *         description: Story view recorded successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   userId:
- *                     type: integer
- *                     example: 1
- *                   username:
- *                     type: string
- *                     example: "johndoe"
- *                   profilePicture:
- *                     type: string
- *                     example: "https://example.com/profile.jpg"
- *                   hasUnviewedStories:
- *                     type: boolean
- *                     example: true
- *                   stories:
- *                     type: array
- *                     items:
- *                       type: object
- *                       properties:
- *                         storyId:
- *                           type: integer
- *                           example: 101
- *                         createdAt:
- *                           type: string
- *                           format: date-time
- *                           example: "2025-05-12T10:00:00Z"
- *                         mediaUrl:
- *                           type: string
- *                           example: "https://res.cloudinary.com/example/story.jpg"
- *                         expiresAt:
- *                           type: string
- *                           format: date-time
- *                           example: "2025-05-13T10:00:00Z"
- *                         isViewed:
- *                           type: boolean
- *                           example: false
- *       401:
- *         description: Unauthorized
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Story has expired
+ *       403:
+ *         description: Not authorized to view this story or cannot view own story
+ *       404:
+ *         description: Story not found
  */
-router.get("/feed", authMiddleware, getStoryFeed);
+router.post("/:storyId/view", authMiddleware, recordStoryView);
 
 /**
  * @swagger

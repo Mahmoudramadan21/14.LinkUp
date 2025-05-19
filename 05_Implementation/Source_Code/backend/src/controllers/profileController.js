@@ -492,7 +492,8 @@ const deleteProfile = async (req, res) => {
 
 /**
  * Retrieves all posts by a specific user with privacy checks
- * For private accounts, verifies follow status before showing
+ * Includes detailed post data, comments, likes, and replies
+ * Similar to getPosts structure with user-specific enhancements
  */
 const getUserPosts = async (req, res) => {
   try {
@@ -559,13 +560,10 @@ const getUserPosts = async (req, res) => {
       where: {
         UserID: user.UserID,
       },
-      select: {
-        PostID: true,
-        Content: true,
-        ImageURL: true,
-        VideoURL: true,
-        CreatedAt: true,
-        UpdatedAt: true,
+      orderBy: {
+        CreatedAt: "desc",
+      },
+      include: {
         User: {
           select: {
             UserID: true,
@@ -573,32 +571,132 @@ const getUserPosts = async (req, res) => {
             ProfilePicture: true,
           },
         },
-        _count: {
-          select: {
-            Likes: true,
-            Comments: true,
+        Likes: {
+          take: 3,
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
           },
         },
-      },
-      orderBy: {
-        CreatedAt: "desc",
+        Comments: {
+          where: { ParentCommentID: null }, // Only top-level comments
+          take: 3,
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                Username: true,
+                ProfilePicture: true,
+              },
+            },
+            CommentLikes: {
+              take: 3,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+              },
+            },
+            Replies: {
+              take: 3,
+              orderBy: { CreatedAt: "desc" },
+              include: {
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                  },
+                },
+                CommentLikes: {
+                  take: 3,
+                  orderBy: { CreatedAt: "desc" },
+                  include: {
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            _count: { select: { CommentLikes: true, Replies: true } },
+          },
+        },
+        _count: { select: { Likes: true, Comments: true } },
       },
     });
 
     console.log("getUserPosts: Posts fetched", { postCount: posts.length });
-    res.status(200).json({
-      count: posts.length,
-      posts: posts.map((post) => ({
-        postId: post.PostID,
-        content: post.Content,
-        imageUrl: post.ImageURL,
-        videoUrl: post.VideoURL,
-        createdAt: post.CreatedAt,
-        updatedAt: post.UpdatedAt,
-        user: post.User,
-        likeCount: post._count.Likes,
-        commentCount: post._count.Comments,
+
+    // Fetch like status for the current user
+    const postIds = posts.map((post) => post.PostID);
+    const userLikes = await prisma.like.findMany({
+      where: {
+        PostID: { in: postIds },
+        UserID: currentUserId,
+      },
+      select: {
+        PostID: true,
+      },
+    });
+    const likedPostIds = new Set(userLikes.map((like) => like.PostID));
+
+    // Format response similar to getPosts
+    const response = posts.map((post) => ({
+      postId: post.PostID,
+      content: post.Content,
+      imageUrl: post.ImageURL,
+      videoUrl: post.VideoURL,
+      createdAt: post.CreatedAt,
+      updatedAt: post.UpdatedAt,
+      user: post.User,
+      isLiked: likedPostIds.has(post.PostID),
+      likeCount: post._count.Likes,
+      commentCount: post._count.Comments,
+      likedBy: post.Likes.map((like) => ({
+        username: like.User.Username,
+        profilePicture: like.User.ProfilePicture,
       })),
+      Comments: (post.Comments || []).map((comment) => ({
+        ...comment,
+        isLiked: (comment.CommentLikes || []).some(
+          (like) => like.UserID === currentUserId
+        ),
+        likeCount: comment._count?.CommentLikes || 0,
+        replyCount: comment._count?.Replies || 0,
+        likedBy: (comment.CommentLikes || []).map((like) => ({
+          username: like.User.Username,
+          profilePicture: like.User.ProfilePicture,
+        })),
+        Replies: (comment.Replies || []).map((reply) => ({
+          ...reply,
+          isLiked: (reply.CommentLikes || []).some(
+            (like) => like.UserID === currentUserId
+          ),
+          likeCount: reply._count?.CommentLikes || 0,
+          replyCount: reply._count?.Replies || 0,
+          likedBy: (reply.CommentLikes || []).map((like) => ({
+            username: like.User.Username,
+            profilePicture: like.User.ProfilePicture,
+          })),
+        })),
+      })),
+    }));
+
+    res.status(200).json({
+      count: response.length,
+      posts: response,
     });
   } catch (error) {
     console.error("getUserPosts error:", error);

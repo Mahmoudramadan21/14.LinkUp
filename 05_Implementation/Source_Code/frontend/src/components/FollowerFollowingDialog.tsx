@@ -6,39 +6,7 @@ import { Transition } from '@headlessui/react';
 import Button from './Button';
 import Loading from './Loading';
 import { useProfileStore } from '@/store/profileStore';
-
-// Interface for follower/following data
-interface FollowingFollower {
-  userId: number;
-  username: string;
-  profileName: string;
-  profilePicture: string | null;
-  isPrivate: boolean;
-  bio: string | null;
-}
-
-// Interface for profile store actions
-interface ProfileStore {
-  authData: { userId: number } | null;
-  removeFollower: (followerId: number) => Promise<void>;
-  unfollowUser: (followedUserId: number) => Promise<void>;
-  fetchFollowers: (userId: number) => Promise<void>;
-  fetchFollowing: (userId: number) => Promise<void>;
-  setError: (error: string) => void;
-}
-
-// Props for FollowerFollowingDialog component
-interface FollowerFollowingDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  userId: number;
-  type: 'followers' | 'following';
-  showSearch: boolean;
-  showRemove: boolean;
-  data: FollowingFollower[];
-  loading?: boolean;
-  error?: string | null;
-}
+import { FollowerFollowingDialogProps, ProfileStore } from '@/types';
 
 // Custom hook for debouncing search input
 function useDebounce<T>(value: T, delay: number): T {

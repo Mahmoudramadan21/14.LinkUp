@@ -344,7 +344,7 @@ const getPostById = async (req, res) => {
               },
             },
             CommentLikes: {
-              take: 3,
+              // take: 3,
               orderBy: { CreatedAt: "desc" },
               include: {
                 User: {
@@ -356,7 +356,7 @@ const getPostById = async (req, res) => {
               },
             },
             Replies: {
-              take: 5,
+              // take: 5,
               orderBy: { CreatedAt: "desc" },
               include: {
                 User: {
@@ -366,7 +366,7 @@ const getPostById = async (req, res) => {
                   },
                 },
                 CommentLikes: {
-                  take: 3,
+                  // take: 3,
                   orderBy: { CreatedAt: "desc" },
                   include: {
                     User: {

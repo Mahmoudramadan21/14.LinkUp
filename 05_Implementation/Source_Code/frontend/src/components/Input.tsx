@@ -60,7 +60,7 @@ const Input: React.FC<InputProps> = ({
     <fieldset
       className="input-block"
       data-testid="input"
-      itemscope
+      itemScope
       itemType="http://schema.org/Person"
     >
       <div className="input-block__header">

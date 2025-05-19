@@ -18,6 +18,8 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded JWT:", decoded); // Log the decoded token
+
     const user = await prisma.user.findUnique({
       where: { UserID: decoded.userId },
       select: {
@@ -27,6 +29,8 @@ const authMiddleware = async (req, res, next) => {
         IsBanned: true,
       },
     });
+
+    console.log("User lookup result:", user); // Log the user lookup result
 
     if (!user) {
       return handleUnauthorizedError(res, "User not found");
@@ -39,6 +43,7 @@ const authMiddleware = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.error("Auth middleware error:", error.message); // Log the error
     handleUnauthorizedError(res, "Authentication failed");
   }
 };
@@ -62,6 +67,8 @@ const authorize = (allowedRoles) => {
           select: { Role: true },
         });
 
+        console.log("Role lookup result:", user); // Log the role lookup
+
         if (!user) {
           return handleUnauthorizedError(res, "User not found");
         }
@@ -77,6 +84,7 @@ const authorize = (allowedRoles) => {
 
       next();
     } catch (error) {
+      console.error("Authorize middleware error:", error.message); // Log the error
       handleUnauthorizedError(res, "Authorization failed");
     }
   };
