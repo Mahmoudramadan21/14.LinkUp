@@ -42,9 +42,9 @@ const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
   // Memoize menu items
   const menuItems = useMemo(
     () => [
-      { label: 'Saved', icon: '/icons/save.svg', href: '/saved' },
+      { label: 'Saved', icon: '/icons/save.svg', href: `/profile/${user.username}/saved` },
       { label: 'Explore', icon: '/icons/explore.svg', href: '/explore' },
-      { label: 'Settings', icon: '/icons/settings.svg', href: '/settings' },
+      { label: 'Settings', icon: '/icons/settings.svg', href: `/profile/edit`},
     ],
     []
   );

@@ -7,7 +7,6 @@ import Image from 'next/image';
  * Displays a notice for private accounts, indicating restricted access.
  * Optimized for accessibility and SEO with semantic HTML and ARIA attributes.
  */
-
 const PrivateAccountNotice: React.FC = () => {
   return (
     <section className="private-notice__container" role="alert" aria-labelledby="private-notice-title">
