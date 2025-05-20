@@ -1,8 +1,9 @@
+'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter, usePathname } from 'next/navigation';
 import { useProfileStore } from '@/store/profileStore';
 import { fetchUserStories, handleOpenModal } from '@/utils/profileUtils';
-import { FollowingFollower, Story, Comment, Post } from '@/types';
+import { FollowingFollower, Story, Post } from '@/types';
 
 export const useProfile = () => {
   const {
@@ -23,10 +24,12 @@ export const useProfile = () => {
     setError,
   } = useProfileStore();
   const router = useRouter();
-  const { username, tab } = router.query;
+  const pathname = usePathname();
+  const username = pathname.split('/')[2];
+  const isSavedTab = pathname.includes('/saved');
 
   // State Management
-  const [activeTab, setActiveTab] = useState<'menu' | 'saved'>('menu');
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved'>(isSavedTab ? 'saved' : 'posts');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<'followers' | 'following'>('followers');
   const [followersData, setFollowersData] = useState<FollowingFollower[]>([]);
@@ -46,9 +49,10 @@ export const useProfile = () => {
 
   // Track fetch status
   const hasFetchedProfile = useRef(false);
-  const hasFetchedContent = useRef(false);
+  const lastFetchedUsername = useRef<string | null>(null);
+  const hasFetchedContent = useRef(false); // Added missing ref
 
-  // Initialize authentication
+  // Initialize authentication (run once)
   useEffect(() => {
     console.log('Initializing auth...');
     initializeAuth();
@@ -56,6 +60,8 @@ export const useProfile = () => {
 
   // Handle dialog based on URL query
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get('tab');
     if (tab === 'followers') {
       setDialogType('followers');
       setIsDialogOpen(true);
@@ -65,72 +71,96 @@ export const useProfile = () => {
     } else {
       setIsDialogOpen(false);
     }
-  }, [tab]);
+  }, [pathname]);
+
+  // Set active tab based on pathname
+  useEffect(() => {
+    setActiveTab(isSavedTab ? 'saved' : 'posts');
+  }, [isSavedTab]);
 
   // Fetch profile
   useEffect(() => {
-    if (router.isReady && username && typeof username === 'string') {
-      if (hasFetchedProfile.current && username !== profile?.username) {
-        hasFetchedProfile.current = false;
-        hasFetchedContent.current = false;
-        setHasInitiallyLoaded(false);
-        setFollowersData([]);
-        setFollowingData([]);
-        setLoading(true);
-        setError(null);
-      }
-
-      if (!hasFetchedProfile.current) {
-        console.log('Fetching profile for username:', username);
-        setLoading(true);
-        setError(null);
-        fetchProfile(username)
-          .then(() => {
-            setHasInitiallyLoaded(true);
-          })
-          .catch((err) => {
-            console.error('Profile fetch error:', err);
-            setError(err.message || 'Failed to fetch profile');
-          })
-          .finally(() => {
-            setLoading(false);
-            hasFetchedProfile.current = true;
-          });
-      }
+    if (!username || typeof username !== 'string') {
+      console.log('No valid username, skipping profile fetch');
+      return;
     }
-  }, [router.isReady, username, fetchProfile, setLoading, setError, profile?.username]);
+
+    // Avoid fetching if already fetched for this username
+    if (hasFetchedProfile.current && lastFetchedUsername.current === username) {
+      console.log('Profile already fetched for:', username);
+      return;
+    }
+
+    console.log('Fetching profile for username:', username);
+    setLoading(true);
+    setError(null);
+    fetchProfile(username)
+      .then((result) => {
+        console.log('Profile fetched successfully:', result);
+        setHasInitiallyLoaded(true);
+        hasFetchedProfile.current = true;
+        lastFetchedUsername.current = username;
+        console.log('Profile fetch completed for:', username);
+      })
+      .catch((err) => {
+        console.error('Profile fetch error:', err);
+        setError(err.message || 'Failed to fetch profile');
+        setHasInitiallyLoaded(true); // Still set to true to prevent infinite loading
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [username, fetchProfile, setLoading, setError]);
 
   // Fetch highlights, posts, and saved posts
   useEffect(() => {
-    if (profile?.userId && !hasFetchedContent.current) {
-      console.log('Profile loaded, fetching highlights and posts for userId:', profile.userId);
-      fetchHighlights(profile.userId);
-      fetchPosts(profile.userId);
-      if (authData?.userId === profile.userId) {
-        fetchSavedPosts();
-      }
-      hasFetchedContent.current = true;
+    if (!profile?.userId || hasFetchedContent.current) {
+      console.log('Skipping content fetch:', {
+        hasUserId: !!profile?.userId,
+        hasFetchedContent: hasFetchedContent.current,
+      });
+      return;
     }
-  }, [profile?.userId, authData, fetchHighlights, fetchPosts, fetchSavedPosts]);
+
+    console.log('Fetching content for userId:', profile.userId);
+    fetchHighlights(profile.userId);
+    fetchPosts(profile.userId);
+    if (authData?.userId === profile.userId) {
+      fetchSavedPosts();
+    }
+    hasFetchedContent.current = true;
+  }, [profile?.userId, authData?.userId, fetchHighlights, fetchPosts, fetchSavedPosts]);
 
   // Fetch followers and following data
   useEffect(() => {
-    if (profile && !followersData.length && !followingData.length) {
-      setFetchingDialogData(true);
-      setDialogError(null);
-      console.log('Fetching followers and following for userId:', profile.userId);
-      Promise.all([fetchFollowers(profile.userId), fetchFollowing(profile.userId)])
-        .then(([followersResponse, followingResponse]) => {
-          setFollowersData(followersResponse.followers || []);
-          setFollowingData(followingResponse.following || []);
-        })
-        .catch((err: any) => {
-          setDialogError(err.message || 'Failed to fetch followers or following');
-        })
-        .finally(() => {
-          setFetchingDialogData(false);
-        });
+    if (!profile || followersData.length || followingData.length) {
+      console.log('Skipping followers/following fetch:', {
+        hasProfile: !!profile,
+        followersLength: followersData.length,
+        followingLength: followingData.length,
+      });
+      return;
     }
+
+    setFetchingDialogData(true);
+    setDialogError(null);
+    console.log('Fetching followers and following for userId:', profile.userId);
+    Promise.all([
+      fetchFollowers(profile.userId).catch(() => ({ followers: [] })),
+      fetchFollowing(profile.userId).catch(() => ({ following: [] })),
+    ])
+      .then(([followersResponse, followingResponse]) => {
+        setFollowersData(followersResponse.followers || []);
+        setFollowingData(followingResponse.following || []);
+        console.log('Followers/Following fetch completed');
+      })
+      .catch((err: any) => {
+        setDialogError('Failed to load followers or following. Please try again later.');
+        console.error('Followers/Following fetch error:', err);
+      })
+      .finally(() => {
+        setFetchingDialogData(false);
+      });
   }, [profile, followersData.length, followingData.length, fetchFollowers, fetchFollowing]);
 
   // Fetch user stories for highlight creation
@@ -147,7 +177,7 @@ export const useProfile = () => {
       alert('You can only edit your own profile.');
       return;
     }
-    router.push(`/profile/${profile.username}/edit`);
+    router.push(`/profile/edit`);
   }, [profile, authData, router]);
 
   const handleFollow = useCallback(async () => {
@@ -156,6 +186,9 @@ export const useProfile = () => {
     try {
       await followUser(profile.userId);
       await fetchProfile(profile.username);
+      hasFetchedProfile.current = true;
+      lastFetchedUsername.current = profile.username;
+      console.log('Follow and profile refresh completed for:', profile.username);
     } catch (err: any) {
       console.error('Failed to follow:', err);
       alert('Failed to follow user. Please try again.');
@@ -170,6 +203,9 @@ export const useProfile = () => {
     try {
       await unfollowUser(profile.userId);
       await fetchProfile(profile.username);
+      hasFetchedProfile.current = true;
+      lastFetchedUsername.current = profile.username;
+      console.log('Unfollow and profile refresh completed for:', profile.username);
     } catch (err: any) {
       console.error('Failed to unfollow:', err);
       alert('Failed to unfollow user. Please try again.');
@@ -189,7 +225,7 @@ export const useProfile = () => {
       setDialogType(type);
       setIsDialogOpen(true);
       const newPath = `/profile/${username}?tab=${type}`;
-      router.push(newPath, undefined, { shallow: true });
+      router.push(newPath, { scroll: false });
     },
     [profile, username, router]
   );
@@ -197,10 +233,10 @@ export const useProfile = () => {
   const handleCloseDialog = useCallback(() => {
     setIsDialogOpen(false);
     if (username) {
-      const basePath = `/profile/${username}`;
-      router.replace(basePath, undefined, { shallow: true });
+      const basePath = activeTab === 'saved' ? `/profile/${username}/saved` : `/profile/${username}`;
+      router.replace(basePath, { scroll: false });
     }
-  }, [username, router]);
+  }, [username, activeTab, router]);
 
   const handleViewHighlights = useCallback(
     (userId: number) => {
@@ -255,6 +291,16 @@ export const useProfile = () => {
     setSelectedPost(null);
   }, []);
 
+  const handleTabChange = useCallback(
+    (tab: 'posts' | 'saved') => {
+      setActiveTab(tab);
+      const basePath = `/profile/${username}`;
+      const newPath = tab === 'saved' ? `${basePath}/saved` : basePath;
+      router.push(newPath, { scroll: false });
+    },
+    [username, router]
+  );
+
   return {
     profile,
     authData,
@@ -262,7 +308,7 @@ export const useProfile = () => {
     error,
     hasInitiallyLoaded,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleTabChange,
     isDialogOpen,
     dialogType,
     dialogData: dialogType === 'followers' ? followersData : followingData,

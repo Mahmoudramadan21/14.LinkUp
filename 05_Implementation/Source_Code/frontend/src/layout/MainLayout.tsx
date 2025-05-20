@@ -1,7 +1,8 @@
-import React, { memo, useEffect, useCallback, useMemo } from 'react';
+"use client"
+import React, { memo, useEffect, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
-import { useRouter } from 'next/router';
-import HeaderSection from '@/sections/HeaderSection';
+import { useRouter } from 'next/navigation'
+import Header from '@/components/Header';
 import UserMenu from '@/components/UserMenu';
 import { useProfileStore } from '@/store/profileStore';
 import { removeAuthData } from '@/utils/auth';
@@ -34,15 +35,22 @@ const PageHead: React.FC<{ title: string }> = ({ title }) => (
  */
 const MainLayout: React.FC<MainLayoutProps> = ({ children, title = 'LinkUp' }) => {
   const router = useRouter();
-  const { authData, initializeAuth } = useProfileStore();
 
-  // Initialize auth on mount
+  const {authData, initializeAuth } = useProfileStore();
+  const hasInitialized = useRef(false);
+
+  // Initialize auth only once
   useEffect(() => {
-    initializeAuth();
+    if (!hasInitialized.current) {
+      console.log('MainLayout initializing auth at:', new Date().toISOString());
+      initializeAuth();
+      hasInitialized.current = true;
+    }
   }, [initializeAuth]);
 
   // Handle logout
   const handleLogout = useCallback(() => {
+    console.log('Logging out at:', new Date().toISOString());
     removeAuthData();
     router.push('/login');
   }, [router]);
@@ -79,7 +87,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, title = 'LinkUp' }) =
       <a href="#main-content" className="main-layout__skip-link">
         Skip to main content
       </a>
-      <HeaderSection />
+      <Header />
       <div className="main-layout__content">
         <main
           id="main-content"
