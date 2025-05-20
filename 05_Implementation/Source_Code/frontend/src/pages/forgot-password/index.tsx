@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import AuthLayout from '@/layout/AuthLayout';
-import ForgotPasswordForm from '@/sections/ForgotPasswordForm';
+import ForgotPasswordForm from '@/forms/ForgotPasswordForm';
 import Image from 'next/image';
 
 /**
