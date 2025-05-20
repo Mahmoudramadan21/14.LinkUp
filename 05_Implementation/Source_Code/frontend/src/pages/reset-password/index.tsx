@@ -1,5 +1,5 @@
 import AuthLayout from "@/layout/AuthLayout";
-import ResetPasswordForm from "@/sections/ResetPasswordForm";
+import ResetPasswordForm from "@/forms/ResetPasswordForm";
 import Image from "next/image";
 import authSecurityIllustration from "@/../public/illustrations/auth-security-illustration.svg";
 
