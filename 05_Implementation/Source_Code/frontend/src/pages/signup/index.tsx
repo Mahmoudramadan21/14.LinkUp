@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import AuthLayout from '@/layout/AuthLayout';
-import SignupForm from '@/sections/SignupForm';
+import SignupForm from '@/forms/SignupForm';
 
 /**
  * SignupPage Component
