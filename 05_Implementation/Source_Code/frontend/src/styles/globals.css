@@ -9,9 +9,8 @@
 @import "./AuthLayout.css";
 @import "./NavIcon.css";
 @import "./SearchBar.css";
-@import "./HeaderSection.css";
-@import "./StoriesSection.css";
-@import "./StoriesSectionLoading.css";
+@import "./Header.css";
+@import "./StoriesLoading.css";
 @import "./PostCard.css";
 @import "./PostCardLoading.css";
 @import "./PostModal.css";
@@ -20,12 +19,10 @@
 @import "./UserMenu.css";
 @import "./CreatePost.css";
 @import "./Notifications.css";
-@import "./StoriesList.css";
-@import "./StoryViewer.css";
 @import "./CreateStories.css";
 @import "./FeedPage.css";
 @import "./loading.css";
-@import "./StoriesDialogSection.css";
+@import "./StoriesModal.css";
 @import "./profile.css";
 @import "./FollowerFollowingDialog.css";
 @import "./highlights.css";
@@ -33,6 +30,7 @@
 @import "./MainLayout.css";
 @import "./EditProfile.css";
 @import "./PrivateAccountNotice.css";
+@import "./StoriesPage.css";
 
 body {
     @apply bg-gray-50;
