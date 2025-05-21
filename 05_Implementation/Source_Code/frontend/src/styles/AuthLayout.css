@@ -202,6 +202,10 @@
   @apply max-w-xl w-full h-auto;
 }
 
+/* Password reset success */
+.auth-form--password-reset-success .auth-form__container {
+  @apply flex flex-col items-center justify-center;
+}
 /* Success image */
 .auth-form__image--success {
   @apply w-16 h-16 mb-4 mx-auto;

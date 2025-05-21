@@ -2,69 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-.feed-page-container {
+/* Feed Page Container */
+.feed-page__container {
   @apply flex flex-col min-h-screen bg-gray-50;
 }
 
-.feed-page-main {
-  @apply flex flex-col lg:flex-row 
-    w-full mx-auto;
+/* Main Content Wrapper */
+.feed-page__main {
+  @apply flex flex-col lg:flex-row w-full mx-auto;
 }
 
-.feed-page-sidebar {
-  @apply hidden xl:flex xl:flex-col
-    min-w-[430px] mr-4;
+/* Sidebar */
+.feed-page__sidebar {
+  @apply hidden xl:flex xl:flex-col min-w-[430px] mr-4;
 }
 
-.feed-page-content {
-  @apply flex flex-col
-    w-full;
+/* Main Content Area */
+.feed-page__content {
+  @apply flex flex-col w-full;
 }
 
-.feed-page-posts {
-  @apply flex flex-col
-    gap-6 mt-6;
+/* Stories Section */
+.stories {
+  @apply flex flex-col gap-2 px-4 py-2 rounded-xl bg-white;
 }
 
-.feed-page-loading {
-  @apply
-    text-center text-base
-    text-gray-500;
+.stories__title {
+  @apply text-lg font-semibold text-gray-800;
 }
 
-.feed-page-error {
-  @apply
-    text-center text-base
-    text-red-500;
+.stories__list {
+  @apply flex gap-4 overflow-x-auto scrollbar-none;
 }
 
-.feed-page-end {
-  @apply
-    text-center text-base
-    text-gray-500;
+.stories__item {
+  @apply cursor-pointer;
+}
+
+.feed-page__stories-empty {
+  @apply text-gray-600 text-center;
+}
+
+.feed-page__stories-error {
+  @apply text-red-500 text-center;
+}
+
+.feed-page__stories-create-overlay {
+  @apply fixed inset-0 bg-black/50 z-50 flex items-center justify-center transition-opacity duration-300;
+}
+
+.feed-page__stories-create-dialog {
+  @apply bg-white rounded-lg p-6 max-w-md w-full;
+}
+
+/* Posts List */
+.feed-page__posts-list {
+  @apply flex flex-col gap-6 mt-6;
+}
+
+/* Posts Empty State */
+.feed-page__posts-empty {
+  @apply text-gray-600 text-center;
+}
+
+/* Loading State */
+.feed-page__loading {
+  @apply text-center text-base text-gray-500;
+}
+
+/* Error Message */
+.feed-page__error-message {
+  @apply text-center text-base text-red-500;
+}
+
+/* End of Feed */
+.feed-page__end {
+  @apply text-center text-base text-gray-500;
+}
+
+/* Ensure feed page is visible behind modal */
+.feed-page__container--modal-open {
+  @apply filter blur-sm;
 }
 
 /* Responsive Adjustments */
 @media (max-width: 1024px) {
-  .feed-page-main {
+  .feed-page__main {
     @apply flex-col;
   }
 
-  .feed-page-sidebar {
-    @apply hidden; /* Hide sidebar on smaller screens */
+  .feed-page__sidebar {
+    @apply hidden;
   }
 
-  .feed-page-content {
+  .feed-page__content {
     @apply w-full;
   }
 }
 
 @media (max-width: 640px) {
-  .feed-page-content {
+  .feed-page__content {
     @apply p-2;
   }
 
-  .feed-page-posts {
+  .feed-page__posts-list {
     @apply gap-4;
   }
 }
