@@ -7,12 +7,22 @@ export interface FollowingFollower {
   bio: string | null;
 }
 
+export interface ApiStory {
+  StoryID: number;
+  MediaURL: string;
+  CreatedAt: string;
+  ExpiresAt: string;
+  isViewed: boolean;
+}
+
 export interface Story {
   storyId: number;
   mediaUrl: string;
   createdAt: string;
   expiresAt: string;
   isViewed: boolean;
+  hasLiked: boolean;
+  likeCount: number;
 }
 
 export interface Comment {
@@ -66,7 +76,7 @@ export interface StoriesSectionUser {
   profilePicture?: string;
 }
 
-export interface FormData {
+export interface ProfileFormData {
   firstName: string;
   lastName: string;
   username: string;
@@ -83,7 +93,7 @@ export interface FormData {
   confirmNewPassword?: string;
 }
 
-export interface FormErrors {
+export interface ProfileFormErrors {
   firstName?: string;
   lastName?: string;
   username?: string;
@@ -153,11 +163,6 @@ export interface CreatePostProps {
 export interface AppStore {
   handlePostStory: (file: File) => Promise<void>;
   setError: (error: string) => void;
-}
-
-export interface CreateStoriesProps {
-  user?: User;
-  onDiscard: () => void;
 }
 
 export interface ProfileStore {
@@ -321,6 +326,8 @@ export interface StoriesListStory {
   mediaUrl: string;
   expiresAt: string;
   isViewed: boolean;
+  hasLiked: boolean;
+  likeCount: number;
 }
 
 export interface UserStory {
@@ -328,7 +335,7 @@ export interface UserStory {
   username: string;
   profilePicture: string | null;
   hasUnviewedStories: boolean;
-  stories: Story[];
+  stories: StoriesListStory[];
 }
 
 export interface StoriesListProps {
@@ -337,7 +344,7 @@ export interface StoriesListProps {
   activeUserId?: number;
 }
 
-export interface StoriesSectionLoadingProps {
+export interface StoriesLoadingProps {
   title?: string;
 }
 
@@ -359,6 +366,7 @@ export interface StoryDetails {
     StoryViews: number;
   };
   hasLiked: boolean;
+  likeCount: number;
 }
 
 export interface StoryViewerProps {
@@ -390,6 +398,7 @@ export interface StoriesDialogSectionProps {
   currentUserId: number;
   onClose: () => void;
   token: string;
+  onLike: (storyId: number) => void;
 }
 
 export interface StoryListItem {
@@ -735,48 +744,6 @@ export interface FollowingFollowersResponse {
   count: number;
   following?: FollowingFollower[];
   followers?: FollowingFollower[];
-}
-
-export interface ProfileState {
-  profile: ProfileStoreProfile | null;
-  highlights: Highlight[];
-  savedPosts: SavedPost[];
-  posts: ProfileStorePost[];
-  loading: boolean;
-  error: string | null;
-  highlightsLoading: boolean;
-  highlightsError: string | null;
-  savedPostsLoading: boolean;
-  savedPostsError: string | null;
-  postsLoading: boolean;
-  postsError: string | null;
-  authData: ProfileStoreAuthData | null;
-
-  setProfile: (profile: ProfileStoreProfile | null) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  setHighlights: (highlights: Highlight[]) => void;
-  setHighlightsLoading: (loading: boolean) => void;
-  setHighlightsError: (error: string | null) => void;
-  setSavedPosts: (savedPosts: SavedPost[]) => void;
-  setSavedPostsLoading: (loading: boolean) => void;
-  setSavedPostsError: (error: string | null) => void;
-  setPosts: (posts: ProfileStorePost[]) => void;
-  setPostsLoading: (loading: boolean) => void;
-  setPostsError: (error: string | null) => void;
-  setAuthData: (data: ProfileStoreAuthData | null) => void;
-  setInitialAuthData: (data: ProfileStoreAuthData | null) => void;
-
-  fetchProfile: (username: string) => Promise<void>;
-  fetchHighlights: (userId: number) => Promise<void>;
-  fetchSavedPosts: () => Promise<void>;
-  fetchPosts: (userId: number) => Promise<void>;
-  followUser: (userId: number) => Promise<void>;
-  unfollowUser: (userId: number) => Promise<void>;
-  fetchFollowers: (userId: number, signal?: AbortSignal) => Promise<FollowingFollowersResponse>;
-  fetchFollowing: (userId: number, signal?: AbortSignal) => Promise<FollowingFollowersResponse>;
-  removeFollower: (followerId: number) => Promise<{ message: string }>;
-  initializeAuth: () => Promise<void>;
 }
 
 export interface ApiErrorResponse {
