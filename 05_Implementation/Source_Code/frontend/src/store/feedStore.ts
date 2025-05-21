@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api from '@/utils/api';
+import api, { fetchStoryFeed } from '@/utils/api';
 import { getAuthData } from '@/utils/auth';
 import {
   FeedStoreAuthData,
@@ -10,6 +10,7 @@ import {
   FeedStoreComment,
   Post,
   FeedStoreAppState,
+  UserStory,
 } from '@/types';
 
 export const useAppStore = create<FeedStoreAppState>((set, get) => ({
@@ -26,6 +27,7 @@ export const useAppStore = create<FeedStoreAppState>((set, get) => ({
   error: null,
   page: 1,
   hasMore: true,
+  userStories: [], // Added to store UserStory[]
 
   setAuthLoading: (loading) => set({ authLoading: loading }),
   setFollowLoading: (loading) => set({ followLoading: loading }),
@@ -40,6 +42,7 @@ export const useAppStore = create<FeedStoreAppState>((set, get) => ({
   setError: (error) => set({ error }),
   setPage: (page) => set({ page }),
   setHasMore: (hasMore) => set({ hasMore }),
+  setUserStories: (userStories) => set({ userStories }), // Added setter
 
   fetchFollowRequests: async () => {
     set({ followLoading: true });
@@ -57,19 +60,18 @@ export const useAppStore = create<FeedStoreAppState>((set, get) => ({
   fetchStories: async (token: string) => {
     set({ storiesLoading: true, storiesError: null });
     try {
-      const response = await api.get<FeedStoreStoryUser[]>('/stories/feed', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log('Fetched stories:', response.data, 'Status:', response.status);
+      const response = await fetchStoryFeed(token);
+      console.log('Fetched stories:', response);
+      set({ userStories: response }); // Store full UserStory[]
       const mappedStories: StoryListItem[] = [
         {
           username: 'You',
           imageSrc: get().authData?.profilePicture || '/avatars/placeholder.jpg',
           hasPlus: true,
         },
-        ...response.data.map((storyUser) => ({
+        ...response.map((storyUser) => ({
           username: storyUser.username,
-          imageSrc: storyUser.stories.length > 0 ? storyUser.stories[0].mediaUrl : storyUser.profilePicture || '/avatars/placeholder.jpg',
+          imageSrc: storyUser.profilePicture || '/avatars/placeholder.jpg',
           hasUnviewedStories: storyUser.hasUnviewedStories,
         })),
       ];

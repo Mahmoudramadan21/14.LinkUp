@@ -72,6 +72,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     } catch (err: any) {
       console.error('fetchProfile error:', err);
       set({ error: err.message || 'Failed to fetch profile', loading: false });
+      throw err; // Rethrow to handle in useProfile
     }
   },
 
@@ -105,6 +106,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       set({ posts: response.posts || [], postsLoading: false });
     } catch (err: any) {
       set({ postsError: err.message || 'Failed to fetch posts', posts: [], postsLoading: false });
+      throw err; // Rethrow to handle in useProfile
     }
   },
 
@@ -123,6 +125,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
             : null,
         }));
       }
+      return response;
     } catch (err: any) {
       throw new Error(err.message || 'Failed to follow user');
     }
@@ -141,6 +144,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
             }
           : null,
       }));
+      return response;
     } catch (err: any) {
       throw new Error(err.message || 'Failed to unfollow user');
     }
@@ -148,7 +152,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   fetchFollowers: async (userId: number, signal?: AbortSignal) => {
     try {
-      const response = await fetchFollowers(userId, signal);
+      const response = await fetchFollowers(userId);
       return response;
     } catch (err: any) {
       throw new Error(err.message || 'Failed to fetch followers');
@@ -157,7 +161,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   fetchFollowing: async (userId: number, signal?: AbortSignal) => {
     try {
-      const response = await fetchFollowing(userId, signal);
+      const response = await fetchFollowing(userId);
       return response;
     } catch (err: any) {
       throw new Error(err.message || 'Failed to fetch following');
