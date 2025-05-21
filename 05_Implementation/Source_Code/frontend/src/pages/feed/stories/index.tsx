@@ -1,16 +1,28 @@
-import React, { memo, useState, useEffect, useCallback, useRef } from 'react';
-import Avatar from '../components/Avatar';
-import StoriesDialogSection from './StoriesDialogSection';
-import CreateStories from '../components/CreateStories';
+'use client';
+import React, { memo, useEffect, useRef, useState, useCallback } from 'react';
+import Avatar from '@/components/Avatar';
+import CreateStories from '@/components/CreateStories';
+import StoriesLoading from '@/components/StoriesLoading';
+import StoriesModal from '@/components/StoriesModal';
 import { Transition } from '@headlessui/react';
 import api from '@/utils/api';
-import { UserStory, StoryListItem, StoriesSectionUser, StoriesSectionProps } from '@/types';
+import { useAppStore } from '@/store/feedStore';
+import { StoriesSectionProps, UserStory, StoryListItem } from '@/types';
 
 /**
  * StoriesSection Component
- * Renders a list of user stories with avatars and a create story dialog.
+ * Renders the stories section with a list of stories, create story dialog, and stories modal.
+ * Manages story selection, modal display, and accessibility features.
  */
-const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, user, stories, onPostStory }) => {
+const StoriesSection: React.FC<StoriesSectionProps> = ({ user, token }) => {
+  const {
+    storiesLoading,
+    stories,
+    storiesError,
+    fetchStories,
+    handlePostStory,
+  } = useAppStore();
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedStoryId, setSelectedStoryId] = useState<number | null>(null);
   const [userStories, setUserStories] = useState<UserStory[]>([]);
@@ -18,7 +30,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Fetch user stories for dialog
+  // Fetch user stories for modal
   useEffect(() => {
     const loadUserStories = async () => {
       if (!token) {
@@ -39,6 +51,13 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
     };
     loadUserStories();
   }, [token]);
+
+  // Fetch stories on mount
+  useEffect(() => {
+    if (token) {
+      fetchStories(token);
+    }
+  }, [token, fetchStories]);
 
   // Handle story click
   const handleStoryClick = useCallback(
@@ -63,12 +82,12 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
     setIsCreateDialogOpen(false);
   }, []);
 
-  // Close dialog on outside click
+  // Close create dialog on outside click
   const handleOverlayClick = useCallback(() => {
     setIsCreateDialogOpen(false);
   }, []);
 
-  // Focus trap for dialog
+  // Focus trap for create story dialog
   useEffect(() => {
     if (isCreateDialogOpen && dialogRef.current) {
       const focusableElements = dialogRef.current.querySelectorAll(
@@ -103,7 +122,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
 
   return (
     <section
-      className="stories-section"
+      className="stories-section__container"
       data-testid="stories-section"
       role="region"
       aria-labelledby="stories-section-title"
@@ -113,40 +132,48 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
       <h2 id="stories-section-title" className="stories-section__title">
         Stories
       </h2>
-      <div className="stories-section__list">
-        {stories.length > 0 ? (
-          stories.map((story, index) => (
-            <div
-              key={index}
-              onClick={() => handleStoryClick(index)}
-              className="stories-section__item"
-              role="button"
-              aria-label={`View ${story.username}'s story`}
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && handleStoryClick(index)}
-            >
-              <Avatar
-                imageSrc={story.imageSrc}
-                username={story.username}
-                size="medium"
-                showUsername={true}
-                hasUnviewedStories={story.hasUnviewedStories}
-                status={story.hasUnviewedStories ? 'Super Active' : ''}
-                hasPlus={story.hasPlus}
-              />
-            </div>
-          ))
-        ) : (
-          <p className="stories-section__empty" aria-live="polite">
-            No stories available
-          </p>
-        )}
-      </div>
+      {storiesLoading ? (
+        <StoriesLoading title="Stories" />
+      ) : storiesError ? (
+        <div className="stories-section__error" aria-live="polite">
+          {storiesError}
+        </div>
+      ) : (
+        <div className="stories-section__list">
+          {stories.length > 0 ? (
+            stories.map((story: StoryListItem, index: number) => (
+              <div
+                key={`${story.username}-${index}`}
+                onClick={() => handleStoryClick(index)}
+                className="stories-section__item"
+                role="button"
+                aria-label={`View ${story.username}'s story`}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleStoryClick(index)}
+              >
+                <Avatar
+                  imageSrc={story.imageSrc}
+                  username={story.username}
+                  size="medium"
+                  showUsername={true}
+                  hasUnviewedStories={story.hasUnviewedStories}
+                  status={story.hasUnviewedStories ? 'Super Active' : ''}
+                  hasPlus={story.hasPlus}
+                />
+              </div>
+            ))
+          ) : (
+            <p className="stories-section__empty" aria-live="polite">
+              No stories available
+            </p>
+          )}
+        </div>
+      )}
       {isDialogOpen && selectedStoryId !== null && (
-        <StoriesDialogSection
+        <StoriesModal
           stories={userStories}
           initialStoryId={selectedStoryId}
-          currentUserId={currentUserId || 0}
+          currentUserId={userStories[0]?.userId || 0}
           onClose={() => setIsDialogOpen(false)}
           token={token}
         />
@@ -172,10 +199,7 @@ const StoriesSection: React.FC<StoriesSectionProps> = ({ currentUserId, token, u
             onClick={(e) => e.stopPropagation()}
             ref={dialogRef}
           >
-            <CreateStories
-              user={user}
-              onDiscard={handleDiscardStory}
-            />
+            <CreateStories user={user} onDiscard={handleDiscardStory} />
           </div>
         </div>
       </Transition>

@@ -1,8 +1,7 @@
-// pages/profile/[username]/[tab].tsx
 import React from 'react';
 import { useRouter } from 'next/router';
 import MainLayout from '@/layout/MainLayout';
-import ProfilePage from "../[username].tsx"
+import ProfilePage from '@/layout/[username]';
 
 const ProfileTabPage: React.FC = () => {
   const router = useRouter();

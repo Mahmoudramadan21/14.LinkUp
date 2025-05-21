@@ -1,27 +1,19 @@
 'use client';
-import React, { memo, useCallback } from 'react';
+import React, { memo, ReactNode, cloneElement } from 'react';
 import Image from 'next/image';
 import MainLayout from '@/layout/MainLayout';
 import Loading from '@/components/Loading';
 import Button from '@/components/Button';
 import FollowerFollowingDialog from '@/components/FollowerFollowingDialog';
-import PostCard from '@/components/PostCard';
-import Bio from '@/components/Bio';
-import PostModal from '@/components/PostModal';
-import PrivateAccountNotice from '@/components/PrivateAccountNotice';
-import PostCardLoading from '@/components/PostCardLoading';
-import StoriesSectionLoading from '@/components/StoriesSectionLoading';
-import { handleAddHighlightSubmit } from '@/utils/profileUtils';
+import StoriesLoading from '@/components/StoriesLoading';
 import { useProfile } from '@/hooks/useProfile';
 import { useProfileStore } from '@/store/profileStore';
-import { Comment } from '@/types';
 
-/*
- * ProfilePage Component
- * Displays a user profile with tabs for posts, saved posts, and highlights.
- * Optimized for SEO with semantic HTML and for accessibility with ARIA attributes.
- */
-const ProfilePage: React.FC = () => {
+interface ProfileLayoutProps {
+  children: ReactNode;
+}
+
+const ProfileLayout: React.FC<ProfileLayoutProps> = ({ children }) => {
   const {
     profile,
     authData,
@@ -62,24 +54,17 @@ const ProfilePage: React.FC = () => {
     handleCloseModal,
   } = useProfile();
 
-  const { highlights, savedPosts, posts, highlightsLoading, highlightsError, savedPostsLoading, savedPostsError, postsLoading, postsError } = useProfileStore();
+  const { highlights, highlightsLoading, highlightsError } = useProfileStore();
 
-  // Handle post updates
-  const handlePostUpdate = useCallback((postId: number, updatedFields: any) => {
-    useProfileStore.setState((state) => ({
-      posts: state.posts.map((post) =>
-        post.postId === postId ? { ...post, ...updatedFields } : post
-      ),
-    }));
-  }, []);
+  // Log the state to debug rendering
+  console.log('ProfileLayout rendering:', { loading, hasInitiallyLoaded, profile: !!profile, error });
 
-  // Rendering
-  console.log('Loading state:', loading, 'Error:', error, 'Profile:', profile, 'HasInitiallyLoaded:', hasInitiallyLoaded);
-
-  if (loading || !hasInitiallyLoaded) {
+  // Show loading state if data is still fetching or profile is not yet loaded
+  if (loading || !hasInitiallyLoaded || !profile) {
     return <Loading aria-label="Loading profile data" />;
   }
 
+  // Show error if profile fetch fails
   if (error) {
     return (
       <MainLayout title="Profile Error">
@@ -92,18 +77,20 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  if (!profile) {
-    console.error('Unexpected state: profile is null after successful fetch');
-    return (
-      <MainLayout title="Profile Error">
-        <main className="profile-page__error" role="alert" aria-live="polite">
-          <p className="profile-page__error-text">Unexpected error: Profile data missing</p>
-        </main>
-      </MainLayout>
-    );
-  }
-
   const isOwnProfile = authData?.userId === profile.userId;
+
+  // Pass necessary props to children (PostsPage or SavedPostsPage)
+  const childrenWithProps = React.Children.map(children, (child) =>
+    React.isValidElement(child)
+      ? cloneElement(child, {
+          authData,
+          selectedPost,
+          isModalOpen,
+          handleOpenPostModal,
+          handleCloseModal,
+        })
+      : child
+  );
 
   return (
     <MainLayout title={`LinkUp | ${profile.username}`}>
@@ -237,7 +224,7 @@ const ProfilePage: React.FC = () => {
           {(!profile.isPrivate || isOwnProfile) && (
             <section className="profile-page__highlights" aria-labelledby="highlights-title">
               {highlightsLoading ? (
-                <StoriesSectionLoading title="Highlights" />
+                <StoriesLoading title="Highlights" />
               ) : highlightsError ? (
                 <p className="profile-page__highlights-error">{highlightsError}</p>
               ) : highlights.length === 0 && !isOwnProfile ? (
@@ -305,13 +292,13 @@ const ProfilePage: React.FC = () => {
           {/* Tabs Navigation */}
           <nav className="profile-page__tabs" aria-label="Profile content tabs">
             <button
-              onClick={() => setActiveTab('menu')}
-              className={`profile-page__tab-btn ${activeTab === 'menu' ? 'profile-page__tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('posts')}
+              className={`profile-page__tab-btn ${activeTab === 'posts' ? 'profile-page__tab-btn--active' : ''}`}
               aria-label="View posts"
-              aria-current={activeTab === 'menu' ? 'true' : undefined}
+              aria-current={activeTab === 'posts' ? 'true' : undefined}
             >
               <Image
-                src={activeTab === 'menu' ? '/icons/menu-active.svg' : '/icons/menu.svg'}
+                src={activeTab === 'posts' ? '/icons/menu-active.svg' : '/icons/menu.svg'}
                 alt="Posts tab icon"
                 width={24}
                 height={24}
@@ -337,113 +324,8 @@ const ProfilePage: React.FC = () => {
           </nav>
         </header>
 
-        {/* Posts Section */}
-        {activeTab === 'menu' && (
-          <section className="profile-page__posts-section" aria-labelledby="posts-title">
-            <Bio
-              bio={profile.bio || ''}
-              jobTitle={profile.jobTitle || ''}
-              address={profile.address || ''}
-              dateOfBirth={profile.dateOfBirth || '1970-01-01T00:00:00.000Z'}
-            />
-
-            {profile.isPrivate && !isOwnProfile && profile.followStatus !== 'ACCEPTED' ? (
-              <PrivateAccountNotice />
-            ) : (
-              <article className="profile-page__posts-list">
-                {postsLoading ? (
-                  <div className="posts-list">
-                    {[...Array(3)].map((_, index) => (
-                      <PostCardLoading key={`loading-${index}`} />
-                    ))}
-                  </div>
-                ) : postsError ? (
-                  <p className="profile-page__posts-error">{postsError}</p>
-                ) : !posts || posts.length === 0 ? (
-                  <p className="profile-page__posts-empty">No posts available</p>
-                ) : (
-                  posts.map((post) => (
-                    <PostCard
-                      key={post.postId}
-                      postId={post.postId}
-                      userId={post.user.UserID}
-                      username={post.user.Username}
-                      profilePicture={post.user.ProfilePicture}
-                      privacy={profile.isPrivate ? 'PRIVATE' : 'PUBLIC'}
-                      content={post.content}
-                      imageUrl={post.imageUrl}
-                      videoUrl={post.videoUrl}
-                      createdAt={post.createdAt}
-                      likeCount={post.likeCount}
-                      commentCount={post.commentCount}
-                      isLiked={false}
-                      likedBy={[]}
-                      comments={[]}
-                      onPostUpdate={handlePostUpdate}
-                    />
-                  ))
-                )}
-              </article>
-            )}
-          </section>
-        )}
-
-        {/* Saved Posts Section */}
-        {activeTab === 'saved' && isOwnProfile && (
-          <section className="profile-page__saved-posts" aria-labelledby="saved-posts-title">
-            <h2 id="saved-posts-title" className="profile-page__saved-posts-title">
-              Saved Posts
-            </h2>
-            {savedPostsLoading ? (
-              <Loading />
-            ) : savedPostsError ? (
-              <p className="profile-page__saved-posts-error">{savedPostsError}</p>
-            ) : !savedPosts || savedPosts.length === 0 ? (
-              <p className="profile-page__saved-posts-empty">No saved posts available</p>
-            ) : (
-              <div className="profile-page__saved-posts-grid">
-                {Array.isArray(savedPosts) ? (
-                  savedPosts.map((savedPost) => (
-                    <div
-                      key={savedPost.PostID}
-                      className="profile-page__saved-post-item"
-                      onClick={() => handleOpenPostModal(savedPost)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && handleOpenPostModal(savedPost)}
-                      aria-label={`View saved post ${savedPost.PostID}`}
-                    >
-                      <Image
-                        src={savedPost.ImageURL || savedPost.VideoURL || '/saved-posts/default.jpg'}
-                        alt={`Saved post ${savedPost.PostID}`}
-                        width={200}
-                        height={200}
-                        sizes="(max-width: 768px) 50vw, 33vw"
-                        className="profile-page__saved-post-image"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/saved-posts/default.jpg';
-                        }}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <p className="profile-page__saved-posts-error">Invalid saved posts data</p>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Post Modal */}
-        {selectedPost && (
-          <PostModal
-            isOpen={isModalOpen}
-            onClose={handleCloseModal}
-            post={selectedPost}
-            onPostUpdate={handlePostUpdate}
-          />
-        )}
+        {/* Render Posts or Saved Posts with passed props */}
+        {childrenWithProps}
 
         {/* Followers/Following Dialog */}
         {(!profile.isPrivate || isOwnProfile || profile.followStatus === 'ACCEPTED') && (
@@ -662,4 +544,4 @@ const ProfilePage: React.FC = () => {
   );
 };
 
-export default memo(ProfilePage);
+export default memo(ProfileLayout);
