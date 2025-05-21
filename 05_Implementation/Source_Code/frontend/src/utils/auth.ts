@@ -30,8 +30,8 @@ export const getRefreshToken = (): string | null => {
   return authData ? authData.refreshToken : null;
 };
 
-export const refreshAccessToken = async (): Promise<string | null> => {
-  if (typeof window === 'undefined') return null;
+export const refreshAccessToken = async (retryCount = 0): Promise<string | null> => {
+  if (typeof window === 'undefined' || retryCount > 1) return null;
 
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
@@ -47,7 +47,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to refresh token');
+      throw new Error(`Refresh failed with status ${response.status}`);
     }
 
     const data = await response.json();
@@ -63,9 +63,15 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
     setAuthData(newAuthData);
     return newAuthData.accessToken;
-  } catch (error) {
-    console.error('Refresh token error:', error);
+  } catch (error: any) {
+    console.error('Refresh token error:', error.message);
+    if (retryCount === 0) {
+      return refreshAccessToken(retryCount + 1); // Retry once
+    }
     removeAuthData();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
     return null;
   }
 };

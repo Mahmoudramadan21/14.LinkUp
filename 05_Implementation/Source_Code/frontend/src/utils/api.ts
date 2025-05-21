@@ -7,7 +7,7 @@ import {
 import { API_ENDPOINTS } from "./constants";
 import {
   ApiErrorResponse,
-  Story,
+  ApiStory,
   UserStory,
   StoryDetails,
   ApiLikeToggleResponse,
@@ -129,15 +129,39 @@ api.interceptors.response.use(
 
 export const fetchStoryFeed = async (token?: string): Promise<UserStory[]> => {
   const url = API_ENDPOINTS.GET_STORIES_FEED;
-  const response = await api.get(url, {
+  const response = await api.get<UserStory[]>(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    params: { limit: 20, offset: 0 },
   });
   return response.data;
 };
 
+export const fetchStoriesByUsername = async (username: string, token: string): Promise<ApiStory[]> => {
+  const url = `/stories/${encodeURIComponent(username)}`;
+  const response = await api.get<ApiStory[]>(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const fetchStoryDetails = async (storyId: number, token: string): Promise<StoryDetails> => {
+  const url = `/stories/${storyId}`;
+  const response = await api.get<StoryDetails>(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const recordStoryView = async (storyId: number, token: string): Promise<void> => {
+  const url = `/stories/${storyId}/view`;
+  await api.post(url, {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+};
+
 export const toggleStoryLike = async (storyId: number, token: string): Promise<ApiLikeToggleResponse> => {
-  const url = API_ENDPOINTS.TOGGLE_STORY_LIKE.replace(":storyId", storyId.toString());
-  const response = await api.post(url, {}, {
+  const url = API_ENDPOINTS.LIKE_STORY.replace(":storyId", storyId.toString());
+  const response = await api.post<ApiLikeToggleResponse>(url, {}, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;
@@ -145,18 +169,18 @@ export const toggleStoryLike = async (storyId: number, token: string): Promise<A
 
 export const fetchProfileByUsername = async (username: string): Promise<ProfileResponse> => {
   const url = API_ENDPOINTS.GET_PROFILE_BY_USERNAME.replace(":username", username);
-  const response = await api.get(url);
+  const response = await api.get<ProfileResponse>(url);
   return response.data;
 };
 
 export const fetchUserPosts = async (userId: number): Promise<PostsResponse> => {
   const url = API_ENDPOINTS.GET_USER_POSTS.replace(":userId", userId.toString());
-  const response = await api.get(url);
+  const response = await api.get<PostsResponse>(url);
   return response.data;
 };
 
 export const updateProfile = async (formData: FormData): Promise<UpdateProfileResponse> => {
-  const response = await api.put('/profile/edit', formData, {
+  const response = await api.put<UpdateProfileResponse>('/profile/edit', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -167,7 +191,7 @@ export const changePassword = async (oldPassword: string, newPassword: string): 
   formData.append('oldPassword', oldPassword);
   formData.append('newPassword', newPassword);
 
-  const response = await api.put(API_ENDPOINTS.CHANGE_PASSWORD, formData, {
+  const response = await api.put<ChangePasswordResponse>(API_ENDPOINTS.CHANGE_PASSWORD, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -175,42 +199,42 @@ export const changePassword = async (oldPassword: string, newPassword: string): 
 
 export const followUser = async (userId: number): Promise<FollowResponse> => {
   const url = API_ENDPOINTS.FOLLOW_USER.replace(":userId", userId.toString());
-  const response = await api.post(url);
+  const response = await api.post<FollowResponse>(url);
   return response.data;
 };
 
 export const unfollowUser = async (userId: number): Promise<{ message: string }> => {
   const url = API_ENDPOINTS.UNFOLLOW_USER.replace(":userId", userId.toString());
-  const response = await api.delete(url);
+  const response = await api.delete<{ message: string }>(url);
   return response.data;
 };
 
 export const fetchFollowing = async (userId: number): Promise<FollowingFollowersResponse> => {
   const url = API_ENDPOINTS.GET_FOLLOWING.replace(":userId", userId.toString());
-  const response = await api.get(url);
+  const response = await api.get<FollowingFollowersResponse>(url);
   return response.data;
 };
 
 export const fetchFollowers = async (userId: number): Promise<FollowingFollowersResponse> => {
   const url = API_ENDPOINTS.GET_FOLLOWERS.replace(":userId", userId.toString());
-  const response = await api.get(url);
+  const response = await api.get<FollowingFollowersResponse>(url);
   return response.data;
 };
 
 export const removeFollower = async (followerId: number): Promise<{ message: string }> => {
   const url = API_ENDPOINTS.REMOVE_FOLLOWER.replace(":followerId", followerId.toString());
-  const response = await api.delete(url);
+  const response = await api.delete<{ message: string }>(url);
   return response.data;
 };
 
 export const fetchUserHighlights = async (userId: number): Promise<Highlight[]> => {
   const url = API_ENDPOINTS.GET_USER_HIGHLIGHTS.replace(":userId", userId.toString());
-  const response = await api.get(url);
+  const response = await api.get<Highlight[]>(url);
   return response.data;
 };
 
 export const fetchSavedPosts = async (): Promise<SavedPost[]> => {
-  const response = await api.get(API_ENDPOINTS.GET_SAVED_POSTS);
+  const response = await api.get<SavedPostsResponse>(API_ENDPOINTS.GET_SAVED_POSTS);
   return response.data.savedPosts;
 };
 
