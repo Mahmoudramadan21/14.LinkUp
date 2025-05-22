@@ -1,182 +1,21 @@
-import React, { memo, useState, useEffect, useCallback, useMemo, FormEvent, ChangeEvent } from 'react';
-import { useRouter } from 'next/router';
+'use client';
+import React, { memo } from 'react';
 import Input from '@/components/Input';
 import Button from '@/components/Button';
-import api from '@/utils/api';
-import { API_ENDPOINTS, ERROR_MESSAGES } from '@/utils/constants';
 import Link from 'next/link';
+import { useResetPassword } from '@/hooks/useResetPassword';
 
-// Interface for form data
-interface FormData {
-  resetToken: string;
-  newPassword: string;
-  confirmPassword: string;
-}
-
-// Interface for form errors
-interface FormErrors {
-  resetToken?: string;
-  newPassword?: string;
-  confirmPassword?: string;
-}
-
-// Interface for API response
-interface ResetPasswordResponse {
-  message: string;
-}
-
-/**
- * ResetPasswordForm Component
- * Renders a form to reset the user's password with validation and API integration.
- */
 const ResetPasswordForm: React.FC = () => {
-  const router = useRouter();
-  const [formData, setFormData] = useState<FormData>({
-    resetToken: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [serverError, setServerError] = useState<string>('');
-  const [serverSuccess, setServerSuccess] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  // Validate password
-  const validatePassword = useCallback((password: string): string | null => {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!/[A-Z]/.test(password)) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    if (!/[a-z]/.test(password)) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    if (!/[0-9]/.test(password)) {
-      return 'Password must contain at least one number';
-    }
-    if (!/[^A-Za-z0-9]/.test(password)) {
-      return 'Password must contain at least one special character';
-    }
-    return null;
-  }, []);
-
-  // Validate form data
-  const validateForm = useCallback(
-    (data: FormData): FormErrors => {
-      const errors: FormErrors = {};
-
-      if (!data.resetToken) {
-        errors.resetToken =
-          'No valid reset token found. Please start the password reset process again.';
-      }
-
-      const passwordError = validatePassword(data.newPassword);
-      if (passwordError) {
-        errors.newPassword = passwordError;
-      }
-
-      if (data.newPassword !== data.confirmPassword) {
-        errors.confirmPassword = 'Passwords do not match';
-      }
-
-      return errors;
-    },
-    [validatePassword]
-  );
-
-  // Memoized validation errors
-  const validationErrors = useMemo(() => validateForm(formData), [formData, validateForm]);
-  const hasErrors = Object.keys(validationErrors).length > 0 && !validationErrors.resetToken;
-
-  // Retrieve resetToken from localStorage
-  useEffect(() => {
-    const resetToken = localStorage.getItem('resetToken') || '';
-    const newErrors: FormErrors = {};
-
-    if (!resetToken) {
-      newErrors.resetToken =
-        'No valid reset token found. Please start the password reset process again.';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-    } else {
-      setFormData((prev) => ({ ...prev, resetToken }));
-    }
-  }, []);
-
-  // Handle input changes
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>): void => {
-      const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
-      setServerError('');
-      setServerSuccess('');
-    },
-    []
-  );
-
-  // Toggle password visibility
-  const togglePasswordVisibility = useCallback(() => setShowPassword((prev) => !prev), []);
-  const toggleConfirmPasswordVisibility = useCallback(
-    () => setShowPasswordConfirm((prev) => !prev),
-    []
-  );
-
-  // Handle form submission
-  const handleSubmit = useCallback(
-    async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-      e.preventDefault();
-      const errors = validateForm(formData);
-      setErrors(errors);
-
-      if (Object.keys(errors).length > 0) {
-        return;
-      }
-
-      setIsLoading(true);
-      setServerError('');
-      setServerSuccess('');
-
-      try {
-        await api.post<ResetPasswordResponse>(
-          API_ENDPOINTS.RESET_PASSWORD,
-          { resetToken: formData.resetToken, newPassword: formData.newPassword },
-          {
-            headers: {
-              'X-CSRF-Token':
-                document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-          }
-        );
-
-        setServerSuccess('Password updated successfully.');
-        localStorage.removeItem('resetToken');
-        localStorage.removeItem('resetEmail');
-        setFormData({ resetToken: '', newPassword: '', confirmPassword: '' });
-
-        setTimeout(() => {
-          router.push('/password-reset-success');
-        }, 1500);
-      } catch (error: any) {
-        setIsLoading(false);
-        if (error.status === 400) {
-          setErrors({ newPassword: 'New password must be at least 8 characters long' });
-        } else if (error.status === 401) {
-          setServerError(
-            'Invalid or expired reset token. Please start the password reset process again.'
-          );
-        } else if (error.status === 500) {
-          setServerError('Error updating password.');
-        } else {
-          setServerError(error.message || ERROR_MESSAGES.SERVER_ERROR);
-        }
-      }
-    },
-    [formData, router, validateForm]
-  );
+  const {
+    formData,
+    errors,
+    serverError,
+    serverSuccess,
+    isLoading,
+    handleChange,
+    handleSubmit,
+    hasErrors,
+  } = useResetPassword();
 
   // Render error state for invalid resetToken
   if (errors.resetToken) {

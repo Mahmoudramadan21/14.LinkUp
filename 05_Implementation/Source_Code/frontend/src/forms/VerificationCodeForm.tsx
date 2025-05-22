@@ -1,5 +1,6 @@
+"use client";
 import React, { memo, useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import CodeInput from '@/components/CodeInput';
 import Button from '@/components/Button';
 import api from '@/utils/api';
@@ -210,8 +211,8 @@ const VerificationCodeForm: React.FC = () => {
       className="auth-form auth-form--verify-code"
       role="form"
       aria-labelledby="verify-code-form-title"
-      itemscope
-      itemtype="http://schema.org/Person"
+      itemScope
+      itemType="http://schema.org/Person"
     >
       <div className="auth-form__container">
         <h1 id="verify-code-form-title" className="auth-form__title auth-form__title--verify-code">
