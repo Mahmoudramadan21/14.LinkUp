@@ -3,10 +3,6 @@ import AuthLayout from '@/layout/AuthLayout';
 import ForgotPasswordForm from '@/forms/ForgotPasswordForm';
 import Image from 'next/image';
 
-/**
- * ForgotPasswordPage Component
- * Renders the forgot password page with a form and an illustration within the AuthLayout.
- */
 const ForgotPasswordPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Forgot Password">
