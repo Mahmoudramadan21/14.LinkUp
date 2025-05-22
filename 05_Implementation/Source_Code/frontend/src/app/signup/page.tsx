@@ -2,10 +2,6 @@ import React, { memo } from 'react';
 import AuthLayout from '@/layout/AuthLayout';
 import SignupForm from '@/forms/SignupForm';
 
-/**
- * SignupPage Component
- * Renders the signup page with a form within the AuthLayout.
- */
 const SignupPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Sign Up">
