@@ -1,12 +1,9 @@
+'use client';
 import React, { memo } from 'react';
 import AuthLayout from '@/layout/AuthLayout';
 import LoginForm from '@/forms/LoginForm';
 import Image from 'next/image';
 
-/**
- * LoginPage Component
- * Renders the login page with a form and an illustration within the AuthLayout.
- */
 const LoginPage: React.FC = () => {
   return (
     <AuthLayout title="LinkUp | Sign In">
