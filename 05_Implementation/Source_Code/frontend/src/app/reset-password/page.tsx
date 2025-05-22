@@ -1,7 +1,6 @@
 import AuthLayout from "@/layout/AuthLayout";
 import ResetPasswordForm from "@/forms/ResetPasswordForm";
 import Image from "next/image";
-import authSecurityIllustration from "@/../public/illustrations/auth-security-illustration.svg";
 
 const ResetPasswordPage: React.FC = () => {
   return (
@@ -16,7 +15,7 @@ const ResetPasswordPage: React.FC = () => {
           {/* Right Side: Illustration */}
           <div className="auth-page__illustration">
             <Image
-              src={authSecurityIllustration}
+              src="/illustrations/auth-security-illustration.svg"
               alt="Illustration of a person resetting their password securely"
               width={500}
               height={500}
