@@ -1,13 +1,9 @@
 'use client';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation'; 
+import React from 'react';
 import MainLayout from '@/layout/MainLayout';
 import Input from '@/components/Input';
 import Button from '@/components/Button';
-import { useProfileStore } from '@/store/profileStore';
-import { changePassword, updateProfile } from '@/utils/api';
-import { ProfileFormErrors, AuthData, ProfileFormData } from '@/types';
-import { getAuthData } from '@/utils/auth';
+import { useProfileEdit } from '@/hooks/useProfileEdit';
 
 /**
  * EditProfilePage Component
@@ -15,317 +11,34 @@ import { getAuthData } from '@/utils/auth';
  * Optimized for SEO, accessibility, and performance with semantic HTML and ARIA attributes.
  */
 const EditProfilePage: React.FC = () => {
-  const router = useRouter();
-  const username = getAuthData()?.username;
-  const { profile, fetchProfile, authData, initializeAuth, setProfile, setLoading, setError } = useProfileStore();
-
-  const [formData, setFormData] = useState<ProfileFormData>({
-    firstName: '',
-    lastName: '',
-    username: '',
-    email: '',
-    address: '',
-    bio: '',
-    jobTitle: '',
-    dateOfBirth: '',
-    isPrivate: false,
-    profilePicture: null,
-    coverPicture: null,
-    oldPassword: '',
-    newPassword: '',
-    confirmNewPassword: '',
-  });
-  const [errors, setErrors] = useState<ProfileFormErrors>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [previewProfilePicture, setPreviewProfilePicture] = useState<string | null>(null);
-  const [previewCoverPicture, setPreviewCoverPicture] = useState<string | null>(null);
-  const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'account' | 'security'>('account');
-  const [hasFetchedProfile, setHasFetchedProfile] = useState(false);
-
-  // Refs for hidden file inputs
-  const profilePictureInputRef = useRef<HTMLInputElement>(null);
-  const coverPictureInputRef = useRef<HTMLInputElement>(null);
-
-  // Initialize auth data and fetch profile
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadInitialData = async () => {
-      if (!isMounted) return;
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Initialize auth data if not already loaded
-        if (!authData) {
-          await initializeAuth();
-        }
-
-        // Fetch profile data only if not already fetched or username differs
-        if (!profile || profile.username !== username) {
-          if (typeof username === 'string') {
-            const response = await fetchProfile(username); // Fetch from store method
-            if (response && response.profile) { // Handle API response structure
-              setProfile(response.profile);
-            } else {
-              throw new Error('Invalid profile data received');
-            }
-            setHasFetchedProfile(true);
-          } else {
-            setErrors({ general: 'Invalid username parameter' });
-            setHasFetchedProfile(true);
-          }
-        } else {
-          setHasFetchedProfile(true);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setErrors({ general: err.message || 'Failed to load profile data' });
-          setHasFetchedProfile(true);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadInitialData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [username, fetchProfile, authData, initializeAuth, setProfile, setLoading, setError, profile]);
-
-  // Redirect if user is not authorized
-  useEffect(() => {
-    if (authData && profile && authData.userId !== profile.userId) {
-      router.push(`/profile/${username}`);
-    }
-  }, [authData, profile, router, username]);
-
-  // Populate form with profile data
-  useEffect(() => {
-    if (profile) {
-      setFormData((prev) => ({
-        ...prev,
-        firstName: profile.profileName?.split(' ')[0] || '',
-        lastName: profile.profileName?.split(' ').slice(1).join(' ') || '',
-        username: profile.username || '',
-        address: profile.address || '',
-        bio: profile.bio || '',
-        jobTitle: profile.jobTitle || '',
-        dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().split('T')[0] : '',
-        isPrivate: profile.isPrivate || false,
-        profilePicture: null,
-        coverPicture: null,
-      }));
-    }
-  }, [profile]);
-
-  // Update email from auth data
-  useEffect(() => {
-    if (authData) {
-      setFormData((prev) => ({ ...prev, email: (authData as AuthData).email || '' }));
-    }
-  }, [authData]);
-
-  // Clean up image previews to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (previewProfilePicture) URL.revokeObjectURL(previewProfilePicture);
-      if (previewCoverPicture) URL.revokeObjectURL(previewCoverPicture);
-    };
-  }, [previewProfilePicture, previewCoverPicture]);
-
-  // Handle file input changes for images
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, files } = e.target;
-    if (files && files[0]) {
-      const file = files[0];
-      setFormData((prev) => ({ ...prev, [name]: file }));
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
-
-      const previewUrl = URL.createObjectURL(file);
-      if (name === 'profilePicture') {
-        setPreviewProfilePicture(previewUrl);
-      } else if (name === 'coverPicture') {
-        setPreviewCoverPicture(previewUrl);
-      }
-    }
-  }, []);
-
-  // Handle text input changes
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: undefined }));
-  }, []);
-
-  // Trigger hidden file input click
-  const handleImageClick = useCallback(
-    (inputRef: React.RefObject<HTMLInputElement>, name: string, e: React.MouseEvent | React.KeyboardEvent) => {
-      if (inputRef.current && (e.type === 'click' || (e as React.KeyboardEvent).key === 'Enter')) {
-        inputRef.current.click();
-      }
-    },
-    []
-  );
-
-  // Handle privacy radio button changes
-  const handlePrivacyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    setFormData((prev) => ({ ...prev, isPrivate: value === 'private' }));
-    setErrors((prev) => ({ ...prev, isPrivate: undefined }));
-  }, []);
-
-  // Validate account form
-  const validateForm = useCallback((): boolean => {
-    const newErrors: ProfileFormErrors = {};
-
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.username.trim()) newErrors.username = 'Username is required';
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
-    }
-    if (formData.dateOfBirth) {
-      const parsedDate = new Date(formData.dateOfBirth);
-      if (isNaN(parsedDate.getTime()) || !formData.dateOfBirth.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        newErrors.dateOfBirth = 'Invalid date of birth (use YYYY-MM-DD)';
-      }
-    }
-    if (formData.profilePicture && formData.profilePicture.size > 5 * 1024 * 1024) {
-      newErrors.profilePicture = 'Profile picture must be less than 5MB';
-    }
-    if (formData.coverPicture && formData.coverPicture.size > 5 * 1024 * 1024) {
-      newErrors.coverPicture = 'Cover picture must be less than 5MB';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formData]);
-
-  // Validate password form
-  const validatePasswordForm = useCallback((): boolean => {
-    const newErrors: ProfileFormErrors = {};
-
-    if (!formData.oldPassword?.trim()) newErrors.oldPassword = 'Current password is required';
-    if (!formData.newPassword?.trim()) {
-      newErrors.newPassword = 'New password is required';
-    } else {
-      if (formData.newPassword.length < 8) newErrors.newPassword = 'New password must be at least 8 characters';
-      if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.newPassword)) {
-        newErrors.newPassword = 'New password must contain both letters and numbers';
-      }
-      if (/[\s]/.test(formData.newPassword)) newErrors.newPassword = 'New password cannot contain spaces';
-    }
-    if (!formData.confirmNewPassword?.trim()) {
-      newErrors.confirmNewPassword = 'Confirm new password is required';
-    } else if (formData.confirmNewPassword !== formData.newPassword) {
-      newErrors.confirmNewPassword = 'Confirm new password must match new password';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formData.oldPassword, formData.newPassword, formData.confirmNewPassword]);
-
-  // Submit account form
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!validateForm()) return;
-
-      setIsLoading(true);
-      setErrors({});
-      setSuccessMessage(null);
-
-      const formDataToSend = new FormData();
-      formDataToSend.append('firstName', formData.firstName);
-      formDataToSend.append('lastName', formData.lastName);
-      formDataToSend.append('username', formData.username);
-      formDataToSend.append('email', formData.email);
-      if (formData.bio) formDataToSend.append('bio', formData.bio);
-      if (formData.address) formDataToSend.append('address', formData.address);
-      if (formData.jobTitle) formDataToSend.append('jobTitle', formData.jobTitle);
-      if (formData.dateOfBirth) formDataToSend.append('dateOfBirth', formData.dateOfBirth);
-      if (formData.profilePicture) formDataToSend.append('profilePicture', formData.profilePicture);
-      if (formData.coverPicture) formDataToSend.append('coverPicture', formData.coverPicture);
-      formDataToSend.append('isPrivate', formData.isPrivate.toString());
-
-      try {
-        const response = await updateProfile(formDataToSend);
-        setSuccessMessage(response.message);
-        setTimeout(() => router.push(`/profile/${formData.username}`), 1500);
-      } catch (err: any) {
-        setErrors({ general: err.message || 'Failed to update profile' });
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [formData, validateForm, router]
-  );
-
-  // Submit password form
-  const handlePasswordSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!validatePasswordForm()) return;
-
-      setIsLoading(true);
-      setErrors({});
-      setSecuritySuccess(null);
-
-      try {
-        const response = await changePassword(formData.oldPassword || '', formData.newPassword || '');
-        setSecuritySuccess(response.message);
-        setFormData((prev) => ({ ...prev, oldPassword: '', newPassword: '', confirmNewPassword: '' }));
-        setTimeout(() => setSecuritySuccess(null), 3000);
-      } catch (err: any) {
-        setErrors({ general: err.message || 'Failed to change password' });
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [formData.oldPassword, formData.newPassword, validatePasswordForm]
-  );
-
-  // Handle tab change
-  const handleTabChange = useCallback((tab: 'account' | 'security') => {
-    setActiveTab(tab);
-    setErrors({});
-    setSuccessMessage(null);
-    setSecuritySuccess(null);
-  }, []);
+  const {
+    formData,
+    errors,
+    isLoading,
+    successMessage,
+    previewProfilePicture,
+    previewCoverPicture,
+    securitySuccess,
+    activeTab,
+    hasFetchedProfile,
+    profilePictureInputRef,
+    coverPictureInputRef,
+    authData,
+    profile,
+    handleFileChange,
+    handleInputChange,
+    handleImageClick,
+    handlePrivacyChange,
+    handleSubmit,
+    handlePasswordSubmit,
+    handleTabChange,
+  } = useProfileEdit();
 
   // Show loading state if profile or authData is not loaded yet
   if (!authData || !hasFetchedProfile) {
     return (
       <main className="edit-profile__loading" aria-live="polite">
         Loading...
-      </main>
-    );
-  }
-
-  // Show error state if there's a general error
-  if (errors.general) {
-    return (
-      <main className="edit-profile__error" aria-live="polite">
-        <p>{errors.general}</p>
-        <Button
-          variant="secondary"
-          size="small"
-          onClick={() => {
-            setErrors({});
-            setHasFetchedProfile(false);
-          }}
-          aria-label="Retry loading profile"
-        >
-          Retry
-        </Button>
       </main>
     );
   }

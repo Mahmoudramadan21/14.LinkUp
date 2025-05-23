@@ -7,24 +7,26 @@ import PrivateAccountNotice from '@/components/PrivateAccountNotice';
 import PostModal from '@/components/PostModal';
 import { useProfileStore } from '@/store/profileStore';
 import { useAppStore } from '@/store/feedStore';
-import { Post } from '@/types';
+import { Post, ProfileStoreProfile, ProfileStoreAuthData, SavedPost } from '@/types';
 
 interface PostsPageProps {
-  authData: any;
+  profile: ProfileStoreProfile | null;
+  authData: ProfileStoreAuthData | null;
   selectedPost: Post | null;
   isModalOpen: boolean;
-  handleOpenPostModal: (post: any) => void;
+  handleOpenPostModal: (post: SavedPost) => void;
   handleCloseModal: () => void;
 }
 
 const PostsPage: React.FC<PostsPageProps> = ({
+  profile,
   authData,
   selectedPost,
   isModalOpen,
   handleOpenPostModal,
   handleCloseModal,
 }) => {
-  const { profile, posts, postsLoading, postsError } = useProfileStore();
+  const { posts, postsLoading, postsError } = useProfileStore();
 
   const isOwnProfile = authData?.userId === profile?.userId;
 
@@ -104,7 +106,7 @@ const PostsPage: React.FC<PostsPageProps> = ({
                       isLiked={isLiked}
                       likedBy={likedBy}
                       comments={comments}
-                      onPostUpdate={useAppStore.getState().handlePostUpdate} // Align with feed/index.tsx
+                      onPostUpdate={useAppStore.getState().handlePostUpdate}
                     />
                   </div>
                 );
@@ -119,7 +121,7 @@ const PostsPage: React.FC<PostsPageProps> = ({
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           post={selectedPost}
-          onPostUpdate={useAppStore.getState().handlePostUpdate} // Align with feed/index.tsx
+          onPostUpdate={useAppStore.getState().handlePostUpdate}
         />
       )}
     </>
