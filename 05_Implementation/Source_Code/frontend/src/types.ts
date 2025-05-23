@@ -31,7 +31,7 @@ export interface Comment {
   username: string;
   content: string;
   createdAt: string;
-  profilePicture: string;
+  profilePicture: string | null;
   isLiked: boolean;
   likeCount: number;
   replies: Comment[];
@@ -41,9 +41,9 @@ export interface Post {
   postId: number;
   userId: number;
   username: string;
-  profilePicture: string;
+  profilePicture: string | null;
   privacy: string;
-  content: string;
+  content: string | null;
   imageUrl: string | null;
   videoUrl: string | null;
   createdAt: string;
@@ -51,7 +51,7 @@ export interface Post {
   commentCount: number;
   comments: Comment[];
   isLiked: boolean;
-  likedBy: { username: string; profilePicture: string }[];
+  likedBy: { username: string; profilePicture: string | null }[]; // Changed from string
 }
 
 export interface AuthLayoutProps {

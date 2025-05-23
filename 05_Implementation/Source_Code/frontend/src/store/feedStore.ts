@@ -62,7 +62,7 @@ export const useAppStore = create<FeedStoreAppState>((set, get) => ({
     try {
       const response = await fetchStoryFeed(token);
       console.log('Fetched stories:', response);
-      set({ userStories: response }); // Store full UserStory[]
+      set({ userStories: response }); 
       const mappedStories: StoryListItem[] = [
         {
           username: 'You',
@@ -80,6 +80,7 @@ export const useAppStore = create<FeedStoreAppState>((set, get) => ({
       console.error('Fetch stories error:', err.response?.data, err.response?.status);
       set({ storiesError: err.response?.data?.message || err.message || 'Failed to load stories' });
     } finally {
+      console.log('fetchStories completed, setting storiesLoading to false');
       set({ storiesLoading: false });
     }
   },
