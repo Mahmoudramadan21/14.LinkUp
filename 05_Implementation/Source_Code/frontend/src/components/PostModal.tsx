@@ -84,8 +84,8 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post, onPostUpda
               ref={dialogRef}
               aria-labelledby="post-modal-title"
               aria-modal="true"
-              itemscope
-              itemtype="http://schema.org/SocialMediaPosting"
+              itemScope
+              itemType="http://schema.org/SocialMediaPosting"
             >
               <h2 id="post-modal-title" className="sr-only">
                 Post Details
