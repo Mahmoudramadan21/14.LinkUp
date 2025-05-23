@@ -7,6 +7,7 @@ import { AuthLayoutProps } from '@/types';
  * AuthLayout Component
  * Provides a layout for authentication pages with background images and a centered container.
  * Includes SEO meta tags and accessibility features.
+ * Note: Consider using `generateMetadata` in App Router for dynamic metadata instead of `next/head`.
  */
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title = 'LinkUp | Sign In' }) => {
   // Memoize children rendering
@@ -19,15 +20,16 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title = 'LinkUp | Sig
         <meta name="description" content="Sign up or log in to LinkUp to connect with friends and share your moments." />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta charSet="UTF-8" />
+        {/* TODO: Replace dummy CSRF token with a dynamically generated token in production */}
+        <meta name="csrf-token" content="dummy-csrf-token" />
         <meta property="og:title" content={title} />
         <meta property="og:description" content="Connect with friends and share your moments on LinkUp." />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={title} />
         <meta name="twitter:description" content="Connect with friends and share your moments on LinkUp." />
-        <meta lang="en" />
       </Head>
-      <div className="auth-layout__wrapper" itemscope itemtype="http://schema.org/WebPage">
+      <div className="auth-layout__wrapper" itemScope itemType="http://schema.org/WebPage">
         <a href="#main-content" className="auth-layout__skip-link">
           Skip to main content
         </a>
