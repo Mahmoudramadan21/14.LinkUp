@@ -1,110 +1,21 @@
 'use client';
-import React, { useEffect, useRef, useMemo } from 'react';
-import io from 'socket.io-client';
+import React, { useMemo } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import Avatar from './Avatar';
 import Link from 'next/link';
-import { useNotificationsStore } from '../store/notificationStore';
+import { useNotifications } from '@/hooks/useNotifications';
+import { formatTimeAgo, getNotificationLink } from '@/utils/notificationsUtils';
 import { NotificationsProps } from '@/types';
 
-// Backend WebSocket URL
-const BACKEND_WS_URL = 'http://localhost:3000';
-
 const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }) => {
-  // Access notification store
   const {
     notifications,
-    totalPages,
-    page,
     loading,
-    fetchNotifications,
-    markAllAsRead,
+    dialogRef,
+    handleScroll,
     markNotificationAsRead,
     deleteNotification,
-    setPage,
-  } = useNotificationsStore();
-
-  // Reference for dialog to manage focus
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Setup WebSocket connection
-  useEffect(() => {
-    const socket = io(BACKEND_WS_URL, { withCredentials: true });
-    socket.emit('joinRoom', `user_${userId}`);
-
-    socket.on('notification', (newNotification) => {
-      useNotificationsStore.getState().setNotifications([newNotification, ...notifications]);
-      useNotificationsStore.getState().setTotalCount(notifications.length + 1);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [userId, notifications]);
-
-  // Fetch notifications and mark as read when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setPage(1);
-      fetchNotifications(1);
-      markAllAsRead();
-    }
-  }, [isOpen, fetchNotifications, markAllAsRead, setPage]);
-
-  // Close dialog on Escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  // Handle infinite scroll
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    if (
-      target.scrollHeight - target.scrollTop <= target.clientHeight + 50 &&
-      !loading &&
-      page < totalPages
-    ) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchNotifications(nextPage);
-    }
-  };
-
-  // Format timestamp to "time ago"
-  const formatTimeAgo = (date: string): string => {
-    const now = new Date();
-    const createdDate = new Date(date);
-    const diffInMs = now.getTime() - createdDate.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes} min${diffInMinutes > 1 ? 's' : ''} ago`;
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-  };
-
-  // Determine link destination based on notification type
-  const getNotificationLink = (notification: any): string | null => {
-    const { type, metadata, sender } = notification;
-    const postRelatedTypes = ['LIKE', 'COMMENT', 'COMMENT_LIKE', 'COMMENT_REPLY', 'STORY_LIKE'];
-    const userRelatedTypes = ['FOLLOW', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPTED'];
-
-    // Link to post for post-related notifications
-    if (postRelatedTypes.includes(type) && metadata?.postId) {
-      return `/post/${metadata.postId}`;
-    }
-    // Link to user profile for user-related notifications
-    if (userRelatedTypes.includes(type) && sender?.username) {
-      return `/profile/${sender.username}`;
-    }
-    return null;
-  };
+  } = useNotifications({ isOpen, onClose, userId });
 
   // Memoize notifications rendering to optimize performance
   const renderedNotifications = useMemo(
@@ -186,6 +97,7 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
                 onClick={() => deleteNotification(notification.notificationId)}
                 className="notifications__action notifications__action--delete"
                 aria-label="Delete notification"
+                data-testid={`delete-notification-${notification.notificationId}`}
               >
                 Delete
               </button>
@@ -252,6 +164,7 @@ const Notifications: React.FC<NotificationsProps> = ({ isOpen, onClose, userId }
                     onClick={onClose}
                     className="notifications__close"
                     aria-label="Close notifications dialog"
+                    data-testid="close-notifications"
                   >
                     <svg
                       className="notifications__close-icon"
