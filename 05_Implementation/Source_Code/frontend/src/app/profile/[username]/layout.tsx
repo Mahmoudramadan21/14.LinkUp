@@ -1,5 +1,5 @@
-'use client';
-import React, { memo, ReactNode, cloneElement } from 'react';
+"use client";
+import React, { memo, ReactNode, cloneElement, ReactElement } from 'react';
 import Image from 'next/image';
 import MainLayout from '@/layout/MainLayout';
 import Loading from '@/components/Loading';
@@ -8,9 +8,21 @@ import FollowerFollowingDialog from '@/components/FollowerFollowingDialog';
 import StoriesLoading from '@/components/StoriesLoading';
 import { useProfile } from '@/hooks/useProfile';
 import { useProfileStore } from '@/store/profileStore';
+import { ProfileStoreProfile, ProfileStoreAuthData, Post, SavedPost } from '@/types';
 
+// Define the props that children (PostsPage and SavedPostsPage) expect
+interface ChildProps {
+  profile: ProfileStoreProfile | null;
+  authData: ProfileStoreAuthData | null;
+  selectedPost: Post | null;
+  isModalOpen: boolean;
+  handleOpenPostModal: (post: SavedPost) => void;
+  handleCloseModal: () => void;
+}
+
+// Update ProfileLayoutProps to specify that children must accept ChildProps
 interface ProfileLayoutProps {
-  children: ReactNode;
+  children: ReactElement<ChildProps> | ReactElement<ChildProps>[]; // Children must accept ChildProps
 }
 
 const ProfileLayout: React.FC<ProfileLayoutProps> = ({ children }) => {
@@ -56,15 +68,12 @@ const ProfileLayout: React.FC<ProfileLayoutProps> = ({ children }) => {
 
   const { highlights, highlightsLoading, highlightsError } = useProfileStore();
 
-  // Log the state to debug rendering
   console.log('ProfileLayout rendering:', { loading, hasInitiallyLoaded, profile: !!profile, error });
 
-  // Show loading state if data is still fetching or profile is not yet loaded
   if (loading || !hasInitiallyLoaded || !profile) {
     return <Loading aria-label="Loading profile data" />;
   }
 
-  // Show error if profile fetch fails
   if (error) {
     return (
       <MainLayout title="Profile Error">
@@ -81,8 +90,9 @@ const ProfileLayout: React.FC<ProfileLayoutProps> = ({ children }) => {
 
   // Pass necessary props to children (PostsPage or SavedPostsPage)
   const childrenWithProps = React.Children.map(children, (child) =>
-    React.isValidElement(child)
+    React.isValidElement<ChildProps>(child) // Type guard with ChildProps
       ? cloneElement(child, {
+          profile,
           authData,
           selectedPost,
           isModalOpen,
