@@ -74,47 +74,48 @@ export const handleAddHighlightSubmit = async (
 
 export const handleOpenModal = (
   savedPost: any,
-  setSelectedPost: React.Dispatch<React.SetStateAction<Post | null>>,
-  setIsModalOpen: React.Dispatch<React.SetStateAction<boolean>>
-): void => {
-  const transformedComments = (savedPost.Comments || []).map((comment: any) => ({
-    commentId: comment.CommentID,
-    userId: comment.UserID,
-    username: comment.User.Username || 'Unknown',
-    content: comment.Content,
-    createdAt: comment.CreatedAt,
-    profilePicture: comment.User.ProfilePicture || '/avatars/default.jpg',
-    isLiked: comment.isLiked || false,
-    likeCount: comment.likeCount || 0,
-    replies: (comment.Replies || []).map((reply: any) => ({
-      commentId: reply.CommentID,
-      userId: reply.UserID,
-      username: reply.User.Username || 'Unknown',
-      content: reply.Content,
-      createdAt: reply.CreatedAt,
-      profilePicture: reply.User.ProfilePicture || '/avatars/default.jpg',
-      isLiked: reply.isLiked || false,
-      likeCount: reply.likeCount || 0,
-    })),
-  }));
-
+  setSelectedPost: (post: Post | null) => void,
+  setIsModalOpen: (isOpen: boolean) => void
+) => {
   const transformedPost: Post = {
     postId: savedPost.PostID,
     userId: savedPost.UserID,
-    username: savedPost.User.Username || 'Unknown',
-    profilePicture: savedPost.User.ProfilePicture || '/avatars/default.jpg',
+    username: savedPost.User.Username,
+    profilePicture: savedPost.User.ProfilePicture || null,
     privacy: savedPost.privacy,
-    content: savedPost.Content,
+    content: savedPost.Content || null,
     imageUrl: savedPost.ImageURL,
     videoUrl: savedPost.VideoURL,
     createdAt: savedPost.CreatedAt,
-    likeCount: savedPost.likeCount || 0,
-    commentCount: savedPost.commentCount || 0,
-    comments: transformedComments,
+    likeCount: savedPost._count?.Likes || savedPost.likeCount || 0,
+    commentCount: savedPost._count?.Comments || savedPost.commentCount || 0,
+    comments: savedPost.Comments?.map((comment: any) => ({
+      commentId: comment.CommentID,
+      userId: comment.UserID,
+      username: comment.User.Username,
+      content: comment.Content,
+      createdAt: comment.CreatedAt,
+      profilePicture: comment.User.ProfilePicture || null,
+      isLiked: comment.isLiked || false,
+      likeCount: comment._count?.CommentLikes || comment.likeCount || 0,
+      replies: comment.Replies?.map((reply: any) => ({
+        commentId: reply.CommentID,
+        userId: reply.UserID,
+        username: reply.User.Username,
+        content: reply.Content,
+        createdAt: reply.CreatedAt,
+        profilePicture: reply.User.ProfilePicture || null,
+        isLiked: reply.isLiked || false,
+        likeCount: reply._count?.CommentLikes || reply.likeCount || 0,
+        replies: [],
+      })) || [],
+    })) || [],
     isLiked: savedPost.isLiked || false,
-    likedBy: savedPost.likedBy || [],
+    likedBy: savedPost.likedBy?.map((user: any) => ({
+      username: user.username,
+      profilePicture: user.profilePicture || null,
+    })) || [],
   };
-
   setSelectedPost(transformedPost);
   setIsModalOpen(true);
 };
