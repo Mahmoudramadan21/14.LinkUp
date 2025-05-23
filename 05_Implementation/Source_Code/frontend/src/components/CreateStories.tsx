@@ -1,12 +1,11 @@
 'use client';
-import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo } from 'react';
 import clsx from 'clsx';
 import { Transition } from '@headlessui/react';
-import html2canvas from 'html2canvas';
 import Avatar from './Avatar';
 import Button from './Button';
-import { useAppStore } from '@/store/feedStore';
-import { CreateStoriesProps, AppStore } from '@/types';
+import { useCreateStories } from '@/hooks/useCreateStories';
+import { CreateStoriesProps } from '@/types';
 
 const CreateStories: React.FC<CreateStoriesProps> = ({
   user = {
@@ -16,232 +15,46 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
   },
   onDiscard,
 }) => {
-  const [mode, setMode] = useState<'initial' | 'preview'>('initial');
-  const [text, setText] = useState('');
-  const [media, setMedia] = useState<File | null>(null);
-  const [backgroundColor, setBackgroundColor] = useState('linear-gradient(135deg, #ff6f61, #8b5cf6)');
-  const [textColor, setTextColor] = useState('#ffffff');
-  const [fontStyle, setFontStyle] = useState('normal');
-  const [fontSize, setFontSize] = useState(18);
-  const [textPosition, setTextPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [mediaPosition, setMediaPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDraggingText, setIsDraggingText] = useState(false);
-  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setLocalError] = useState('');
-  const [previewDimensions, setPreviewDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-  const textRef = useRef<HTMLDivElement>(null);
-  const mediaRef = useRef<HTMLDivElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const { handlePostStory, setError } = useAppStore() as AppStore;
-
-  // Background color options
-  const backgroundColors = [
-    'linear-gradient(135deg, #ff6f61, #8b5cf6)',
-    'linear-gradient(135deg, #34d399, #10b981)',
-    'linear-gradient(135deg, #60a5fa, #3b82f6)',
-    '#000000',
-    '#ffffff',
-    '#808080',
-  ];
-
-  // Text color options
-  const textColors = [
-    '#000000',
-    '#ffffff',
-    '#808080',
-    '#ff0000',
-    '#ff6f61',
-    '#facc15',
-    '#3b82f6',
-  ];
-
-  // Font style options
-  const fontStyles = ['normal', 'bold', 'italic', 'bold italic'];
-
-  // Open dialog on mount
-  useEffect(() => {
-    if (dialogRef.current && !dialogRef.current.open) {
-      dialogRef.current.showModal();
-    }
-  }, []);
-
-  // Update preview dimensions on resize
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (previewRef.current) {
-        const rect = previewRef.current.getBoundingClientRect();
-        setPreviewDimensions({ width: rect.width, height: rect.height });
-      }
-    };
-
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, [mode]);
-
-  // Center text on initial render
-  useEffect(() => {
-    if (text && previewRef.current && textRef.current) {
-      const previewRect = previewRef.current.getBoundingClientRect();
-      const textRect = textRef.current.getBoundingClientRect();
-      const centerX = (previewRect.width - textRect.width) / 2;
-      const centerY = (previewRect.height - textRect.height) / 2;
-      setTextPosition({ x: centerX, y: centerY });
-    }
-  }, [text]);
-
-  // Center media on initial render
-  useEffect(() => {
-    if (media && previewRef.current && mediaRef.current) {
-      const previewRect = previewRef.current.getBoundingClientRect();
-      const mediaRect = mediaRef.current.getBoundingClientRect();
-      const centerX = (previewRect.width - mediaRect.width) / 2;
-      const centerY = (previewRect.height - mediaRect.height) / 2;
-      setMediaPosition({ x: centerX, y: centerY });
-    }
-  }, [media]);
-
-  // Handle media file selection with validation
-  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setLocalError('Please upload a valid image file.');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setLocalError('Image size must be less than 5MB.');
-        return;
-      }
-      setMedia(file);
-      setMediaPosition({ x: 0, y: 0 });
-      setMode('preview');
-      setLocalError('');
-    }
-  };
-
-  // Switch to preview mode for text
-  const handleAddText = () => {
-    setMode('preview');
-  };
-
-  // Handle drag start for text
-  const handleMouseDownText = (e: React.MouseEvent) => {
-    setIsDraggingText(true);
-  };
-
-  // Handle drag start for media
-  const handleMouseDownMedia = (e: React.MouseEvent) => {
-    setIsDraggingMedia(true);
-  };
-
-  // Handle drag movement
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDraggingText && textRef.current) {
-      setTextPosition((prev) => ({
-        x: prev.x + e.movementX,
-        y: prev.y + e.movementY,
-      }));
-    }
-    if (isDraggingMedia && mediaRef.current) {
-      setMediaPosition((prev) => ({
-        x: prev.x + e.movementX,
-        y: prev.y + e.movementY,
-      }));
-    }
-  };
-
-  // Stop dragging
-  const handleMouseUp = () => {
-    setIsDraggingText(false);
-    setIsDraggingMedia(false);
-  };
-
-  // Keyboard drag for accessibility
-  const handleKeyDown = (e: React.KeyboardEvent, type: 'text' | 'media') => {
-    const step = 10; // Pixels to move per key press
-    const updatePosition = type === 'text' ? setTextPosition : setMediaPosition;
-    if (e.key === 'ArrowUp') {
-      updatePosition((prev) => ({ ...prev, y: prev.y - step }));
-    } else if (e.key === 'ArrowDown') {
-      updatePosition((prev) => ({ ...prev, y: prev.y + step }));
-    } else if (e.key === 'ArrowLeft') {
-      updatePosition((prev) => ({ ...prev, x: prev.x - step }));
-    } else if (e.key === 'ArrowRight') {
-      updatePosition((prev) => ({ ...prev, x: prev.x + step }));
-    }
-  };
-
-  // Close dialog on backdrop click or Escape key
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === backdropRef.current) {
-      onDiscard();
-    }
-  };
-
-  const handleBackdropKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      onDiscard();
-    }
-  };
-
-  // Increase font size
-  const increaseFontSize = () => {
-    setFontSize((prev) => Math.min(prev + 2, 48));
-  };
-
-  // Decrease font size
-  const decreaseFontSize = () => {
-    setFontSize((prev) => Math.max(prev - 2, 12));
-  };
-
-  // Confirm and upload story
-  const handleConfirm = async () => {
-    if (previewRef.current && (text || media) && !isLoading) {
-      setIsLoading(true);
-      try {
-        const canvas = await html2canvas(previewRef.current, {
-          useCORS: true,
-          backgroundColor: null,
-          scale: 2,
-          width: previewDimensions.width,
-          height: previewDimensions.height,
-        });
-
-        const finalCanvas = document.createElement('canvas');
-        finalCanvas.width = 1080;
-        finalCanvas.height = 1920;
-        const ctx = finalCanvas.getContext('2d');
-
-        if (ctx) {
-          const scale = Math.min(
-            finalCanvas.width / canvas.width,
-            finalCanvas.height / canvas.height
-          );
-          const scaledWidth = canvas.width * scale;
-          const scaledHeight = canvas.height * scale;
-          const offsetX = (finalCanvas.width - scaledWidth) / 2;
-          const offsetY = (finalCanvas.height - scaledHeight) / 2;
-
-          ctx.drawImage(canvas, offsetX, offsetY, scaledWidth, scaledHeight);
-
-          const imageDataUrl = finalCanvas.toDataURL('image/png');
-          const blob = await (await fetch(imageDataUrl)).blob();
-          const file = new File([blob], 'story.png', { type: 'image/png' });
-
-          await handlePostStory(file);
-          onDiscard();
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to post story');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
+  const {
+    mode,
+    text,
+    setText,
+    media,
+    backgroundColor,
+    setBackgroundColor,
+    textColor,
+    setTextColor,
+    fontStyle,
+    setFontStyle,
+    fontSize,
+    textPosition,
+    mediaPosition,
+    isDraggingText,
+    isDraggingMedia,
+    isLoading,
+    error,
+    previewDimensions,
+    textRef,
+    mediaRef,
+    previewRef,
+    dialogRef,
+    backdropRef,
+    backgroundColors,
+    textColors,
+    fontStyles,
+    handleMediaChange,
+    handleAddText,
+    handleMouseDownText,
+    handleMouseDownMedia,
+    handleMouseMove,
+    handleMouseUp,
+    handleKeyDown,
+    handleBackdropClick,
+    handleBackdropKeyDown,
+    increaseFontSize,
+    decreaseFontSize,
+    handleConfirm,
+  } = useCreateStories({ onDiscard });
 
   return (
     <Transition
@@ -459,6 +272,9 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
                       onKeyDown={(e) => handleKeyDown(e, 'media')}
                       tabIndex={0}
                       aria-label="Move story media with arrow keys"
+                      style={{
+                        transform: `translate(${mediaPosition.x}px, ${mediaPosition.y}px)`,
+                      }}
                     >
                       <img
                         src={URL.createObjectURL(media)}
@@ -482,6 +298,7 @@ const CreateStories: React.FC<CreateStoriesProps> = ({
                       style={{
                         color: textColor,
                         fontSize: `${fontSize}px`,
+                        transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
                       }}
                     >
                       {text}
