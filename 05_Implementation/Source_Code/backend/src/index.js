@@ -6,7 +6,8 @@ const configureSocket = require("./server.js");
 const routes = require("./routes/index.js");
 const setupSwagger = require("./docs/swagger.js");
 const bodyParser = require("body-parser");
-const cookieParser = require("cookie-parser"); // Add cookie-parser
+const cookieParser = require("cookie-parser");
+const { startRedisCleanup } = require("./utils/redisCleanup");
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,7 +22,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // CORS configuration
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:8000", // Specify frontend URL
+    origin:
+      process.env.FRONTEND_URL ||
+      "http://localhost:8000" ||
+      "http://192.168.1.5:8000/",
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true, // Allow cookies to be sent
   })
@@ -40,6 +44,9 @@ app.get("/", (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  if (err.code === "EBADCSRFTOKEN") {
+    return res.status(403).json({ error: "Invalid CSRF token" });
+  }
   if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
     console.error(
       "JSON parsing error:",
@@ -57,11 +64,14 @@ app.use((err, req, res, next) => {
 
 // Socket.IO setup
 const io = configureSocket(httpServer);
-app.set("io", io); // Attach io to app for use in controllers
+app.set("io", io);
+
+// Start Redis cleanup job
+startRedisCleanup();
 
 // Start server
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Socket.IO ready on port ${PORT}`);
   console.log(`Swagger UI available at http://localhost:${PORT}/api-docs`);
