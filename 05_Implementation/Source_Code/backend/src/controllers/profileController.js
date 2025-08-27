@@ -1,13 +1,13 @@
+const logger = require("../utils/logger");
 const prisma = require("../utils/prisma");
 const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
-const cloudinary = require("cloudinary").v2;
 const {
-  setWithTracking,
-  get,
-  del,
-  clearUserCache,
-} = require("../utils/redisUtils");
+  handleServerError,
+  handleNotFoundError,
+  handleForbiddenError,
+} = require("../utils/errorHandler");
+const cloudinary = require("cloudinary").v2;
 
 // Salt rounds for password hashing - recommended value
 const SALT_ROUNDS = 10;
@@ -24,6 +24,241 @@ function shuffleArray(array) {
   }
   return array;
 }
+
+/**
+ * Retrieves user profile by username with privacy checks
+ * Returns profile if account is public or if private and followed by current user
+ */
+const getProfileByUsername = async (req, res) => {
+  try {
+    const { username } = req.params;
+    const currentUserId = req.user?.UserID;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { Username: username },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+        CoverPicture: true,
+        Bio: true,
+        Address: true,
+        JobTitle: true,
+        DateOfBirth: true,
+        IsPrivate: true,
+        Role: true,
+        CreatedAt: true,
+        UpdatedAt: true,
+        ProfileName: true,
+        IsBanned: true,
+        _count: {
+          select: {
+            Posts: true,
+            Followers: { where: { Status: "ACCEPTED" } },
+            Following: { where: { Status: "ACCEPTED" } },
+            Likes: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.IsBanned) {
+      return res.status(403).json({ error: "User is banned" });
+    }
+
+    // Check if the current user is following this user and get follow status
+    let isFollowing = false;
+    let followStatus = "NONE";
+    if (currentUserId !== user.UserID) {
+      const followStatusQuery = await prisma.follower.findFirst({
+        where: {
+          UserID: user.UserID,
+          FollowerUserID: currentUserId,
+        },
+      });
+      if (followStatusQuery) {
+        isFollowing = followStatusQuery.Status === "ACCEPTED";
+        followStatus = followStatusQuery.Status;
+      }
+    }
+
+    // Check if user has unviewed stories
+    let hasUnViewedStories = false;
+    if (currentUserId) {
+      const unviewedStory = await prisma.story.findFirst({
+        where: {
+          UserID: user.UserID,
+          ExpiresAt: { gt: new Date() },
+          StoryViews: {
+            none: { UserID: currentUserId }, // Current user hasn’t viewed
+          },
+        },
+        select: { StoryID: true },
+      });
+      hasUnViewedStories = !!unviewedStory;
+    }
+
+    // Check if user has active stories (not expired)
+    const hasActiveStories = !!(await prisma.story.findFirst({
+      where: {
+        UserID: user.UserID,
+        ExpiresAt: { gt: new Date() },
+      },
+      select: { StoryID: true },
+    }));
+
+    // Check if current user has access to this account
+    const hasAccess =
+      !user.IsPrivate || // Public account
+      user.UserID === currentUserId || // Own account
+      isFollowing; // Private but followed
+
+    // Fetch mutual followers (users who follow the target user and are followed by the current user)
+    let followedBy = [];
+    if (currentUserId !== user.UserID) {
+      // Get users followed by the current user
+      const currentUserFollowing = await prisma.follower.findMany({
+        where: {
+          FollowerUserID: currentUserId,
+          Status: "ACCEPTED",
+        },
+        select: { UserID: true },
+      });
+      const followingIds = currentUserFollowing.map((f) => f.UserID);
+
+      if (followingIds.length > 0) {
+        // Get users who follow the target user and are in the current user's following list
+        const mutualFollowers = await prisma.follower.findMany({
+          where: {
+            UserID: user.UserID,
+            FollowerUserID: { in: followingIds },
+            Status: "ACCEPTED",
+          },
+          select: {
+            FollowerUser: {
+              select: {
+                UserID: true,
+                Username: true,
+                ProfileName: true,
+                ProfilePicture: true,
+              },
+            },
+            FollowerUser: {
+              include: {
+                Likes: {
+                  where: { Post: { UserID: user.UserID } },
+                  select: { CreatedAt: true },
+                  orderBy: { CreatedAt: "desc" },
+                  take: 1,
+                },
+                Comments: {
+                  where: { Post: { UserID: user.UserID } },
+                  select: { CreatedAt: true },
+                  orderBy: { CreatedAt: "desc" },
+                  take: 1,
+                },
+                StoryViews: {
+                  where: { Story: { UserID: user.UserID } },
+                  select: { ViewedAt: true },
+                  orderBy: { ViewedAt: "desc" },
+                  take: 1,
+                },
+              },
+            },
+          },
+          take: 10, // Fetch more to prioritize, then slice to 3
+        });
+
+        // Prioritize by most recent interaction (likes, comments, story views)
+        followedBy = mutualFollowers
+          .map((follower) => {
+            const { FollowerUser } = follower;
+            const latestLike = FollowerUser.Likes[0]?.CreatedAt;
+            const latestComment = FollowerUser.Comments[0]?.CreatedAt;
+            const latestStoryView = FollowerUser.StoryViews[0]?.ViewedAt;
+
+            // Determine the most recent interaction time
+            const latestInteraction = [
+              latestLike,
+              latestComment,
+              latestStoryView,
+            ]
+              .filter((date) => date)
+              .reduce((latest, current) => {
+                return !latest || new Date(current) > new Date(latest)
+                  ? current
+                  : latest;
+              }, null);
+
+            return {
+              userId: FollowerUser.UserID,
+              username: FollowerUser.Username,
+              profileName: FollowerUser.ProfileName,
+              profilePicture: FollowerUser.ProfilePicture,
+              isFollowed: true, // Always true since they are in currentUserFollowing
+              latestInteraction: latestInteraction
+                ? new Date(latestInteraction).toISOString()
+                : null,
+            };
+          })
+          .sort((a, b) => {
+            if (!a.latestInteraction) return 1;
+            if (!b.latestInteraction) return -1;
+            return (
+              new Date(b.latestInteraction) - new Date(a.latestInteraction)
+            );
+          })
+          .slice(0, 3); // Take top 3
+      }
+    }
+
+    const response = {
+      profile: {
+        userId: user.UserID,
+        username: user.Username,
+        profilePicture: user.ProfilePicture,
+        coverPicture: user.CoverPicture,
+        bio: user.Bio,
+        address: user.Address,
+        jobTitle: user.JobTitle,
+        dateOfBirth: user.DateOfBirth,
+        isPrivate: user.IsPrivate,
+        role: user.Role,
+        createdAt: user.CreatedAt,
+        updatedAt: user.UpdatedAt,
+        postCount: user._count.Posts,
+        followerCount: user._count.Followers,
+        followingCount: user._count.Following,
+        likeCount: user._count.Likes,
+        isFollowing,
+        profileName: user.ProfileName,
+        followStatus,
+        hasUnViewedStories,
+        hasActiveStories,
+        hasAccess,
+        isMine: user.UserID === currentUserId,
+        followedBy, // Added: up to 3 mutual followers
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("getProfileByUsername error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
 
 /**
  * Retrieves user profile with counts and additional details
@@ -137,7 +372,7 @@ const updateProfile = async (req, res) => {
   const coverPictureFile = files.coverPicture ? files.coverPicture[0] : null;
 
   try {
-    // Fetch current user data to get the old username for cache invalidation
+    // Fetch current user data to get the old username
     const currentUser = await prisma.user.findUnique({
       where: { UserID: userId },
       select: { Username: true },
@@ -146,8 +381,6 @@ const updateProfile = async (req, res) => {
     if (!currentUser) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    const oldUsername = currentUser.Username;
 
     // Upload profile picture if provided
     if (profilePictureFile) {
@@ -281,18 +514,6 @@ const updateProfile = async (req, res) => {
       },
     });
 
-    // Invalidate Redis cache for both old and new username (if changed)
-    const newUsername = updatedUser.Username;
-    const oldCacheKey = `profile:username:${oldUsername}`;
-    await del(oldCacheKey, userId?.toString());
-    console.log(`Cache invalidated for old profile: ${oldCacheKey}`);
-
-    if (oldUsername !== newUsername) {
-      const newCacheKey = `profile:username:${newUsername}`;
-      await del(newCacheKey, userId?.toString());
-      console.log(`Cache invalidated for new profile: ${newCacheKey}`);
-    }
-
     // Respond with the updated profile
     res.status(200).json({
       message: "Profile updated successfully",
@@ -424,13 +645,6 @@ const updatePrivacySettings = async (req, res) => {
         : []),
     ]);
 
-    // Invalidate Redis caches
-    await del(`posts:user:${userId}`, userId);
-    await del(`followers:user:${userId}`, userId);
-    const profileCacheKey = `profile:username:${currentUser.Username}`;
-    await del(profileCacheKey, userId?.toString());
-    console.log(`Cache invalidated for profile: ${profileCacheKey}`);
-
     // Emit privacy update event via Socket.IO if the instance is available
     const io = req.app.get("io");
     if (io) {
@@ -490,50 +704,47 @@ const deleteProfile = async (req, res) => {
   }
 };
 
+// Simple groupBy helper
+function groupBy(arr, keyFn) {
+  return arr.reduce((acc, item) => {
+    const key = keyFn(item);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
 /**
  * Retrieves all posts by a specific user with privacy checks
- * Includes detailed post data, comments, likes, and replies
- * Similar to getPosts structure with user-specific enhancements
+ * - Includes pagination and post view tracking
+ * - Mirrors getPosts structure with batch queries, parallel execution, and in-memory grouping
+ * - Prioritizes unseen posts, sorted strictly by creation date (newest to oldest)
+ * - Maintains same likes/comments/replies ordering as getPosts
+ * - Handles shared posts and privacy checks
  */
 const getUserPosts = async (req, res) => {
   try {
-    console.log("getUserPosts: Starting", {
-      userId: req.params.userId,
-      currentUserId: req.user?.UserID,
-    });
     const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
     const currentUserId = req.user?.UserID;
     const parsedUserId = parseInt(userId);
 
     if (isNaN(parsedUserId)) {
-      console.log("getUserPosts: Invalid userId");
       return res.status(400).json({ error: "Invalid user ID format" });
     }
 
-    console.log("getUserPosts: Fetching user", { parsedUserId });
+    // === Fetch user & privacy check ===
     const user = await prisma.user.findUnique({
       where: { UserID: parsedUserId },
-      select: {
-        IsPrivate: true,
-        Username: true,
-        UserID: true,
-      },
+      select: { UserID: true, Username: true, IsPrivate: true },
     });
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (!user) {
-      console.log("getUserPosts: User not found");
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    console.log("getUserPosts: User found", { user });
     const isOwner = currentUserId === user.UserID;
     let hasAccess = !user.IsPrivate || isOwner;
 
     if (user.IsPrivate && !isOwner && currentUserId) {
-      console.log("getUserPosts: Checking follow relationship", {
-        userId: user.UserID,
-        followerId: currentUserId,
-      });
       const followRelationship = await prisma.follower.findFirst({
         where: {
           UserID: user.UserID,
@@ -541,402 +752,543 @@ const getUserPosts = async (req, res) => {
           Status: "ACCEPTED",
         },
       });
-      hasAccess = followRelationship !== null;
-      console.log("getUserPosts: Follow check result", { hasAccess });
+      hasAccess = !!followRelationship;
     }
-
     if (!hasAccess) {
-      console.log("getUserPosts: Access denied");
       return res.status(403).json({
         error: "Private account",
         message: `You must follow @${user.Username} to view their posts`,
       });
     }
 
-    console.log("getUserPosts: Fetching posts for user", {
-      userId: user.UserID,
-    });
+    // === Posts ===
     const posts = await prisma.post.findMany({
-      where: {
-        UserID: user.UserID,
-      },
-      orderBy: {
-        CreatedAt: "desc",
-      },
+      skip: offset,
+      take: parseInt(limit), // Fetch extra to account for filtering
+      where: { UserID: parsedUserId },
+      orderBy: { CreatedAt: "desc" }, // Newest to oldest
       include: {
         User: {
           select: {
             UserID: true,
             Username: true,
             ProfilePicture: true,
+            IsPrivate: true,
           },
         },
-        Likes: {
-          take: 3,
+        SharedPost: {
+          include: {
+            User: {
+              select: { UserID: true, Username: true, ProfilePicture: true },
+            },
+          },
+        },
+        _count: { select: { Likes: true, Comments: true, Shares: true } },
+      },
+    });
+
+    const filteredPosts = posts.filter(
+      (p) => !p.User.IsPrivate || isOwner || currentUserId === p.User.UserID
+    );
+    const postIds = filteredPosts.map((p) => p.PostID);
+
+    if (!postIds.length) {
+      return res.json([]);
+    }
+
+    // === Batch Queries ===
+    const [userLikes, userSaves, allLikes, allComments, userViews, following] =
+      await Promise.all([
+        prisma.like.findMany({
+          where: { PostID: { in: postIds }, UserID: currentUserId },
+          select: { PostID: true },
+        }),
+        prisma.savedPost.findMany({
+          where: { PostID: { in: postIds }, UserID: currentUserId },
+          select: { PostID: true },
+        }),
+        prisma.like.findMany({
+          where: { PostID: { in: postIds } },
           orderBy: { CreatedAt: "desc" },
           include: {
             User: {
               select: {
+                UserID: true,
                 Username: true,
+                ProfileName: true,
                 ProfilePicture: true,
               },
             },
           },
-        },
-        Comments: {
-          where: { ParentCommentID: null }, // Only top-level comments
-          take: 3,
+        }),
+        prisma.comment.findMany({
+          where: { PostID: { in: postIds }, ParentCommentID: null },
           orderBy: { CreatedAt: "desc" },
           include: {
             User: {
               select: {
+                UserID: true,
                 Username: true,
                 ProfilePicture: true,
               },
             },
             CommentLikes: {
-              take: 3,
               orderBy: { CreatedAt: "desc" },
+              take: 3,
               include: {
-                User: {
-                  select: {
-                    Username: true,
-                    ProfilePicture: true,
-                  },
-                },
+                User: { select: { Username: true, ProfilePicture: true } },
               },
             },
             Replies: {
+              orderBy: { CreatedAt: "asc" },
               take: 3,
-              orderBy: { CreatedAt: "desc" },
               include: {
                 User: {
                   select: {
+                    UserID: true,
                     Username: true,
                     ProfilePicture: true,
                   },
                 },
                 CommentLikes: {
+                  orderBy: { CreatedAt: "asc" },
                   take: 3,
-                  orderBy: { CreatedAt: "desc" },
                   include: {
-                    User: {
-                      select: {
-                        Username: true,
-                        ProfilePicture: true,
-                      },
-                    },
+                    User: { select: { Username: true, ProfilePicture: true } },
                   },
                 },
+                _count: { select: { CommentLikes: true } },
               },
             },
             _count: { select: { CommentLikes: true, Replies: true } },
           },
-        },
-        _count: { select: { Likes: true, Comments: true } },
-      },
-    });
+        }),
+        prisma.postView.findMany({
+          where: { PostID: { in: postIds }, UserID: currentUserId },
+          select: { PostID: true },
+        }),
+        currentUserId
+          ? prisma.follower.findMany({
+              where: { FollowerUserID: currentUserId, Status: "ACCEPTED" },
+              select: { UserID: true },
+            })
+          : [],
+      ]);
 
-    console.log("getUserPosts: Posts fetched", { postCount: posts.length });
+    const followingIds = following.map((f) => f.UserID);
 
-    // Fetch like status for the current user
-    const postIds = posts.map((post) => post.PostID);
-    const userLikes = await prisma.like.findMany({
-      where: {
-        PostID: { in: postIds },
-        UserID: currentUserId,
-      },
-      select: {
-        PostID: true,
-      },
-    });
-    const likedPostIds = new Set(userLikes.map((like) => like.PostID));
+    // === Group Data In Memory ===
+    const likesByPost = groupBy(allLikes, (l) => l.PostID);
+    const commentsByPost = groupBy(allComments, (c) => c.PostID);
 
-    // Format response similar to getPosts
-    const response = posts.map((post) => ({
-      postId: post.PostID,
-      content: post.Content,
-      imageUrl: post.ImageURL,
-      videoUrl: post.VideoURL,
-      createdAt: post.CreatedAt,
-      updatedAt: post.UpdatedAt,
-      user: post.User,
-      isLiked: likedPostIds.has(post.PostID),
-      likeCount: post._count.Likes,
-      commentCount: post._count.Comments,
-      likedBy: post.Likes.map((like) => ({
-        username: like.User.Username,
-        profilePicture: like.User.ProfilePicture,
-      })),
-      Comments: (post.Comments || []).map((comment) => ({
-        ...comment,
-        isLiked: (comment.CommentLikes || []).some(
-          (like) => like.UserID === currentUserId
+    const formatted = filteredPosts.map((post) => {
+      const isLiked = userLikes.some((l) => l.PostID === post.PostID);
+      const isSaved = userSaves.some((s) => s.PostID === post.PostID);
+      const isUnseen = !userViews.some((v) => v.PostID === post.PostID);
+      const isFollowed = followingIds.includes(post.User.UserID);
+
+      // === Likes ===
+      const likes = likesByPost[post.PostID] || [];
+      const myLike = likes.find((l) => l.User.UserID === currentUserId);
+      const followingLikes = likes.filter(
+        (l) =>
+          followingIds.includes(l.User.UserID) &&
+          l.User.UserID !== currentUserId
+      );
+      const otherLikes = likes.filter(
+        (l) => ![currentUserId, ...followingIds].includes(l.User.UserID)
+      );
+
+      const Likes = [
+        ...(myLike ? [myLike] : []),
+        ...followingLikes.slice(0, myLike ? 9 : 10),
+        ...otherLikes.slice(
+          0,
+          Math.max(0, 10 - (myLike ? 1 : 0) - followingLikes.length)
         ),
-        likeCount: comment._count?.CommentLikes || 0,
-        replyCount: comment._count?.Replies || 0,
-        likedBy: (comment.CommentLikes || []).map((like) => ({
-          username: like.User.Username,
-          profilePicture: like.User.ProfilePicture,
+      ].map((like) => ({
+        UserID: like.User.UserID,
+        Username: like.User.Username,
+        ProfileName: like.User.ProfileName,
+        ProfilePicture: like.User.ProfilePicture,
+        isFollowed: followingIds.includes(like.User.UserID),
+        likedAt: like.CreatedAt.toISOString(),
+      }));
+
+      // === Comments ===
+      const comments = (commentsByPost[post.PostID] || []).map((c) => ({
+        ...c,
+        priority:
+          c.UserID === currentUserId
+            ? 0
+            : followingIds.includes(c.UserID)
+            ? 1
+            : 2,
+      }));
+
+      const sortedComments = comments
+        .sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return b.CreatedAt - a.CreatedAt;
+        })
+        .slice(0, 3);
+
+      const Comments = sortedComments.map((comment) => ({
+        CommentID: comment.CommentID,
+        Content: comment.Content,
+        CreatedAt: comment.CreatedAt,
+        User: comment.User,
+        isMine: comment.UserID === currentUserId,
+        isLiked: comment.CommentLikes.some((l) => l.UserID === currentUserId),
+        likeCount: comment._count.CommentLikes,
+        replyCount: comment._count.Replies,
+        likedBy: comment.CommentLikes.map((l) => ({
+          username: l.User.Username,
+          profilePicture: l.User.ProfilePicture,
         })),
-        Replies: (comment.Replies || []).map((reply) => ({
-          ...reply,
-          isLiked: (reply.CommentLikes || []).some(
-            (like) => like.UserID === currentUserId
-          ),
-          likeCount: reply._count?.CommentLikes || 0,
-          replyCount: reply._count?.Replies || 0,
-          likedBy: (reply.CommentLikes || []).map((like) => ({
-            username: like.User.Username,
-            profilePicture: like.User.ProfilePicture,
+        Replies: comment.Replies.map((reply) => ({
+          CommentID: reply.CommentID,
+          Content: reply.Content,
+          CreatedAt: reply.CreatedAt,
+          User: reply.User,
+          isMine: reply.UserID === currentUserId,
+          isLiked: reply.CommentLikes.some((l) => l.UserID === currentUserId),
+          likeCount: reply._count.CommentLikes,
+          likedBy: reply.CommentLikes.map((l) => ({
+            username: l.User.Username,
+            profilePicture: l.User.ProfilePicture,
           })),
         })),
-      })),
-    }));
+      }));
 
-    res.status(200).json({
-      count: response.length,
-      posts: response,
+      return {
+        ...post,
+        isMine: post.User.UserID === currentUserId,
+        isLiked,
+        isSaved,
+        isUnseen,
+        isFollowed,
+        shareCount: post._count.Shares,
+        likeCount: post._count.Likes,
+        commentCount: post._count.Comments,
+        Likes,
+        Comments,
+        SharedPost: post.SharedPost
+          ? {
+              ...post.SharedPost,
+              User: post.SharedPost.User,
+            }
+          : null,
+      };
     });
-  } catch (error) {
-    console.error("getUserPosts error:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+
+    // === Respond ===
+    res.json(formatted);
+  } catch (err) {
+    logger.error(`Error fetching user posts: ${err.message}`);
+    handleServerError(res, err, "Failed to fetch user posts");
   }
 };
 
 /**
  * Retrieves user's saved posts with full post details
- * Returns empty array if no posts saved
+ * - Same structure as getPosts/getUserPosts
+ * - Includes pagination and post view tracking
+ * - Prioritizes unseen posts, sorted strictly by save time (newest to oldest)
+ * - Maintains same likes/comments/replies ordering as getPosts
+ * - Handles shared posts and privacy checks
  */
 const getSavedPosts = async (req, res) => {
-  const userId = req.user.UserID;
-
   try {
-    const savedPosts = await prisma.savedPost.findMany({
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+    const userId = req.user.UserID;
+
+    // === Fetch saved post IDs with save time ===
+    const saved = await prisma.savedPost.findMany({
       where: { UserID: userId },
+      select: { PostID: true, CreatedAt: true }, // Include save time
+      skip: offset,
+      take: parseInt(limit) * 2, // Fetch extra to account for filtering
+      orderBy: { CreatedAt: "desc" }, // Sort by save time (newest to oldest)
+    });
+
+    if (!saved.length) {
+      return res.json([]);
+    }
+
+    const postIds = saved.map((s) => s.PostID);
+    const saveTimes = new Map(saved.map((s) => [s.PostID, s.CreatedAt])); // Map PostID to save time
+
+    // === Fetch following users for privacy checks ===
+    const following = await prisma.follower.findMany({
+      where: { FollowerUserID: userId, Status: "ACCEPTED" },
+      select: { UserID: true },
+    });
+    const followingIds = following.map((f) => f.UserID);
+
+    // === Fetch posts ===
+    const posts = await prisma.post.findMany({
+      where: { PostID: { in: postIds } },
       include: {
-        Post: {
+        User: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfilePicture: true,
+            IsPrivate: true,
+          },
+        },
+        SharedPost: {
+          include: {
+            User: {
+              select: { UserID: true, Username: true, ProfilePicture: true },
+            },
+          },
+        },
+        _count: { select: { Likes: true, Comments: true, Shares: true } },
+      },
+    });
+
+    // === Filter posts based on privacy ===
+    const filteredPosts = posts.filter(
+      (p) =>
+        !p.User.IsPrivate ||
+        p.User.UserID === userId ||
+        followingIds.includes(p.User.UserID)
+    );
+    const filteredPostIds = filteredPosts.map((p) => p.PostID);
+
+    if (!filteredPostIds.length) {
+      return res.json([]);
+    }
+
+    // === Batch Queries ===
+    const [userLikes, userSaves, allLikes, allComments, userViews] =
+      await Promise.all([
+        prisma.like.findMany({
+          where: { PostID: { in: filteredPostIds }, UserID: userId },
+          select: { PostID: true },
+        }),
+        prisma.savedPost.findMany({
+          where: { PostID: { in: filteredPostIds }, UserID: userId },
+          select: { PostID: true },
+        }),
+        prisma.like.findMany({
+          where: { PostID: { in: filteredPostIds } },
+          orderBy: { CreatedAt: "desc" },
+          include: {
+            User: {
+              select: {
+                UserID: true,
+                Username: true,
+                ProfileName: true,
+                ProfilePicture: true,
+              },
+            },
+          },
+        }),
+        prisma.comment.findMany({
+          where: { PostID: { in: filteredPostIds }, ParentCommentID: null },
+          orderBy: { CreatedAt: "desc" },
           include: {
             User: {
               select: {
                 UserID: true,
                 Username: true,
                 ProfilePicture: true,
-                IsPrivate: true,
               },
             },
-            Likes: {
-              select: {
-                LikeID: true,
-                PostID: true,
-                UserID: true,
-                CreatedAt: true,
-                User: {
-                  select: {
-                    Username: true,
-                    ProfilePicture: true,
-                  },
-                },
+            CommentLikes: {
+              orderBy: { CreatedAt: "desc" },
+              take: 3,
+              include: {
+                User: { select: { Username: true, ProfilePicture: true } },
               },
             },
-            Comments: {
+            Replies: {
+              orderBy: { CreatedAt: "asc" },
+              take: 3,
               include: {
                 User: {
                   select: {
+                    UserID: true,
                     Username: true,
                     ProfilePicture: true,
                   },
                 },
                 CommentLikes: {
-                  select: {
-                    LikeID: true,
-                    CommentID: true,
-                    UserID: true,
-                    CreatedAt: true,
-                    User: {
-                      select: {
-                        Username: true,
-                        ProfilePicture: true,
-                      },
-                    },
-                  },
-                },
-                Replies: {
+                  orderBy: { CreatedAt: "asc" },
+                  take: 3,
                   include: {
-                    User: {
-                      select: {
-                        Username: true,
-                        ProfilePicture: true,
-                      },
-                    },
-                    CommentLikes: {
-                      select: {
-                        LikeID: true,
-                        CommentID: true,
-                        UserID: true,
-                        CreatedAt: true,
-                        User: {
-                          select: {
-                            Username: true,
-                            ProfilePicture: true,
-                          },
-                        },
-                      },
-                    },
+                    User: { select: { Username: true, ProfilePicture: true } },
                   },
                 },
-                _count: {
-                  select: {
-                    CommentLikes: true,
-                    Replies: true,
-                  },
-                },
+                _count: { select: { CommentLikes: true } },
               },
             },
-            _count: {
-              select: {
-                Likes: true,
-                Comments: true,
-              },
-            },
+            _count: { select: { CommentLikes: true, Replies: true } },
           },
-        },
-      },
-    });
+        }),
+        prisma.postView.findMany({
+          where: { PostID: { in: filteredPostIds }, UserID: userId },
+          select: { PostID: true },
+        }),
+      ]);
 
-    // Format the response to match the desired structure
-    const formattedPosts = savedPosts.map((savedPost) => {
-      const post = savedPost.Post;
-      const isLiked = post.Likes.some((like) => like.UserID === userId);
-      const likedBy = post.Likes.map((like) => ({
-        username: like.User.Username,
-        profilePicture: like.User.ProfilePicture,
+    // === Group Data In Memory ===
+    const likesByPost = groupBy(allLikes, (l) => l.PostID);
+    const commentsByPost = groupBy(allComments, (c) => c.PostID);
+
+    const formatted = filteredPosts.map((post) => {
+      const isLiked = userLikes.some((l) => l.PostID === post.PostID);
+      const isSaved = userSaves.some((s) => s.PostID === post.PostID);
+      const isUnseen = !userViews.some((v) => v.PostID === post.PostID);
+      const isFollowed = followingIds.includes(post.User.UserID);
+      const saveTime = saveTimes.get(post.PostID); // Get save time for sorting
+
+      // === Likes ===
+      const likes = likesByPost[post.PostID] || [];
+      const myLike = likes.find((l) => l.User.UserID === userId);
+      const followingLikes = likes.filter(
+        (l) => followingIds.includes(l.User.UserID) && l.User.UserID !== userId
+      );
+      const otherLikes = likes.filter(
+        (l) => ![userId, ...followingIds].includes(l.User.UserID)
+      );
+
+      const Likes = [
+        ...(myLike ? [myLike] : []),
+        ...followingLikes.slice(0, myLike ? 9 : 10),
+        ...otherLikes.slice(
+          0,
+          Math.max(0, 10 - (myLike ? 1 : 0) - followingLikes.length)
+        ),
+      ].map((like) => ({
+        UserID: like.User.UserID,
+        Username: like.User.Username,
+        ProfileName: like.User.ProfileName,
+        ProfilePicture: like.User.ProfilePicture,
+        isFollowed: followingIds.includes(like.User.UserID),
+        likedAt: like.CreatedAt.toISOString(),
       }));
 
-      const formattedComments = post.Comments.map((comment) => {
-        const commentIsLiked = comment.CommentLikes.some(
-          (like) => like.UserID === userId
-        );
-        const commentLikedBy = comment.CommentLikes.map((like) => ({
-          username: like.User.Username,
-          profilePicture: like.User.ProfilePicture,
-        }));
+      // === Comments ===
+      const comments = (commentsByPost[post.PostID] || []).map((c) => ({
+        ...c,
+        priority:
+          c.UserID === userId ? 0 : followingIds.includes(c.UserID) ? 1 : 2,
+      }));
 
-        const formattedReplies = comment.Replies.map((reply) => {
-          const replyIsLiked = reply.CommentLikes.some(
-            (like) => like.UserID === userId
-          );
-          const replyLikedBy = reply.CommentLikes.map((like) => ({
-            username: like.User.Username,
-            profilePicture: like.User.ProfilePicture,
-          }));
+      const sortedComments = comments
+        .sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return b.CreatedAt - a.CreatedAt;
+        })
+        .slice(0, 3);
 
-          return {
-            CommentID: reply.CommentID,
-            PostID: reply.PostID,
-            UserID: reply.UserID,
-            Content: reply.Content,
-            CreatedAt: reply.CreatedAt,
-            ParentCommentID: reply.ParentCommentID,
-            User: {
-              Username: reply.User.Username,
-              ProfilePicture: reply.User.ProfilePicture,
-            },
-            CommentLikes: reply.CommentLikes,
-            isLiked: replyIsLiked,
-            likeCount: reply.CommentLikes.length,
-            replyCount: 0, // Replies to replies are not supported in this schema
-            likedBy: replyLikedBy,
-          };
-        });
-
-        return {
-          CommentID: comment.CommentID,
-          PostID: comment.PostID,
-          UserID: comment.UserID,
-          Content: comment.Content,
-          CreatedAt: comment.CreatedAt,
-          ParentCommentID: comment.ParentCommentID,
-          User: {
-            Username: comment.User.Username,
-            ProfilePicture: comment.User.ProfilePicture,
-          },
-          CommentLikes: comment.CommentLikes,
-          Replies: formattedReplies,
-          _count: {
-            CommentLikes: comment._count.CommentLikes,
-            Replies: comment._count.Replies,
-          },
-          isLiked: commentIsLiked,
-          likeCount: comment._count.CommentLikes,
-          replyCount: comment._count.Replies,
-          likedBy: commentLikedBy,
-        };
-      });
+      const Comments = sortedComments.map((comment) => ({
+        CommentID: comment.CommentID,
+        Content: comment.Content,
+        CreatedAt: comment.CreatedAt,
+        User: comment.User,
+        isMine: comment.UserID === userId,
+        isLiked: comment.CommentLikes.some((l) => l.UserID === userId),
+        likeCount: comment._count.CommentLikes,
+        replyCount: comment._count.Replies,
+        likedBy: comment.CommentLikes.map((l) => ({
+          username: l.User.Username,
+          profilePicture: l.User.ProfilePicture,
+        })),
+        Replies: comment.Replies.map((reply) => ({
+          CommentID: reply.CommentID,
+          Content: reply.Content,
+          CreatedAt: reply.CreatedAt,
+          User: reply.User,
+          isMine: reply.UserID === userId,
+          isLiked: reply.CommentLikes.some((l) => l.UserID === userId),
+          likeCount: reply._count.CommentLikes,
+          likedBy: reply.CommentLikes.map((l) => ({
+            username: l.User.Username,
+            profilePicture: l.User.ProfilePicture,
+          })),
+        })),
+      }));
 
       return {
-        PostID: post.PostID,
-        UserID: post.UserID,
-        Content: post.Content,
-        ImageURL: post.ImageURL,
-        VideoURL: post.VideoURL,
-        CreatedAt: post.CreatedAt,
-        UpdatedAt: post.UpdatedAt,
-        privacy: post.privacy,
-        User: {
-          UserID: post.User.UserID,
-          Username: post.User.Username,
-          ProfilePicture: post.User.ProfilePicture,
-          IsPrivate: post.User.IsPrivate,
-        },
-        Likes: post.Likes,
-        Comments: formattedComments,
-        _count: {
-          Likes: post._count.Likes,
-          Comments: post._count.Comments,
-        },
-        isLiked: isLiked,
+        ...post,
+        isMine: post.User.UserID === userId,
+        isLiked,
+        isSaved,
+        isUnseen,
+        isFollowed,
+        saveTime, // Include save time for sorting
+        shareCount: post._count.Shares,
         likeCount: post._count.Likes,
         commentCount: post._count.Comments,
-        likedBy: likedBy,
+        Likes,
+        Comments,
+        SharedPost: post.SharedPost
+          ? {
+              ...post.SharedPost,
+              User: post.SharedPost.User,
+            }
+          : null,
       };
     });
 
-    res.status(200).json({ savedPosts: formattedPosts });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching saved posts",
-      error: error.message,
-    });
+    // === Sort Strictly by Save Time ===
+    const sorted = formatted
+      .sort((a, b) => {
+        return b.saveTime.getTime() - a.saveTime.getTime(); // Newer save time first
+      })
+      .slice(0, parseInt(limit));
+
+    // === Respond ===
+    res.json(sorted);
+  } catch (err) {
+    logger.error(`Error fetching saved posts: ${err.message}`);
+    handleServerError(res, err, "Failed to fetch saved posts");
   }
 };
 
 /**
- * Retrieves all stories for the authenticated user with StoryID, MediaURL, and CreatedAt
- * Includes both expired and active stories
+ * Retrieves paginated stories for the authenticated user.
+ * - Supports limit & offset pagination
+ * - Includes both expired and active stories.
+ *
+ * Query params:
+ *   - limit (optional, default 10)
+ *   - offset (optional, default 0)
  */
 const getUserStories = async (req, res) => {
   const userId = req.user.UserID;
+  const { limit = 10, offset = 0 } = req.query;
 
   try {
-    const stories = await prisma.story.findMany({
-      where: { UserID: userId },
-      select: {
-        StoryID: true,
-        MediaURL: true,
-        CreatedAt: true,
-      },
-      orderBy: {
-        CreatedAt: "desc",
-      },
-    });
+    const take = Math.min(Number(limit) || 10, 50); // safety cap
+    const skip = Number(offset) || 0;
+
+    const [stories, totalCount] = await Promise.all([
+      prisma.story.findMany({
+        where: { UserID: userId },
+        select: {
+          StoryID: true,
+          MediaURL: true,
+          CreatedAt: true,
+        },
+        orderBy: { CreatedAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.story.count({ where: { UserID: userId } }),
+    ]);
 
     res.status(200).json({
-      count: stories.length,
+      totalCount,
+      limit: take,
+      offset: skip,
+      hasMore: skip + take < totalCount,
       stories: stories.map((story) => ({
         storyId: story.StoryID,
         mediaUrl: story.MediaURL,
@@ -944,7 +1296,7 @@ const getUserStories = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error("getUserStoryIds error:", error);
+    console.error("getUserStories error:", error);
     res.status(500).json({
       error: "Failed to fetch stories",
       details: process.env.NODE_ENV === "development" ? error.message : null,
@@ -984,11 +1336,6 @@ class RateLimiter {
     const windowStart = now - 60000;
     const recentRequests = requests.filter((t) => t > windowStart);
 
-    if (recentRequests.length >= 5) {
-      const error = new Error("Too many requests");
-      error.remainingPoints = 0;
-      throw error;
-    }
 
     requests.push(now);
     return { remainingPoints: 5 - recentRequests.length - 1 };
@@ -999,7 +1346,7 @@ const rateLimiter = new RateLimiter();
 
 /**
  * Handles follow requests with support for private accounts
- * Implements rate limiting to prevent abuse
+ * Implements rate limiting
  */
 const followUser = async (req, res) => {
   try {
@@ -1013,13 +1360,14 @@ const followUser = async (req, res) => {
     const { userId } = req.params;
     const followerId = req.user.UserID;
 
-    if (userId === followerId) {
+    if (parseInt(userId) === followerId) {
       return res.status(400).json({ error: "Cannot follow yourself" });
     }
 
     const targetUser = await prisma.user.findUnique({
       where: { UserID: parseInt(userId) },
       select: {
+        UserID: true,
         IsPrivate: true,
         Username: true,
         NotificationPreferences: true,
@@ -1032,7 +1380,7 @@ const followUser = async (req, res) => {
 
     const existingFollow = await prisma.follower.findFirst({
       where: {
-        UserID: parseInt(userId),
+        UserID: targetUser.UserID,
         FollowerUserID: followerId,
       },
     });
@@ -1052,12 +1400,13 @@ const followUser = async (req, res) => {
 
     const follow = await prisma.follower.create({
       data: {
-        UserID: parseInt(userId),
+        UserID: targetUser.UserID,
         FollowerUserID: followerId,
         Status: targetUser.IsPrivate ? "PENDING" : "ACCEPTED",
       },
     });
 
+    // Send notification based on preferences
     const shouldNotify =
       !targetUser.NotificationPreferences ||
       !targetUser.NotificationPreferences.NotificationTypes ||
@@ -1070,53 +1419,35 @@ const followUser = async (req, res) => {
           ));
 
     if (shouldNotify) {
-      if (targetUser.IsPrivate) {
-        await prisma.notification.create({
-          data: {
-            UserID: parseInt(userId),
-            SenderID: followerId,
-            Type: "FOLLOW_REQUEST",
-            Content: `${req.user.Username} wants to follow you`,
-            Metadata: {
-              requestId: follow.FollowerID,
-              requesterId: followerId,
-              requesterUsername: req.user.Username,
-            },
-          },
-        });
-        return res.status(201).json({
-          message: "Follow request sent",
-          status: "PENDING",
-        });
-      }
-
       await prisma.notification.create({
         data: {
-          UserID: parseInt(userId),
+          UserID: targetUser.UserID,
           SenderID: followerId,
-          Type: "FOLLOW",
-          Content: `${req.user.Username} started following you`,
-          Metadata: {
-            followerId: followerId,
-            followerUsername: req.user.Username,
-          },
+          Type: targetUser.IsPrivate ? "FOLLOW_REQUEST" : "FOLLOW",
+          Content: targetUser.IsPrivate
+            ? `${req.user.Username} wants to follow you`
+            : `${req.user.Username} started following you`,
+          Metadata: targetUser.IsPrivate
+            ? {
+                requestId: follow.FollowerID,
+                requesterId: followerId,
+                requesterUsername: req.user.Username,
+              }
+            : {
+                followerId: followerId,
+                followerUsername: req.user.Username,
+              },
         },
       });
     }
 
-    // Invalidate Redis cache for the target user's profile
-    const cacheKey = `profile:username:${targetUser.Username}`;
-    await del(cacheKey, followerId?.toString());
-    console.log(`Cache invalidated for profile: ${cacheKey} after follow`);
-
     res.status(201).json({
-      message: "Successfully followed user",
-      status: "ACCEPTED",
+      message: targetUser.IsPrivate
+        ? "Follow request sent"
+        : "Successfully followed user",
+      status: targetUser.IsPrivate ? "PENDING" : "ACCEPTED",
     });
   } catch (error) {
-    if (error.remainingPoints === 0) {
-      return res.status(429).json({ error: "Too many requests" });
-    }
     res.status(500).json({
       error: "Internal server error",
       details: error.message,
@@ -1127,14 +1458,14 @@ const followUser = async (req, res) => {
 
 /**
  * Removes follow relationship between users
- * Validates user IDs to prevent self-unfollow
+ * Validates user IDs
  */
 const unfollowUser = async (req, res) => {
   try {
     const { userId } = req.params;
     const followerId = req.user.UserID;
 
-    if (userId === followerId) {
+    if (parseInt(userId) === followerId) {
       return res.status(400).json({ error: "Cannot unfollow yourself" });
     }
 
@@ -1149,39 +1480,28 @@ const unfollowUser = async (req, res) => {
       return res.status(404).json({ error: "Follow relationship not found" });
     }
 
-    // Invalidate Redis cache for the unfollowed user's profile
-    const unfollowedUser = await prisma.user.findUnique({
-      where: { UserID: parseInt(userId) },
-      select: { Username: true },
-    });
-    if (unfollowedUser) {
-      const cacheKey = `profile:username:${unfollowedUser.Username}`;
-      await del(cacheKey, followerId?.toString());
-      console.log(`Cache cleared for profile: ${cacheKey} after unfollow`);
-    }
-
     res.status(200).json({ message: "Unfollowed successfully" });
   } catch (error) {
-    res.status(500).json({ error: "Internal server error" });
+    res
+      .status(500)
+      .json({ error: "Internal server error", details: error.message });
   }
 };
 
 /**
  * Removes a follower from the current user's followers list
- * Validates user ownership and deletes the follow relationship
+ * Validates ownership and deletes relationship
  */
 const removeFollower = async (req, res) => {
   try {
-    const { followerId } = req.params; // ID of the user to remove as a follower
-    const userId = req.user.UserID; // Current authenticated user (profile owner)
+    const { followerId } = req.params; // follower to remove
+    const userId = req.user.UserID; // current user
 
-    // Validate that the followerId is a valid number
     const parsedFollowerId = parseInt(followerId);
     if (isNaN(parsedFollowerId)) {
       return res.status(400).json({ error: "Invalid follower ID format" });
     }
 
-    // Check if the follower relationship exists
     const followRelationship = await prisma.follower.findFirst({
       where: {
         UserID: userId,
@@ -1194,25 +1514,9 @@ const removeFollower = async (req, res) => {
       return res.status(404).json({ error: "Follower relationship not found" });
     }
 
-    // Delete the follower relationship
     await prisma.follower.delete({
-      where: {
-        FollowerID: followRelationship.FollowerID,
-      },
+      where: { FollowerID: followRelationship.FollowerID },
     });
-
-    // Invalidate Redis cache for the current user's profile and followers list
-    const cacheKeyProfile = `profile:username:${req.user.Username}`;
-    await del(cacheKeyProfile, userId?.toString());
-    console.log(
-      `Cache cleared for profile: ${cacheKeyProfile} after removing follower`
-    );
-
-    const cacheKeyFollowers = `followers:user:${userId}`;
-    await del(cacheKeyFollowers, userId?.toString());
-    console.log(
-      `Cache cleared for followers: ${cacheKeyFollowers} after removing follower`
-    );
 
     res.status(200).json({ message: "Follower removed successfully" });
   } catch (error) {
@@ -1365,24 +1669,215 @@ const rejectFollowRequest = async (req, res) => {
 
 /**
  * Retrieves user's followers with privacy checks
- * For private accounts, verifies follow status before showing
+ * Order:
+ *  1. Current user (if follower)
+ *  2. Users followed by current user
+ *  3. Other followers
+ * Ensures no duplicates
+ * Supports pagination with page & limit
  */
 const getFollowers = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { username } = req.params;
     const currentUserId = req.user?.UserID;
-    const parsedUserId = parseInt(userId);
+    const { page = 1, limit = 20 } = req.query;
 
-    if (isNaN(parsedUserId)) {
-      return res.status(400).json({ error: "Invalid user ID format" });
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+
+    // 🔒 Validate inputs
+    if (!currentUserId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (
+      !username ||
+      typeof username !== "string" ||
+      username.trim().length === 0
+    ) {
+      return res.status(400).json({ error: "Invalid username format" });
+    }
+    if (isNaN(parsedPage) || parsedPage < 1) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+      return res.status(400).json({ error: "Limit must be between 1 and 100" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { UserID: parsedUserId },
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    // Fetch user by username
+    const user = await prisma.user.findFirst({
+      where: { Username: { equals: username, mode: "insensitive" } },
+      select: { UserID: true, IsPrivate: true, Username: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // privacy
+    const isOwner = currentUserId === user.UserID;
+    let hasAccess = !user.IsPrivate || isOwner;
+
+    if (user.IsPrivate && !isOwner) {
+      const followRelationship = await prisma.follower.findFirst({
+        where: {
+          UserID: user.UserID,
+          FollowerUserID: currentUserId,
+          Status: "ACCEPTED",
+        },
+      });
+      hasAccess = !!followRelationship;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: "Private account",
+        message: `You must follow @${user.Username} to view their followers`,
+      });
+    }
+
+    // Users currentUser follows (for prioritization)
+    const currentUserFollowing = await prisma.follower.findMany({
+      where: { FollowerUserID: currentUserId, Status: "ACCEPTED" },
+      select: { UserID: true },
+    });
+    const followingIds = new Set(currentUserFollowing.map((f) => f.UserID));
+
+    // Count followers
+    const totalCount = await prisma.follower.count({
+      where: { UserID: user.UserID, Status: "ACCEPTED" },
+    });
+
+    // Fetch followers
+    const followers = await prisma.follower.findMany({
+      where: { UserID: user.UserID, Status: "ACCEPTED" },
       select: {
+        FollowerUser: {
+          select: {
+            UserID: true,
+            Username: true,
+            ProfileName: true,
+            ProfilePicture: true,
+            IsPrivate: true,
+            Bio: true,
+          },
+        },
+        CreatedAt: true,
+      },
+      orderBy: { CreatedAt: "desc" },
+      skip,
+      take: parsedLimit,
+    });
+
+    // Deduplicate + prioritize
+    const seen = new Set();
+    const prioritizedFollowers = [];
+
+    for (const f of followers) {
+      const u = f.FollowerUser;
+      if (!u || seen.has(u.UserID)) continue;
+      seen.add(u.UserID);
+
+      prioritizedFollowers.push({
+        userId: u.UserID,
+        username: u.Username,
+        profileName: u.ProfileName,
+        profilePicture: u.ProfilePicture,
+        isPrivate: u.IsPrivate,
+        bio: u.Bio,
+        isFollowed: followingIds.has(u.UserID),
+        isCurrentUser: u.UserID === currentUserId,
+        followCreatedAt: f.CreatedAt,
+      });
+    }
+
+    // Sort by priority
+    prioritizedFollowers.sort((a, b) => {
+      // 1. current user first
+      if (a.isCurrentUser) return -1;
+      if (b.isCurrentUser) return 1;
+
+      // 2. followed by current user
+      if (a.isFollowed && !b.isFollowed) return -1;
+      if (!a.isFollowed && b.isFollowed) return 1;
+
+      // 3. fallback: followCreatedAt (recent first)
+      return new Date(b.followCreatedAt) - new Date(a.followCreatedAt);
+    });
+
+    // Response
+    const response = {
+      count: prioritizedFollowers.length,
+      totalCount,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(totalCount / parsedLimit),
+      followers: prioritizedFollowers.map((f) => ({
+        userId: f.userId,
+        username: f.username,
+        profileName: f.profileName,
+        profilePicture: f.profilePicture,
+        isPrivate: f.isPrivate,
+        bio: f.bio,
+        isFollowed: f.isFollowed,
+      })),
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("getFollowers error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * Retrieves users being followed with privacy checks
+ * Prioritizes the current user (if following), then users followed by the current user, then others, sorted by recent interactions
+ * Supports pagination with page and limit query parameters
+ * For private accounts, verifies follow status before showing
+ * Uses username (case-insensitive) instead of userId
+ */
+const getFollowing = async (req, res) => {
+  try {
+    const { username } = req.params;
+    const currentUserId = req.user?.UserID;
+    const { page = 1, limit = 20 } = req.query; // Default to page 1, limit 20
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+
+    // Validate inputs
+    if (!currentUserId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (
+      !username ||
+      typeof username !== "string" ||
+      username.trim().length === 0
+    ) {
+      return res.status(400).json({ error: "Invalid username format" });
+    }
+    if (isNaN(parsedPage) || parsedPage < 1) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+      return res.status(400).json({ error: "Limit must be between 1 and 100" });
+    }
+
+    // Calculate pagination
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    // Fetch user by username (case-insensitive)
+    const user = await prisma.user.findFirst({
+      where: { Username: { equals: username, mode: "insensitive" } },
+      select: {
+        UserID: true,
         IsPrivate: true,
         Username: true,
-        UserID: true,
       },
     });
 
@@ -1390,10 +1885,11 @@ const getFollowers = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // Check access for private accounts
     const isOwner = currentUserId === user.UserID;
     let hasAccess = !user.IsPrivate || isOwner;
 
-    if (user.IsPrivate && !isOwner && currentUserId) {
+    if (user.IsPrivate && !isOwner) {
       const followRelationship = await prisma.follower.findFirst({
         where: {
           UserID: user.UserID,
@@ -1407,97 +1903,32 @@ const getFollowers = async (req, res) => {
     if (!hasAccess) {
       return res.status(403).json({
         error: "Private account",
-        message: `You must follow @${user.Username} to view their followers`,
+        message: `You must follow @${user.Username} to view who they follow`,
       });
     }
 
-    const followers = await prisma.follower.findMany({
+    // Get users followed by the current user for prioritization
+    const currentUserFollowing = await prisma.follower.findMany({
       where: {
-        UserID: user.UserID,
+        FollowerUserID: currentUserId,
         Status: "ACCEPTED",
       },
-      select: {
-        FollowerUser: {
-          select: {
-            UserID: true,
-            Username: true,
-            ProfileName: true,
-            ProfilePicture: true,
-            IsPrivate: true,
-            Bio: true, // Include Bio since we're returning it in the response
-          },
-        },
-        CreatedAt: true,
+      select: { UserID: true },
+    });
+    const followingIds = currentUserFollowing.map((f) => f.UserID);
+
+    // Get total count of following for pagination metadata
+    const totalCount = await prisma.follower.count({
+      where: {
+        FollowerUserID: user.UserID,
+        Status: "ACCEPTED",
       },
-      orderBy: {
-        CreatedAt: "desc",
-      },
-      take: 100,
     });
 
-    res.status(200).json({
-      count: followers.length,
-      followers: followers.map((follower) => ({
-        userId: follower.FollowerUser.UserID,
-        username: follower.FollowerUser.Username,
-        profileName: follower.FollowerUser.ProfileName,
-        profilePicture: follower.FollowerUser.ProfilePicture,
-        isPrivate: follower.FollowerUser.IsPrivate,
-        bio: follower.FollowerUser.Bio,
-      })),
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Internal server error",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
-
-/**
- * Retrieves users being followed with privacy checks
- * For private accounts, verifies follow status before showing
- */
-const getFollowing = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const currentUserId = req.user?.UserID;
-    const parsedUserId = parseInt(userId);
-
-    if (isNaN(parsedUserId)) {
-      return res.status(400).json({ error: "Invalid user ID" });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { UserID: parsedUserId },
-      select: { IsPrivate: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const isOwner = currentUserId === parsedUserId;
-    const hasAccess =
-      !user.IsPrivate ||
-      isOwner ||
-      (currentUserId &&
-        (await prisma.follower.count({
-          where: {
-            UserID: parsedUserId,
-            FollowerUserID: currentUserId,
-            Status: "ACCEPTED",
-          },
-        })) > 0);
-
-    if (!hasAccess) {
-      return res.status(403).json({ error: "Private account" });
-    }
-
+    // Fetch following with interaction data
     const following = await prisma.follower.findMany({
       where: {
-        FollowerUserID: parsedUserId,
+        FollowerUserID: user.UserID,
         Status: "ACCEPTED",
       },
       select: {
@@ -1507,34 +1938,117 @@ const getFollowing = async (req, res) => {
             Username: true,
             ProfileName: true,
             ProfilePicture: true,
-            Bio: true,
             IsPrivate: true,
+            Bio: true,
+            Likes: {
+              select: { CreatedAt: true },
+              orderBy: { CreatedAt: "desc" },
+              take: 1,
+            },
+            Comments: {
+              select: { CreatedAt: true },
+              orderBy: { CreatedAt: "desc" },
+              take: 1,
+            },
+            StoryViews: {
+              select: { ViewedAt: true },
+              orderBy: { ViewedAt: "desc" },
+              take: 1,
+            },
           },
         },
+        CreatedAt: true,
       },
-      take: 100,
+      orderBy: { CreatedAt: "desc" },
+      skip,
+      take: parsedLimit,
     });
 
-    res.status(200).json({
-      count: following.length,
-      following: following.map((f) => ({
-        userId: f.User.UserID,
-        username: f.User.Username,
-        profileName: f.User.ProfileName,
-        profilePicture: f.User.ProfilePicture,
-        isPrivate: f.User.IsPrivate,
-        bio: f.User.Bio,
+    // Map and prioritize following
+    const prioritizedFollowing = following
+      .map((f) => {
+        const { User, CreatedAt } = f;
+        const latestLike = User.Likes[0]?.CreatedAt;
+        const latestComment = User.Comments[0]?.CreatedAt;
+        const latestStoryView = User.StoryViews[0]?.ViewedAt;
+
+        // Determine the most recent interaction time
+        const latestInteraction = [latestLike, latestComment, latestStoryView]
+          .filter((date) => date)
+          .reduce((latest, current) => {
+            return !latest || new Date(current) > new Date(latest)
+              ? current
+              : latest;
+          }, null);
+
+        return {
+          userId: User.UserID,
+          username: User.Username,
+          profileName: User.ProfileName,
+          profilePicture: User.ProfilePicture,
+          isPrivate: User.IsPrivate,
+          bio: User.Bio,
+          isFollowed: followingIds.includes(User.UserID),
+          isCurrentUser: User.UserID === currentUserId,
+          latestInteraction: latestInteraction
+            ? new Date(latestInteraction).toISOString()
+            : null,
+          followCreatedAt: CreatedAt,
+        };
+      })
+      .sort((a, b) => {
+        // Prioritize current user
+        if (a.isCurrentUser) return -1;
+        if (b.isCurrentUser) return 1;
+
+        // Then prioritize users followed by the current user
+        const aIsFollowed = a.isFollowed;
+        const bIsFollowed = b.isFollowed;
+        if (aIsFollowed && !bIsFollowed) return -1;
+        if (!aIsFollowed && bIsFollowed) return 1;
+
+        // Sort by latest interaction
+        if (a.latestInteraction && b.latestInteraction) {
+          return new Date(b.latestInteraction) - new Date(a.latestInteraction);
+        }
+        if (a.latestInteraction) return -1;
+        if (b.latestInteraction) return 1;
+
+        // Fallback to follow creation date
+        return new Date(b.followCreatedAt) - new Date(a.followCreatedAt);
+      });
+
+    const response = {
+      count: prioritizedFollowing.length,
+      totalCount,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(totalCount / parsedLimit),
+      following: prioritizedFollowing.map((f) => ({
+        userId: f.userId,
+        username: f.username,
+        profileName: f.profileName,
+        profilePicture: f.profilePicture,
+        isPrivate: f.isPrivate,
+        bio: f.bio,
+        isFollowed: f.isFollowed,
       })),
-    });
+    };
+
+    res.status(200).json(response);
   } catch (error) {
-    res.status(500).json({ error: "Internal server error" });
+    console.error("getFollowing error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 
 /**
  * Retrieves random user suggestions that the current user is not following
  * Excludes the current user and banned users
- * Caches results in Redis for performance
  */
 const getUserSuggestions = async (req, res) => {
   try {
@@ -1543,13 +2057,6 @@ const getUserSuggestions = async (req, res) => {
 
     if (limit < 1 || limit > 50) {
       return res.status(400).json({ error: "Limit must be between 1 and 50" });
-    }
-
-    // Check Redis cache
-    const cacheKey = `suggestions:user:${currentUserId}:limit:${limit}`;
-    const cachedSuggestions = await get(cacheKey);
-    if (cachedSuggestions) {
-      return res.status(200).json(cachedSuggestions);
     }
 
     // Get IDs of users the current user is following
@@ -1620,9 +2127,6 @@ const getUserSuggestions = async (req, res) => {
       })),
     };
 
-    // Cache the result in Redis for 5 minutes
-    await setWithTracking(cacheKey, response, 300, currentUserId.toString());
-
     res.status(200).json(response);
   } catch (error) {
     console.error("getUserSuggestions error:", error);
@@ -1634,114 +2138,8 @@ const getUserSuggestions = async (req, res) => {
   }
 };
 
-/**
- * Retrieves user profile by username with privacy checks
- * Returns profile if account is public or if private and followed by current user
- */
-const getProfileByUsername = async (req, res) => {
-  try {
-    const { username } = req.params;
-    const currentUserId = req.user?.UserID;
-
-    // Check Redis cache
-    const cacheKey = `profile:username:${username}`;
-    const cachedProfile = await get(cacheKey);
-    if (cachedProfile) {
-      return res.status(200).json(cachedProfile);
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { Username: username },
-      select: {
-        UserID: true,
-        Username: true,
-        ProfilePicture: true,
-        CoverPicture: true,
-        Bio: true,
-        Address: true,
-        JobTitle: true,
-        DateOfBirth: true,
-        IsPrivate: true,
-        Role: true,
-        CreatedAt: true,
-        UpdatedAt: true,
-        ProfileName: true,
-        IsBanned: true,
-        _count: {
-          select: {
-            Posts: true,
-            Followers: { where: { Status: "ACCEPTED" } },
-            Following: { where: { Status: "ACCEPTED" } },
-            Likes: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    if (user.IsBanned) {
-      return res.status(403).json({ error: "User is banned" });
-    }
-
-    // Check if the current user is following this user and get follow status
-    let isFollowing = false;
-    let followStatus = "NONE";
-    if (currentUserId && currentUserId !== user.UserID) {
-      const followStatusQuery = await prisma.follower.findFirst({
-        where: {
-          UserID: user.UserID,
-          FollowerUserID: currentUserId,
-        },
-      });
-      if (followStatusQuery) {
-        isFollowing = followStatusQuery.Status === "ACCEPTED";
-        followStatus = followStatusQuery.Status;
-      }
-    }
-
-    const response = {
-      profile: {
-        userId: user.UserID,
-        username: user.Username,
-        profilePicture: user.ProfilePicture,
-        coverPicture: user.CoverPicture,
-        bio: user.Bio,
-        address: user.Address,
-        jobTitle: user.JobTitle,
-        dateOfBirth: user.DateOfBirth,
-        isPrivate: user.IsPrivate,
-        role: user.Role,
-        createdAt: user.CreatedAt,
-        updatedAt: user.UpdatedAt,
-        postCount: user._count.Posts,
-        followerCount: user._count.Followers,
-        followingCount: user._count.Following,
-        likeCount: user._count.Likes,
-        isFollowing: isFollowing,
-        profileName: user.ProfileName,
-        followStatus: followStatus, // Added to indicate follow status
-      },
-    };
-
-    // Cache the result in Redis for 5 minutes
-    await setWithTracking(cacheKey, response, 300, currentUserId?.toString());
-    console.log(`Cache set for profile: ${cacheKey}`);
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("getProfileByUsername error:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
-};
-
 module.exports = {
+  getProfileByUsername,
   getProfile,
   updateProfile,
   changePassword,
@@ -1759,5 +2157,4 @@ module.exports = {
   rejectFollowRequest,
   getPendingFollowRequests,
   getUserSuggestions,
-  getProfileByUsername,
 };
