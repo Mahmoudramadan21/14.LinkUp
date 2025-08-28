@@ -1,3 +1,8 @@
+/**
+ * Authentication routes for the LinkUp backend.
+ * @module routes/authRoutes
+ */
+
 const express = require("express");
 const {
   signup,
@@ -6,6 +11,8 @@ const {
   forgotPassword,
   verifyCode,
   resetPassword,
+  logout,
+  isAuthenticated,
 } = require("../controllers/authController");
 const {
   signupValidationRules,
@@ -15,14 +22,28 @@ const {
   resetPasswordValidationRules,
 } = require("../validators/authValidators");
 const { validate } = require("../middleware/validationMiddleware");
+const { authMiddleware } = require("../middleware/authMiddleware");
+const {
+  csrfProtection,
+  setCsrfCookie,
+} = require("../middleware/csrfMiddleware");
 const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
 
+// Rate limiter for login endpoint
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit to 5 attempts
   message: "Too many login attempts, please try again after 15 minutes",
+});
+
+// Rate limiter for forgot-password endpoint
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit to 5 attempts
+  message:
+    "Too many password reset requests, please try again after 15 minutes",
 });
 
 /**
@@ -36,10 +57,16 @@ const loginLimiter = rateLimit({
  * @swagger
  * components:
  *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
+ *     cookieAuth:
+ *       type: apiKey
+ *       in: cookie
+ *       name: accessToken
+ *       description: JWT access token stored in a secure, httpOnly cookie
+ *     csrfToken:
+ *       type: apiKey
+ *       in: header
+ *       name: X-CSRF-Token
+ *       description: CSRF token required for POST requests
  *   schemas:
  *     UserAuth:
  *       type: object
@@ -100,15 +127,6 @@ const loginLimiter = rateLimit({
  *           minLength: 8
  *           example: P@ssw0rd123
  *           description: User password
- *     RefreshTokenRequest:
- *       type: object
- *       required:
- *         - refreshToken
- *       properties:
- *         refreshToken:
- *           type: string
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *           description: Valid refresh token
  *     PasswordResetRequest:
  *       type: object
  *       required:
@@ -162,6 +180,9 @@ const loginLimiter = rateLimit({
  *         resetToken:
  *           type: string
  *           description: Temporary token for password reset (optional)
+ *         isAuthenticated:
+ *           type: boolean
+ *           description: Indicates if the user is authenticated (optional)
  *         data:
  *           type: object
  *           description: Additional data (optional)
@@ -200,6 +221,8 @@ const loginLimiter = rateLimit({
  *   post:
  *     summary: Register a new user account
  *     tags: [Authentication]
+ *     security:
+ *       - csrfToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -208,7 +231,7 @@ const loginLimiter = rateLimit({
  *             $ref: '#/components/schemas/UserAuth'
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User registered successfully, tokens set in secure cookies
  *         content:
  *           application/json:
  *             schema:
@@ -230,20 +253,20 @@ const loginLimiter = rateLimit({
  *                       nullable: true
  *                     email:
  *                       type: string
- *                     accessToken:
- *                       type: string
- *                     refreshToken:
- *                       type: string
- *               example:
- *                 message: User registered successfully
- *                 data:
- *                   userId: 1
- *                   username: john_doe
- *                   profileName: John Doe
- *                   profilePicture: null
- *                   email: john.doe@example.com
- *                   accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                   refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *             example:
+ *               message: User registered successfully
+ *               data:
+ *                 userId: 1
+ *                 username: john_doe
+ *                 profileName: John Doe
+ *                 profilePicture: null
+ *                 email: john.doe@example.com
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=900
+ *             description: Sets accessToken and refreshToken in secure cookies
  *       400:
  *         description: Validation error
  *         content:
@@ -255,6 +278,14 @@ const loginLimiter = rateLimit({
  *               errors:
  *                 - field: profilename
  *                   error: Profile name is required
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
  *       409:
  *         description: Email or username already exists
  *         content:
@@ -272,14 +303,16 @@ const loginLimiter = rateLimit({
  *             example:
  *               message: Error registering user
  */
-router.post("/signup", signupValidationRules, validate, signup);
+router.post("/signup", csrfProtection, signupValidationRules, validate, signup);
 
 /**
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Authenticate user and get access token
+ *     summary: Authenticate user and set tokens in cookies
  *     tags: [Authentication]
+ *     security:
+ *       - csrfToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -288,7 +321,7 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             $ref: '#/components/schemas/LoginCredentials'
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login successful, tokens set in secure cookies
  *         content:
  *           application/json:
  *             schema:
@@ -310,20 +343,20 @@ router.post("/signup", signupValidationRules, validate, signup);
  *                       nullable: true
  *                     email:
  *                       type: string
- *                     accessToken:
- *                       type: string
- *                     refreshToken:
- *                       type: string
- *               example:
- *                 message: Login successful
- *                 data:
- *                   accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                   refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                   userId: 1
- *                   username: john_doe
- *                   profileName: John Doe
- *                   profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
- *                   email: john.doe@example.com
+ *             example:
+ *               message: Login successful
+ *               data:
+ *                 userId: 1
+ *                 username: john_doe
+ *                 profileName: John Doe
+ *                 profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
+ *                 email: john.doe@example.com
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=900
+ *             description: Sets accessToken and refreshToken in secure cookies
  *       400:
  *         description: Validation error
  *         content:
@@ -343,6 +376,14 @@ router.post("/signup", signupValidationRules, validate, signup);
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Invalid credentials
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
  *       429:
  *         description: Too many login attempts
  *         content:
@@ -360,32 +401,38 @@ router.post("/signup", signupValidationRules, validate, signup);
  *             example:
  *               message: Authentication failed
  */
-router.post("/login", loginLimiter, loginValidationRules, validate, login);
+router.post(
+  "/login",
+  loginLimiter,
+  csrfProtection,
+  loginValidationRules,
+  validate,
+  login
+);
 
 /**
  * @swagger
  * /auth/refresh:
  *   post:
- *     summary: Refresh access token
+ *     summary: Refresh access token using refresh token from cookies
  *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RefreshTokenRequest'
+ *     security:
+ *       - csrfToken: []
  *     responses:
  *       200:
- *         description: Token refreshed successfully
+ *         description: Token refreshed successfully, new tokens set in cookies
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
  *               message: Token refreshed successfully
- *               data:
- *                 accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Strict; Max-Age=900
+ *             description: Sets new accessToken and refreshToken in secure cookies
  *       400:
  *         description: Invalid or missing refresh token
  *         content:
@@ -403,7 +450,7 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *             example:
  *               message: Invalid or expired refresh token
  *       403:
- *         description: User is banned
+ *         description: User is banned or invalid CSRF token
  *         content:
  *           application/json:
  *             schema:
@@ -427,7 +474,140 @@ router.post("/login", loginLimiter, loginValidationRules, validate, login);
  *             example:
  *               message: Redis service unavailable
  */
-router.post("/refresh", controllerRefreshToken);
+router.post("/refresh", csrfProtection, controllerRefreshToken);
+
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Log out user and clear tokens
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *       - csrfToken: []
+ *     responses:
+ *       200:
+ *         description: Logout successful, cookies cleared
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               message: Logout successful
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: accessToken=; Max-Age=0; HttpOnly; Secure; SameSite=Strict
+ *             description: Clears accessToken and refreshToken cookies
+ *       401:
+ *         description: Unauthorized (invalid or missing token)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Authentication failed
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Failed to logout
+ */
+router.post("/logout", authMiddleware, csrfProtection, logout);
+
+/**
+ * @swagger
+ * /auth/isAuthenticated:
+ *   get:
+ *     summary: Check if user is authenticated based on access token in cookies
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: User is authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isAuthenticated:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     profileName:
+ *                       type: string
+ *                     profilePicture:
+ *                       type: string
+ *                       nullable: true
+ *                     email:
+ *                       type: string
+ *             example:
+ *               isAuthenticated: true
+ *               message: User is authenticated
+ *               data:
+ *                 userId: 1
+ *                 username: john_doe
+ *                 profileName: John Doe
+ *                 profilePicture: https://res.cloudinary.com/duw4x8iqq/image/upload/s57dsggdf/profile_pictures/user_profile.jpg
+ *                 email: john.doe@example.com
+ *       401:
+ *         description: Unauthorized (invalid, expired, or missing token)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               isAuthenticated: false
+ *               message: Token expired or invalid, please refresh token
+ *       403:
+ *         description: User is banned or token is blacklisted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               isAuthenticated: false
+ *               message: User is banned
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               isAuthenticated: false
+ *               message: User not found
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               isAuthenticated: false
+ *               message: Failed to check authentication status
+ */
+router.get("/isAuthenticated", isAuthenticated);
 
 /**
  * @swagger
@@ -435,6 +615,8 @@ router.post("/refresh", controllerRefreshToken);
  *   post:
  *     summary: Request a password reset verification code
  *     tags: [Authentication]
+ *     security:
+ *       - csrfToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -462,6 +644,22 @@ router.post("/refresh", controllerRefreshToken);
  *               errors:
  *                 - field: email
  *                   error: Email is required
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
+ *       429:
+ *         description: Too many password reset requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Too many password reset requests, please try again after 15 minutes
  *       500:
  *         description: Internal server error
  *         content:
@@ -473,6 +671,8 @@ router.post("/refresh", controllerRefreshToken);
  */
 router.post(
   "/forgot-password",
+  forgotPasswordLimiter,
+  csrfProtection,
   forgotPasswordValidationRules,
   validate,
   forgotPassword
@@ -484,6 +684,8 @@ router.post(
  *   post:
  *     summary: Verify the 4-digit verification code
  *     tags: [Authentication]
+ *     security:
+ *       - csrfToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -508,6 +710,14 @@ router.post(
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Invalid or expired verification code
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
  *       500:
  *         description: Internal server error
  *         content:
@@ -517,7 +727,13 @@ router.post(
  *             example:
  *               message: Error verifying code
  */
-router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
+router.post(
+  "/verify-code",
+  csrfProtection,
+  verifyCodeValidationRules,
+  validate,
+  verifyCode
+);
 
 /**
  * @swagger
@@ -525,6 +741,8 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *   post:
  *     summary: Reset user password using a temporary token
  *     tags: [Authentication]
+ *     security:
+ *       - csrfToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -556,6 +774,14 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Invalid or expired reset token
+ *       403:
+ *         description: Invalid CSRF token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Invalid CSRF token
  *       500:
  *         description: Internal server error
  *         content:
@@ -567,9 +793,52 @@ router.post("/verify-code", verifyCodeValidationRules, validate, verifyCode);
  */
 router.post(
   "/reset-password",
+  csrfProtection,
   resetPasswordValidationRules,
   validate,
   resetPassword
 );
+
+/**
+ * @swagger
+ * /auth/csrf-token:
+ *   get:
+ *     summary: Fetch a new CSRF token
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: CSRF token set in cookies
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: CSRF token generated successfully
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: _csrf=abc123; HttpOnly; Secure; SameSite=Strict
+ *             description: Sets the CSRF token in a secure cookie
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: csrf-token=abc123; Secure; SameSite=Strict
+ *             description: Sets a non-HttpOnly CSRF token cookie for frontend access
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Failed to generate CSRF token
+ */
+router.get("/csrf-token", csrfProtection, setCsrfCookie, (req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.status(200).json({ message: "CSRF token generated successfully" });
+});
 
 module.exports = router;
