@@ -44,6 +44,7 @@ enum NotificationType {
   REPORT
   COMMENT_LIKE
   COMMENT_REPLY
+  SHARE
 }
 
 enum ReportStatus {
@@ -103,6 +104,7 @@ model User {
   SentNotifications  Notification[]   @relation("NotificationSender")
   NotificationPreferences Json?
   Reports            Report[]         @relation("Reporter")
+  StoryReports       StoryReport[]    @relation("StoryReporter") // Added for story reports
   SupportRequests    SupportRequest[]
   IsBanned           Boolean          @default(false)
   BanReason          String?
@@ -110,6 +112,7 @@ model User {
   Highlights         Highlight[]
   AdminAuditLogs     AuditLog[]       @relation("AdminAudit")
   UserAuditLogs      AuditLog[]       @relation("UserAudit")
+  PostViews          PostView[]       @relation("UserToPostViews")
   @@index([Username])
   @@index([Email])
 }
@@ -182,21 +185,26 @@ model RateLimiting {
 }
 
 model Post {
-  PostID     Int          @id @default(autoincrement())
-  UserID     Int
-  User       User         @relation(fields: [UserID], references: [UserID])
-  Content    String
-  ImageURL   String?
-  VideoURL   String?
-  CreatedAt  DateTime     @default(now())
-  UpdatedAt  DateTime     @updatedAt
-  Comments   Comment[]
-  Likes      Like[]
-  Reports    Report[]
-  SavedPosts SavedPost[]
-  privacy    PostPrivacy @default(PUBLIC)
+  PostID       Int          @id @default(autoincrement())
+  UserID       Int
+  User         User         @relation(fields: [UserID], references: [UserID])
+  Content      String?
+  ImageURL     String?
+  VideoURL     String?
+  CreatedAt    DateTime     @default(now())
+  UpdatedAt    DateTime     @updatedAt
+  Comments     Comment[]
+  Likes        Like[]
+  Reports      Report[]
+  SavedPosts   SavedPost[]
+  privacy      PostPrivacy @default(PUBLIC)
+  SharedPostID Int?
+  SharedPost   Post?        @relation("SharedPosts", fields: [SharedPostID], references: [PostID])
+  Shares       Post[]       @relation("SharedPosts")
+  PostViews    PostView[]   @relation("PostToPostViews")
   @@index([CreatedAt])
   @@index([UserID, CreatedAt])
+  @@index([SharedPostID])
 }
 
 model Comment {
@@ -207,6 +215,7 @@ model Comment {
   User           User          @relation(fields: [UserID], references: [UserID])
   Content        String
   CreatedAt      DateTime      @default(now())
+  UpdatedAt DateTime @default(now()) @updatedAt
   ParentCommentID Int?          @map("parentCommentId")
   ParentComment   Comment?      @relation("CommentReplies", fields: [ParentCommentID], references: [CommentID], onDelete: Cascade)
   Replies        Comment[]     @relation("CommentReplies")
@@ -235,6 +244,7 @@ model Story {
   ExpiresAt     DateTime
   StoryLikes    StoryLike[]
   StoryViews    StoryView[]      @relation("StoryToStoryView")
+  StoryReports  StoryReport[]    @relation("StoryToReports") // Added for story reports
   StoryHighlights StoryHighlight[] @relation("StoryToHighlight")
   @@index([UserID])
   @@index([ExpiresAt])
@@ -330,6 +340,21 @@ model Report {
   @@index([Status])
 }
 
+model StoryReport {
+  ReportID    Int          @id @default(autoincrement())
+  Story       Story        @relation("StoryToReports", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  StoryID     Int
+  Reporter    User         @relation("StoryReporter", fields: [ReporterID], references: [UserID])
+  ReporterID  Int
+  Reason      String
+  Status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  @@index([StoryID])
+  @@index([ReporterID])
+  @@index([Status])
+}
+
 model SupportRequest {
   RequestID Int      @id @default(autoincrement())
   UserID    Int
@@ -337,4 +362,17 @@ model SupportRequest {
   Subject   String
   Content   String
   CreatedAt DateTime @default(now())
+}
+
+model PostView {
+  ViewID    Int      @id @default(autoincrement())
+  PostID    Int
+  UserID    Int
+  ViewedAt  DateTime @default(now())
+  Post      Post     @relation("PostToPostViews", fields: [PostID], references: [PostID], onDelete: Cascade)
+  User      User     @relation("UserToPostViews", fields: [UserID], references: [UserID])
+  @@unique([PostID, UserID])
+  @@index([PostID])
+  @@index([UserID])
+  @@index([ViewedAt])
 }
