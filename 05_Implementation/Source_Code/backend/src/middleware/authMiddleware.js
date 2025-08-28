@@ -4,7 +4,7 @@ const redis = require("../utils/redis");
 const { handleUnauthorizedError } = require("../utils/errorHandler");
 
 /**
- * Verifies JWT token and attaches user to request
+ * Verifies JWT token from cookies and attaches user to request.
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next function
@@ -12,9 +12,15 @@ const { handleUnauthorizedError } = require("../utils/errorHandler");
  */
 const authMiddleware = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = req.cookies.accessToken;
     if (!token) {
       return handleUnauthorizedError(res, "No token provided");
+    }
+
+    // Check if token is blacklisted
+    const isBlacklisted = await redis.get(`blacklist:access:${token}`);
+    if (isBlacklisted) {
+      return handleUnauthorizedError(res, "Token is blacklisted");
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -49,8 +55,8 @@ const authMiddleware = async (req, res, next) => {
 };
 
 /**
- * Authorizes requests based on user role
- * Caches role in Redis to reduce database queries
+ * Authorizes requests based on user role.
+ * Caches role in Redis to reduce database queries.
  * @param {string[]} allowedRoles - Array of allowed roles
  * @returns {Function} Express middleware
  */
