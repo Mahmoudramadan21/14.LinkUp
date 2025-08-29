@@ -4,10 +4,11 @@ const {
   createStory,
   getUserStories,
   getStoryFeed,
+  reportStory,
   deleteStory,
   getStoryById,
   toggleStoryLike,
-  getStoryViews,
+  getStoryViewersWithLikes,
   recordStoryView,
 } = require("../controllers/storyController");
 const { authMiddleware } = require("../middleware/authMiddleware");
@@ -181,9 +182,9 @@ router.get("/:username", authMiddleware, getUserStories);
 
 /**
  * @swagger
- * /stories/{storyId}/views:
+ * /stories/{storyId}/viewers:
  *   get:
- *     summary: Get analytics for a specific story
+ *     summary: Get viewers of a specific story with their like status
  *     tags: [Stories]
  *     security:
  *       - bearerAuth: []
@@ -193,53 +194,57 @@ router.get("/:username", authMiddleware, getUserStories);
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID of the story to get views for
+ *         description: ID of the story to get viewers for
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of viewers to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
  *     responses:
  *       200:
- *         description: Story view and like analytics
+ *         description: List of viewers with their like status
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 totalViews:
+ *                 totalViewers:
  *                   type: integer
- *                 views:
+ *                 viewers:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       User:
- *                         type: object
- *                         properties:
- *                           UserID:
- *                             type: integer
- *                           Username:
- *                             type: string
- *                           ProfilePicture:
- *                             type: string
- *                       ViewedAt:
+ *                       userId:
+ *                         type: integer
+ *                       username:
+ *                         type: string
+ *                       profilePicture:
+ *                         type: string
+ *                       profileName:
+ *                         type: string
+ *                       viewedAt:
  *                         type: string
  *                         format: date-time
- *                 totalLikes:
+ *                       isLiked:
+ *                         type: boolean
+ *                 page:
  *                   type: integer
- *                 likedBy:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
- *                         type: string
- *                       ProfilePicture:
- *                         type: string
+ *                 limit:
+ *                   type: integer
  *       403:
- *         description: Not authorized to view analytics
+ *         description: Not authorized to view viewers
  *       404:
  *         description: Story not found
  */
-router.get("/:storyId/views", authMiddleware, getStoryViews);
+router.get("/:storyId/viewers", authMiddleware, getStoryViewersWithLikes);
 
 /**
  * @swagger
@@ -279,7 +284,7 @@ router.post("/:storyId/view", authMiddleware, recordStoryView);
 
 /**
  * @swagger
- * /stories/{storyId}:
+ * /stories/id/{storyId}:
  *   get:
  *     summary: Get a specific story by ID
  *     tags: [Stories]
@@ -328,14 +333,14 @@ router.post("/:storyId/view", authMiddleware, recordStoryView);
  *                       type: integer
  *                     StoryViews:
  *                       type: integer
- *                 hasLiked:
+ *                 isLiked:
  *                   type: boolean
  *       403:
  *         description: Private account - cannot view story
  *       404:
  *         description: Story not found or has expired (for non-owners)
  */
-router.get("/:storyId", authMiddleware, getStoryById);
+router.get("/id/:storyId", authMiddleware, getStoryById);
 
 /**
  * @swagger
@@ -373,6 +378,51 @@ router.get("/:storyId", authMiddleware, getStoryById);
  *         description: Story not found
  */
 router.post("/:storyId/like", authMiddleware, toggleStoryLike);
+
+/**
+ * @swagger
+ * /stories/{storyId}/report:
+ *   post:
+ *     summary: Report a story
+ *     tags: [Stories]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: storyId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: INAPPROPRIATE_CONTENT
+ *     responses:
+ *       201:
+ *         description: Story reported successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 reportId:
+ *                   type: integer
+ *       400:
+ *         description: Invalid input or duplicate report
+ *       403:
+ *         description: No access to private account
+ *       404:
+ *         description: Story not found
+ */
+router.post("/:storyId/report", authMiddleware, reportStory);
 
 /**
  * @swagger
