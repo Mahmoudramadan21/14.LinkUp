@@ -121,13 +121,9 @@ const verifyCodeValidationRules = [
 
 /**
  * Validation rules for resetting password with a temporary token
- * Ensures resetToken and newPassword are provided and valid
+ * Ensures newPassword is provided and valid
  */
 const resetPasswordValidationRules = [
-  body("resetToken")
-    .isString()
-    .notEmpty()
-    .withMessage("Reset token is required"),
   body("newPassword")
     .isString()
     .isLength({ min: 8 })
