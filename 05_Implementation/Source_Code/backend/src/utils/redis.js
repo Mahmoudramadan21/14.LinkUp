@@ -1,21 +1,26 @@
+// utils/redis.js
 const { Redis } = require("@upstash/redis");
 const logger = require("./logger");
 
-// Initialize Upstash Redis client
+if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  throw new Error("Missing Upstash Redis environment variables (URL/TOKEN)");
+}
+
+// Initialize Upstash Redis client (REST API)
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || "YOUR_UPSTASH_REDIS_URL",
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || "YOUR_UPSTASH_REDIS_TOKEN",
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 // Test the connection
 redis
   .ping()
   .then(() => {
-    logger.info("Connected to Upstash Redis successfully");
+    logger.info("✅ Connected to Upstash Redis successfully");
   })
   .catch((err) => {
-    logger.error("Failed to connect to Upstash Redis", { error: err.message });
-    throw err; // Ensure connection errors are propagated
+    logger.error("❌ Failed to connect to Upstash Redis", { error: err.message });
+    throw err;
   });
 
 class RedisClient {
@@ -24,88 +29,128 @@ class RedisClient {
   }
 
   /**
-   * Retrieves a value from Redis by key and parses JSON if applicable
-   * @param {string} key - Redis key to fetch
-   * @returns {any|null} Parsed value or null if not found/error
+   * Get value by key
+   * @param {string} key
+   * @returns {Promise<any|null>}
    */
   async get(key) {
     try {
       const value = await this.client.get(key);
       if (!value) return null;
+
       try {
         return JSON.parse(value);
-      } catch (parseError) {
-        return value; // Return as-is if not JSON
+      } catch {
+        return value; // return as plain string if not JSON
       }
     } catch (err) {
-      logger.error(`Redis GET error: ${err}`);
+      logger.error(`Redis GET error for key "${key}": ${err.message}`);
       return null;
     }
   }
 
   /**
-   * Stores a value in Redis with optional TTL, stringifying JSON objects
-   * @param {string} key - Redis key
-   * @param {any} value - Value to store (stringified if object)
-   * @param {number} [ttl=3600] - Time-to-live in seconds
+   * Set value with optional TTL (default: 3600s)
+   * @param {string} key
+   * @param {any} value
+   * @param {number} [ttl=3600]
+   * @returns {Promise<boolean>}
    */
   async set(key, value, ttl = 3600) {
     try {
-      const stringValue =
-        typeof value === "string" ? value : JSON.stringify(value);
-      await this.client.set(key, stringValue, { ex: ttl });
+      let storeValue;
+      if (typeof value === "string") {
+        storeValue = value; // refresh tokens, plain strings
+      } else {
+        storeValue = JSON.stringify(value); // objects
+      }
+
+      if (ttl) {
+        await this.client.set(key, storeValue, { ex: ttl });
+      } else {
+        await this.client.set(key, storeValue);
+      }
+
+      return true;
     } catch (err) {
-      logger.error(`Redis SET error: ${err}`);
-      throw err; // Rethrow to ensure errors are caught upstream
+      logger.error(`Redis SET error for key "${key}": ${err.message}`);
+      return false;
     }
   }
 
+
   /**
-   * Deletes a key from Redis
-   * @param {string} key - Redis key to delete
+   * Delete a key
+   * @param {string} key
+   * @returns {Promise<boolean>}
    */
   async del(key) {
     try {
-      await this.client.del(key);
+      const result = await this.client.del(key);
+      return result > 0;
     } catch (err) {
-      logger.error(`Redis DEL error: ${err}`);
+      logger.error(`Redis DEL error for key "${key}": ${err.message}`);
+      return false;
     }
   }
 
   /**
-   * Creates a multi-command transaction
-   * @returns {Object} Redis multi-command object
+   * Check if a key exists
+   * @param {string} key
+   * @returns {Promise<boolean>}
    */
-  async multi() {
-    return this.client.multi();
+  async exists(key) {
+    try {
+      const result = await this.client.exists(key);
+      return result > 0;
+    } catch (err) {
+      logger.error(`Redis EXISTS error for key "${key}": ${err.message}`);
+      return false;
+    }
   }
 
   /**
-   * Executes multiple Redis operations in a transaction
-   * @param {Array<{type: string, key: string, value?: string, ttl?: number}>} operations - List of operations
-   * @returns {Promise<Array>} Transaction results
+   * Execute multiple commands as a transaction
+   * @param {Array} operations
+   * Example:
+   * [
+   *   { type: "set", key: "k1", value: "v1", ttl: 60 },
+   *   { type: "del", key: "k2" }
+   * ]
    */
-  async execMulti(operations) {
-    const commands = operations.map((op) => {
-      if (op.type === "set") {
-        const stringValue =
-          typeof op.value === "string" ? op.value : JSON.stringify(op.value);
-        return ["set", op.key, stringValue, { ex: op.ttl }];
-      } else if (op.type === "del") {
-        return ["del", op.key];
+  async execMulti(operations = []) {
+    try {
+      const tx = this.client.multi();
+
+      for (const op of operations) {
+        if (op.type === "set") {
+          const storeValue =
+            typeof op.value === "string" ? op.value : JSON.stringify(op.value);
+          if (op.ttl) {
+            tx.set(op.key, storeValue, { ex: op.ttl });
+          } else {
+            tx.set(op.key, storeValue);
+          }
+        } else if (op.type === "del") {
+          tx.del(op.key);
+        }
       }
-    });
-    return await this.client.multi(commands).exec();
+
+      return await tx.exec();
+    } catch (err) {
+      logger.error(`Redis MULTI/EXEC error: ${err.message}`);
+      return null;
+    }
   }
 
   /**
-   * Safely disconnects the Redis client (optional for Upstash as it's HTTP-based)
+   * Disconnect (not needed with Upstash HTTP client, but for consistency)
    */
   async disconnect() {
     try {
-      logger.info("Disconnected from Upstash Redis (HTTP client)");
+      logger.info("Disconnected from Upstash Redis (HTTP-based, no socket).");
     } catch (err) {
-      logger.error("Error disconnecting from Upstash Redis:", err);
+      logger.error("Error disconnecting from Redis:", err.message);
     }
   }
 }
