@@ -1,3 +1,5 @@
+// validators/postValidator.js (updated)
+
 const { body, param, query } = require("express-validator");
 
 /**
@@ -90,6 +92,22 @@ const commentReplyRules = [
 ];
 
 /**
+ * Validation rules for sharing a post
+ * Ensures valid post ID and optional caption
+ * @returns {Array} Express-validator middleware array
+ */
+const postShareRules = [
+  param("postId").isInt().withMessage("Invalid post ID").toInt(),
+
+  body("caption")
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage("Caption must be less than 2000 characters")
+    .escape(),
+];
+
+/**
  * Validation rules for querying posts
  * Ensures valid pagination parameters
  * @returns {Array} Express-validator middleware array
@@ -108,6 +126,22 @@ const postQueryRules = [
     .toInt(),
 ];
 
+const commentEditRules = [
+  body("content")
+    .trim()
+    .notEmpty()
+    .withMessage("Comment content cannot be empty")
+    .isLength({ max: 500 })
+    .withMessage("Comment content cannot exceed 500 characters"),
+];
+
+const batchPostViewsRules = [
+  body("postIds")
+    .isArray({ min: 1 })
+    .withMessage("postIds must be a non-empty array")
+    .custom((value) => value.every((id) => Number.isInteger(id) && id > 0))
+    .withMessage("postIds must contain only positive integers"),
+];
 module.exports = {
   postCreationRules,
   postUpdateRules,
@@ -115,4 +149,7 @@ module.exports = {
   commentLikeRules,
   commentReplyRules,
   postQueryRules,
+  postShareRules,
+  batchPostViewsRules,
+  commentEditRules,
 };
