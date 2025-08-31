@@ -1,276 +1,261 @@
-# LinkUp
+# LinkUp Authentication Pages
 
-LinkUp is a modern social media platform built with Next.js, TypeScript, and Tailwind CSS. It allows users to connect, share posts, create stories, manage profiles, and engage in real-time through notifications and WebSocket-powered updates. The platform emphasizes user experience, accessibility, and performance, with a responsive design and robust state management.
+This document provides an overview of the authentication pages for the **LinkUp** application, built using **Next.js 14** with the **App Router**. The pages include `Login`, `Signup`, `Forgot Password`, `Verify Code`, `Reset Password`, and `Password Reset Success`. These pages handle user authentication and password reset flows, ensuring a secure, accessible, and user-friendly experience.
 
 ## Table of Contents
 
-- [Features](#features)
-- [Technologies](#technologies)
+- [Overview](#overview)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Usage](#usage)
-- [API Endpoints](#api-endpoints)
-- [State Management](#state-management)
+- [Pages](#pages)
+  - [Login](#login)
+  - [Signup](#signup)
+  - [Forgot Password](#forgot-password)
+  - [Verify Code](#verify-code)
+  - [Reset Password](#reset-password)
+  - [Password Reset Success](#password-reset-success)
+- [Shared Components and Utilities](#shared-components-and-utilities)
+- [Technologies](#technologies)
+- [Setup and Running](#setup-and-running)
+- [Testing](#testing)
+- [Accessibility](#accessibility)
+- [SEO](#seo)
 - [Contributing](#contributing)
-- [License](#license)
 
-## Features
+## Overview
 
-- **User Authentication**:
-  - Login, signup, forgot password, and password reset with email verification.
-  - Secure token management using `localStorage`.
-- **User Profiles**:
-  - View and edit profiles with details like bio, profile picture, and privacy settings.
-  - Follow/unfollow users, manage follow requests, and view followers/following lists.
-- **Posts**:
-  - Create, view, like, and comment on posts with text, images, or videos.
-  - Save posts and view saved posts in the profile.
-- **Stories**:
-  - Create and view stories with media (images/videos).
-  - Auto-advancing stories with like and reply functionality (reply TBD).
-- **Highlights**:
-  - Create and view highlight collections of stories.
-  - Navigate highlights with progress bars and keyboard support.
-- **Notifications**:
-  - Real-time notifications via WebSocket for likes, follows, and comments.
-  - Mark notifications as read or delete them.
-- **Accessibility**:
-  - ARIA attributes, focus traps, and keyboard navigation for forms and dialogs.
-  - Semantic HTML and screen reader support.
-- **Performance**:
-  - Memoized components, lazy-loaded images, and pagination for posts and notifications.
-  - Optimistic updates for follow requests and notifications.
+The authentication pages are a core part of the **LinkUp** application's user authentication system. They provide the following functionality:
 
-## Technologies
+1. **Login**: Authenticates users with their email and password.
+2. **Signup**: Allows new users to create an account with required details.
+3. **Forgot Password**: Initiates the password reset process by sending a verification code to the user's email.
+4. **Verify Code**: Verifies the user's identity using a 4-digit code.
+5. **Reset Password**: Enables users to set a new password after verification.
+6. **Password Reset Success**: Confirms successful password reset and redirects to the login page.
 
-- **Frontend**:
-  - Next.js 13 (App Router)
-  - React 18
-  - TypeScript
-  - Tailwind CSS
-  - Zustand (state management)
-  - Axios (API requests)
-  - Socket.IO (WebSocket for notifications)
-- **Tools & Libraries**:
-  - Headless UI (accessible UI components)
-  - Next Image (optimized images)
-  - ESLint (code linting)
-  - Prettier (code formatting)
-- **Backend** (assumed, not provided):
-  - REST API with endpoints for auth, posts, stories, profiles, and notifications.
-  - WebSocket server for real-time updates.
+The pages follow a consistent structure, leveraging reusable components, hooks, and utilities for maintainability and scalability. The codebase prioritizes **accessibility**, **SEO**, and **type safety** using TypeScript.
 
 ## Project Structure
 
+The authentication pages and their related files are organized as follows:
+
 ```
-linkup/
-├── components/
-│   ├── ForgotPasswordForm.tsx
-│   ├── HeaderSection.tsx
-│   ├── LoginForm.tsx
-│   ├── PasswordResetSuccess.tsx
-│   ├── ResetPasswordForm.tsx
-│   ├── SignupForm.tsx
-│   ├── StoriesDialogSection.tsx
-│   ├── StoriesSection.tsx
-│   ├── VerificationCodeForm.tsx
-│   ├── PostCard.tsx
-│   ├── StoriesList.tsx
-│   ├── StoriesViewer.tsx
-│   ├── UserMenu.tsx
-│   ├── Loading.tsx
-├── pages/
-│   ├── profile/
-│   │   ├── [username].tsx
-│   │   ├── highlights/[userId].tsx
-│   ├── forgot-password.tsx
-│   ├── login.tsx
-│   ├── reset-password.tsx
-│   ├── reset-password-success.tsx
-│   ├── signup/index.tsx
-│   ├── verify-code.tsx
-├── stores/
-│   ├── feedStore.ts
-│   ├── notificationStore.ts
-│   ├── profileStore.ts
-├── utils/
-│   ├── api.ts
-│   ├── auth.ts
-│   ├── constants.ts
-│   ├── highlightUtils.ts
-│   ├── profileUtils.ts
-├── public/
-│   ├── svgs/
-│   │   ├── logo.svg
-│   │   ├── success-checkmark.svg
-│   ├── icons/
-│   │   ├── home.svg
-│   ├── avatars/
-│   │   ├── placeholder.jpg
-├── styles/
-│   ├── globals.css
-├── package.json
-├── tsconfig.json
-├── next.config.js
+app/(auth)
+├── login
+│   └── page.tsx
+├── signup
+│   └── page.tsx
+├── forgot-password
+│   └── page.tsx
+├── verify-code
+│   └── page.tsx
+├── reset-password
+│   └── page.tsx
+├── password-reset-success
+│   └── page.tsx
+forms/auth
+├── LoginForm.tsx
+├── SignupForm.tsx
+├── ForgotPasswordForm.tsx
+├── VerificationCodeForm.tsx
+├── ResetPasswordForm.tsx
+├── PasswordResetSuccess.tsx
+hooks/auth
+├── useLogin.ts
+├── useSignup.ts
+├── useForgotPassword.ts
+├── useVerifyCode.ts
+├── useResetPassword.ts
+├── usePasswordResetSuccess.ts
+types
+├── authTypes.ts
+utils
+├── validation.ts
+services
+├── authService.ts
 ```
 
-- **components/**: Reusable UI components for forms, stories, posts, and navigation.
-- **pages/**: Next.js pages for authentication, profiles, and highlights.
-- **stores/**: Zustand stores for state management (feed, notifications, profiles).
-- **utils/**: Utility functions for API calls, authentication, and highlight navigation.
-- **public/**: Static assets like logos, icons, and placeholder images.
-- **styles/**: Global CSS with Tailwind integration.
+- **`app/(auth)/*.tsx`**: Next.js page components for each authentication route.
+- **`forms/auth/*.tsx`**: Reusable form components for each page.
+- **`hooks/auth/*.ts`**: Custom hooks encapsulating form logic, validation, and API calls.
+- **`types/authTypes.ts`**: TypeScript interfaces for form data, errors, and API responses.
+- **`utils/validation.ts`**: Centralized validation logic for all forms.
+- **`services/authService.ts`**: API service for authentication-related HTTP requests.
 
-## Prerequisites
+## Pages
 
-- Node.js 16.x or later
-- npm or yarn
-- Backend API server (assumed running at `http://localhost:3000/api`)
-- WebSocket server (assumed running at `http://localhost:3000`)
+### Login
 
-## Installation
+- **Path**: `/login`
+- **Purpose**: Authenticates users by accepting their email and password.
+- **Components**:
+  - `LoginForm`: Renders inputs for email and password, and a submit button.
+- **Hook**: `useLogin`
+  - Manages form state, validation, and submission.
+  - Handles API response to store authentication tokens.
+- **API**: Calls `login` from `authService.ts` to authenticate the user.
+- **Features**:
+  - Email and password validation using `validateLoginForm`.
+  - Success/error messages with ARIA roles for accessibility.
+  - Redirects to the dashboard or home page (e.g., `/dashboard`) on successful login.
+  - Link to `/forgot-password` for password recovery.
 
-1. **Clone the repository**:
+### Signup
+
+- **Path**: `/signup`
+- **Purpose**: Allows new users to create an account by providing details like username, email, password, and additional fields (e.g., gender, date of birth).
+- **Components**:
+  - `SignupForm`: Renders inputs for registration details, password confirmation, and a submit button.
+- **Hook**: `useCallback`
+  - Manages form state, validation, and submission.
+  - Handles API response to store authentication tokens or redirect on success.
+- **API**: Calls `signup` from `authService.ts` to create a new user.
+- **Features**:
+  - Comprehensive validation (username, email, password complexity, etc.) using `validateSignupForm`.
+  - Success/error messages with ARIA roles.
+  - Redirects to `/login` or `/dashboard` on successful signup.
+  - Link to `/login` for existing users.
+
+### Forgot Password
+
+- **Path**: `/forgot-password`
+- **Purpose**: Allows users to initiate the password reset process by entering their email address.
+- **Components**:
+  - `ForgotPasswordForm`: Renders an email input and a submit button.
+- **Hook**: `useForgotPassword`
+  - Manages form state, validation, and submission.
+  - Stores `resetEmail` in `sessionStorage`.
+  - Redirects to `/verify-code` on success.
+- **API**: Calls `forgotPassword` from `authService.ts` to send a verification code.
+- **Features**:
+  - Email validation using `validateForgotPasswordForm`.
+  - Success/error messages with ARIA roles.
+  - Redirects to `/verify-code` after 1.5 seconds on success.
+
+### Verify Code
+
+- **Path**: `/verify-code`
+- **Purpose**: Verifies the user's identity by accepting a 4-digit code sent to their email.
+- **Components**:
+  - `VerificationCodeForm`: Renders a 4-digit code input, a timer, and resend/verify buttons.
+- **Hook**: `useVerifyCode`
+  - Manages form state, code validation, timer, and resend logic.
+  - Retrieves `resetEmail` from `sessionStorage`.
+  - Stores `resetToken` in `sessionStorage` on success.
+  - Redirects to `/reset-password` on success.
+- **API**:
+  - `verifyCode`: Verifies the code.
+  - `forgotPassword`: Resends a new code if requested.
+- **Features**:
+  - Code validation using `validateVerifyCodeForm`.
+  - 30-second timer for resend functionality.
+  - Success/error messages with ARIA roles.
+  - Redirects to `/reset-password` after 1.5 seconds on success.
+
+### Reset Password
+
+- **Path**: `/reset-password`
+- **Purpose**: Allows users to set a new password after verifying their identity.
+- **Components**:
+  - `ResetPasswordForm`: Renders inputs for new password and confirm password, and a submit button.
+- **Hook**: `usePasswordReset`
+  - Manages form state, password validation, and submission.
+  - Retrieves `resetToken` from `sessionStorage`.
+  - Clears `sessionStorage` on success.
+  - Redirects to `/password-reset-success` on success.
+- **API**: Calls `resetPassword` from `authService.ts` to update the password.
+- **Features**:
+  - Password validation (8+ characters, uppercase, lowercase, number, special character) using `validateResetPasswordForm`.
+  - Success/error messages with ARIA roles.
+  - Redirects to `/password-reset-success` after 1.5 seconds on success.
+
+### Password Reset Success
+
+- **Path**: `/password-reset-success`
+- **Purpose**: Displays a success message after a password reset and provides navigation to the login page.
+- **Components**:
+  - `PasswordResetSuccess`: Renders a success message, a checkmark icon, and a continue button.
+- **Hook**: `useCallback`
+  - Handles navigation to `/login`.
+- **API**: None (static success page).
+- **Features**:
+  - Displays a success checkmark (`/svgs/success-checkmark.svg`).
+  - Accessible success message with `aria-describedby`.
+  - Navigates to `/login` when the "Continue to Login" button is clicked.
+
+## Shared Components and Utilities
+
+- **Components**:
+  - `Input` (`@/components/auth/InputData`): Used for text and password inputs in `LoginForm`, `SignupForm`, `ForgotPasswordForm`, and `ResetPasswordForm`.
+  - `Button` (`@/components/button/Button`): Used for form submissions and navigation across all forms.
+  - `CodeInput` (`@/components/code/CodeInput`): Custom 4-digit code input for `VerificationCodeForm`.
+  - `Select` (optional, `@/components/ui/select`): Used in `SignupForm` for fields like `gender`.
+- **Utilities**:
+  - `validation.ts`: Contains validation functions (`validateLoginForm`, `validateSignupForm`, `validateForgotPasswordForm`, `validateVerifyCodeForm`, `validateResetPasswordForm`) for form data.
+  - `authService.ts`: Handles API calls using `axiosInstance` for `login`, `signup`, `forgotPassword`, `verifyCode`, and `resetPassword`.
+- **Types**:
+  - `authTypes.ts`: Defines interfaces for form data (`LoginFormData`, `SignupFormData`, `ForgotPasswordFormData`, `VerifyCodeFormData`, `ResetPasswordFormData`), errors, and API responses (`LoginResponse`, `SignupResponse`, `ForgotPasswordResponse`, `VerifyCodeResponse`, `ResetPasswordResponse`).
+
+## Technologies
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: CSS Modules (assumed, based on `className` usage)
+- **HTTP Client**: Axios (`axiosInstance` in `lib/api.ts`)
+- **Storage**: `sessionStorage` for temporary data (`resetEmail`, `resetToken`)
+- **Accessibility**: ARIA roles and attributes for screen reader support
+- **SEO**: Next.js `Metadata` for API verification
+
+## Setup and Running
+
+1. **Clone the Repository**:
 
    ```bash
-   git clone https://github.com/Mahmoudramadan21/14.LinkUp.git
-   cd 14.LinkUp/05_Implementation/Source_Code/frontend
+   git clone https://github.com/Mahmoudramadan21/linkup-app
+   cd linkup
    ```
 
-2. **Install dependencies**:
+2. **Install Dependencies**:
 
    ```bash
    npm install
    ```
 
-   or
+3. **Run the Development Server**:
 
-   ```bash
-   yarn install
-   ```
-
-3. **Set up environment variables**:
-   Create a `.env.local` file in the root directory and add:
-
-   ```env
-   NEXT_PUBLIC_API_URL=http://localhost:3000/api
-   NEXT_PUBLIC_WS_URL=http://localhost:3000
-   ```
-
-   - `NEXT_PUBLIC_API_URL`: Backend API base URL.
-   - `NEXT_PUBLIC_WS_URL`: WebSocket server URL.
-
-4. **Run the development server**:
    ```bash
    npm run dev
    ```
-   or
-   ```bash
-   yarn dev
-   ```
-   The app will be available at `http://localhost:3000`.
 
-## Usage
+   Open `http://localhost:3000` in your browser.
 
-1. **Authentication**:
+4. **Access the Pages**:
 
-   - Navigate to `/signup` to create an account.
-   - Log in at `/login` or recover your password via `/forgot-password`.
-   - Verify reset codes at `/verify-code` and reset passwords at `/reset-password`.
+   - **Login**: `/login`
+   - **Signup**: `/signup`
+   - **Forgot Password**: `/forgot-password`
+   - **Verify Code**: `/verify-code` (after submitting `/forgot-password`)
+   - **Reset Password**: `/reset-password` (after verifying code)
+   - **Password Reset Success**: `/password-reset-success` (after resetting password)
 
-2. **Profile Management**:
-
-   - View profiles at `/profile/[username]`.
-   - Edit profile details, follow/unfollow users, and manage follow requests.
-   - View highlights at `/profile/highlights/[userId]`.
-
-3. **Feed and Stories**:
-
-   - Explore posts and stories in the feed (assumed at `/feed`).
-   - Create stories via the “Your Story” avatar in the stories section.
-   - Like and view stories in a dialog with auto-advance.
-
-4. **Notifications**:
-   - Receive real-time notifications via the header’s notification icon.
-   - Mark notifications as read or delete them.
-
-## API Endpoints
-
-The frontend interacts with the backend via the following endpoints (defined in `utils/constants.ts`):
-
-- **Auth**:
-  - `POST /auth/login`: Log in.
-  - `POST /auth/signup`: Sign up.
-  - `POST /auth/forgot-password`: Initiate password reset.
-  - `POST /auth/verify-code`: Verify reset code.
-  - `POST /auth/reset-password`: Reset password.
-- **Posts**:
-  - `POST /posts`: Create a post.
-  - `GET /posts`: Fetch posts (paginated).
-  - `POST /posts/:postId/like`: Like a post.
-- **Stories**:
-  - `POST /stories`: Create a story.
-  - `GET /stories/feed`: Fetch story feed.
-  - `POST /stories/:storyId/like`: Like a story.
-- **Profile**:
-  - `GET /profile/:username`: Fetch profile by username.
-  - `PUT /profile/edit`: Update profile.
-  - `POST /profile/follow/:userId`: Follow a user.
-  - `DELETE /profile/unfollow/:userId`: Unfollow a user.
-- **Highlights**:
-  - `GET /highlights/user/:userId`: Fetch user highlights.
-  - `POST /highlights`: Create a highlight.
-- **Notifications**:
-  - `GET /notifications`: Fetch notifications (paginated).
-  - `PUT /notifications/read`: Mark all as read.
-  - `DELETE /notifications/:notificationId`: Delete a notification.
-
-See `utils/api.ts` for implementation details.
-
-## State Management
-
-LinkUp uses **Zustand** for lightweight, performant state management. The stores are:
-
-- **feedStore.ts**:
-  - Manages feed data (posts, stories, follow requests).
-  - Handles post creation, story creation, and pagination.
-- **notificationStore.ts**:
-  - Manages notifications with real-time updates via WebSocket.
-  - Supports pagination, marking as read, and deletion.
-- **profileStore.ts**:
-  - Manages profile data, highlights, saved posts, and posts.
-  - Handles follow/unfollow and profile updates.
-
-Stores are type-safe and optimized with memoization and optimistic updates.
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork the repository**.
-2. **Create a feature branch**:
-   ```bash
-   git checkout -b feature/your-feature
-   ```
-3. **Commit changes**:
-   ```bash
-   git commit -m "Add your feature"
-   ```
-4. **Push to your fork**:
-   ```bash
-   git push origin feature/your-feature
-   ```
-5. **Open a pull request** with a clear description.
-
-### Guidelines
-
-- Follow the existing code style (ESLint, Prettier).
-- Write type-safe code with TypeScript.
-- Ensure accessibility (ARIA, keyboard navigation).
-- Add unit tests for new features (using Jest).
-- Update this README if new features are added.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+5. **Manual Testing**:
+   - **Login**:
+     - Enter valid/invalid email and password → Check success/error messages.
+     - Submit → Should redirect to `/dashboard` or `/home`.
+     - Verify link to `/forgot-password`.
+   - **Signup**:
+     - Enter valid/invalid registration details → Check validation errors.
+     - Submit → Should redirect to `/login`.
+     - Verify link to `/login`.
+   - **Forgot Password**:
+     - Enter valid/invalid email → Check success/error messages.
+     - Submit → Should redirect to `/verify-code` after 1.5 seconds.
+     - Check `sessionStorage` for `resetEmail`.
+   - **Verify Code**:
+     - Enter valid/invalid 4-digit code → Check error messages.
+     - Test resend after 30 seconds → Should show success message.
+     - Submit valid code → Should redirect to `/reset-password` and store `resetToken` in `sessionStorage`.
+   - **Reset Password**:
+     - Enter valid/invalid passwords → Check validation errors.
+     - Submit → Should redirect to `/password-reset-success` and clear `sessionStorage`.
+   - **Password Reset Success**:
+     - Click "Continue to Login" → Should navigate to `/login`.
