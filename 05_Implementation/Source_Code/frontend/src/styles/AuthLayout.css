@@ -1,16 +1,21 @@
-/* AuthLayout component styles using Tailwind */
+/*
+ * Styles for the AuthLayout component and related auth pages.
+ * Uses Tailwind classes for layout and responsiveness.
+ * Defines background, visual elements, and loading state for auth pages.
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Main wrapper */
 .auth-layout__wrapper {
-  @apply min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-pink-100 relative overflow-hidden;
+  @apply min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-100 to-pink-100 dark:from-gray-800 dark:to-gray-900 relative overflow-hidden transition-colors duration-300;
 }
 
 /* Skip link */
 .auth-layout__skip-link {
-  @apply absolute left-0 top-0 p-2 bg-white text-linkup-purple focus:outline-none focus:ring-2 focus:ring-linkup-purple sr-only focus:not-sr-only;
+  @apply absolute left-0 top-0 p-2 bg-white dark:bg-gray-800 text-[var(--linkup-purple)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] sr-only focus:not-sr-only;
 }
 
 /* Main content */
@@ -36,150 +41,13 @@
   @apply w-full h-auto;
 }
 
-/* Auth form */
-.auth-form {
-  @apply flex justify-center items-center;
-}
-
-.auth-form--signup {
-  @apply flex justify-center items-center;
-}
-
-.auth-form--forgot-password {
-  @apply flex justify-center items-center;
-}
-
-.auth-form--reset-password {
-  @apply flex justify-center items-center;
-}
-
-.auth-form--password-reset-success {
-  @apply flex justify-center items-center;
-}
-
-.auth-form--verify-code {
-  @apply flex justify-center items-center;
-}
-
-.auth-form__container {
-  @apply bg-white p-8 rounded-lg shadow-lg pt-16 pb-20 w-full lg:max-w-md;
-}
-
-.auth-form--signup .auth-form__container {
-  @apply lg:max-w-xl;
-}
-
-.auth-form__title {
-  @apply text-3xl font-bold mb-6 font-medium;
-}
-
-.auth-form__title--signup {
-  @apply text-center;
-}
-
-.auth-form__title--password-reset-success {
-  @apply text-center;
-}
-
-.auth-form__title--password-reset-success .button-block {
-  @apply w-full;
-}
-
-.auth-form__title--verify-code {
-  @apply text-center;
-}
-
-.auth-form__subtitle {
-  @apply mb-8 text-gray-600;
-}
-
-.auth-form__subtitle--signup {
-  @apply text-center;
-}
-
-.auth-form__subtitle--password-reset-success {
-  @apply text-center;
-}
-
-.auth-form__subtitle--verify-code {
-  @apply text-center;
-}
-
-.auth-form__form {
-  @apply space-y-4;
-}
-
-.auth-form__info {
-  @apply text-gray-500 text-xs mt-1;
-}
-
-.auth-form__input-group {
-  @apply relative;
-}
-
-.auth-form__toggle-visibility {
-  @apply absolute right-3 top-10 text-sm text-gray-600 hover:text-linkup-purple focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-}
-
-.auth-form__success {
-  @apply text-green-500 text-sm text-center;
-}
-
-.auth-form__error {
-  @apply text-red-500 text-sm text-center;
-}
-
-.auth-form__timer {
-  @apply hidden text-red-500 text-sm text-center mt-2;
-}
-
-.auth-form__options {
-  @apply flex justify-between items-center mb-4;
-}
-
-.auth-form__checkbox {
-  @apply flex items-center;
-}
-
-.auth-form__checkbox-input {
-  @apply mr-2 focus:ring-2 focus:ring-linkup-purple;
-}
-
-.auth-form__checkbox-label {
-  @apply text-gray-600 text-sm;
-}
-
-.auth-form__link {
-  @apply text-linkup-purple hover:underline text-sm focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-}
-
-.auth-form__forgot-password-link {
-  @apply text-zinc-800 hover:underline focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-}
-
-.auth-form__signup {
-  @apply text-gray-600 text-sm pt-4 text-center;
-}
-
-.auth-form__resend {
-  @apply text-gray-600 text-sm text-center pt-4;
-}
-
-.auth-form__resend-link {
-  @apply text-linkup-purple hover:underline focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-}
-
-.auth-form__resend-link--disabled {
-  @apply opacity-50 cursor-not-allowed pointer-events-none;
-}
-
 /* Auth page */
 .auth-page {
-  @apply flex items-center justify-center w-full py-24 p-4 rounded-xl bg-white/50;
+  @apply flex items-center justify-center w-full py-24 px-0 sm:px-4 rounded-xl bg-white/50 dark:bg-gray-800/50;
 }
 
 .auth-page--signup {
-  @apply py-4 bg-transparent;
+  @apply py-4 bg-transparent dark:bg-transparent;
 }
 
 .auth-page__container {
@@ -202,44 +70,149 @@
   @apply max-w-xl w-full h-auto;
 }
 
-/* Password reset success */
-.auth-form--password-reset-success .auth-form__container {
-  @apply flex flex-col items-center justify-center;
+/* Loading state for protected pages */
+.auth-page__loading {
+  @apply flex items-center justify-center min-h-screen text-lg font-medium text-gray-600 dark:text-gray-300 bg-white/50 dark:bg-gray-900/50;
 }
+
+/* Auth form */
+.auth-form {
+  @apply flex justify-center items-center;
+}
+
+.auth-form--signup {
+  @apply flex justify-center items-center;
+}
+
+.auth-form--forgot-password {
+  @apply flex justify-center items-center;
+}
+
+.auth-form--reset-password {
+  @apply flex justify-center items-center;
+}
+
+.auth-form--password-reset-success {
+  @apply flex flex-col items-center justify-center text-center;
+}
+
+.auth-form--verify-code {
+  @apply flex justify-center items-center;
+}
+
+.auth-form__container {
+  @apply bg-white dark:bg-gray-800 px-4 sm:px-8 rounded-lg shadow-lg pt-16 pb-20 w-full lg:max-w-md transition-colors duration-300;
+}
+
+.auth-form--signup .auth-form__container {
+  @apply lg:max-w-xl;
+}
+
+.auth-form__title {
+  @apply text-4xl font-bold mb-6 font-medium text-gray-900 dark:text-gray-100;
+}
+
+.auth-form__title--signup {
+  @apply text-center;
+}
+
+.auth-form__title--password-reset-success {
+  @apply text-center;
+}
+
+.auth-form__title--password-reset-success .button-block {
+  @apply w-full;
+}
+
+.auth-form__title--verify-code {
+  @apply text-center;
+}
+
+.auth-form__subtitle {
+  @apply mb-8 text-gray-600 dark:text-gray-400;
+}
+
+.auth-form__subtitle--signup {
+  @apply text-center;
+}
+
+.auth-form__subtitle--password-reset-success {
+  @apply text-center;
+}
+
+.auth-form__subtitle--verify-code {
+  @apply text-center;
+}
+
+.auth-form__form {
+  @apply space-y-4;
+}
+
+.auth-form__info {
+  @apply text-gray-500 dark:text-gray-400 text-xs mt-1;
+}
+
+.auth-form__input-group {
+  @apply relative;
+}
+
+.auth-form__toggle-visibility {
+  @apply absolute right-3 top-10 text-sm text-gray-600 dark:text-gray-400 hover:text-[var(--linkup-purple)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.auth-form__success {
+  @apply text-green-500 dark:text-green-400 text-sm text-center;
+}
+
+.auth-form__error {
+  @apply text-red-500 dark:text-red-400 text-sm text-center;
+}
+
+.auth-form__timer {
+  @apply hidden text-red-500 dark:text-red-400 text-sm text-center mt-2;
+}
+
+.auth-form__options {
+  @apply flex justify-between items-center mb-4;
+}
+
+.auth-form__checkbox {
+  @apply flex items-center;
+}
+
+.auth-form__checkbox-input {
+  @apply mr-2 focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.auth-form__checkbox-label {
+  @apply text-gray-600 dark:text-gray-400 text-sm;
+}
+
+.auth-form__link {
+  @apply text-[var(--linkup-purple)] hover:underline text-sm focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.auth-form__forgot-password-link {
+  @apply text-zinc-800 dark:text-zinc-300 hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.auth-form__signup {
+  @apply text-gray-600 dark:text-gray-400 text-sm pt-4 text-center;
+}
+
+.auth-form__resend {
+  @apply text-gray-600 dark:text-gray-400 text-sm text-center pt-4;
+}
+
+.auth-form__resend-link {
+  @apply text-[var(--linkup-purple)] hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.auth-form__resend-link--disabled {
+  @apply opacity-50 cursor-not-allowed pointer-events-none;
+}
+
 /* Success image */
 .auth-form__image--success {
   @apply w-16 h-16 mb-4 mx-auto;
-}
-
-/* Input block */
-.input-block {
-  @apply space-y-1;
-}
-
-.input-block__header {
-  @apply flex items-center justify-between;
-}
-
-.input-block__label {
-  @apply text-sm font-medium text-gray-700;
-}
-
-.input-block__required {
-  @apply text-red-500 ml-1;
-}
-
-.input-block__input {
-  @apply w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-linkup-purple;
-}
-
-.input-block__input--invalid {
-  @apply border-red-500;
-}
-
-.input-block__error {
-  @apply text-red-500 text-xs mt-1;
-}
-
-.input-block__toggle--password {
-  @apply flex items-center gap-1;
 }
