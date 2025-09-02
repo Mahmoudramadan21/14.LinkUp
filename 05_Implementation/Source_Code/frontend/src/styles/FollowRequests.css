@@ -1,16 +1,21 @@
-/* FollowRequests component styles using Tailwind */
+/*
+ * Styles for the FollowRequests component
+ * - Defines styles for follow request list and action buttons
+ * - Uses Tailwind classes and CSS variables for consistency
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Main container */
 .follow-requests__container {
-  @apply w-full mx-auto p-4 bg-white;
+  @apply w-full mx-auto p-4 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)];
 }
 
 /* Title */
 .follow-requests__title {
-  @apply text-lg font-bold mb-4 text-gray-800;
+  @apply text-lg font-bold mb-4 text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
 }
 
 /* List of follow requests */
@@ -30,12 +35,12 @@
 
 /* Username */
 .follow-requests__username {
-  @apply text-sm font-semibold text-gray-500;
+  @apply text-sm font-semibold text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
 }
 
 /* Timestamp */
 .follow-requests__time {
-  @apply text-xs text-gray-500;
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
 }
 
 /* Action buttons */
@@ -45,10 +50,10 @@
 
 /* Confirm button */
 .follow-request__button--confirm {
-  @apply px-5 py-1 bg-purple-600 text-white rounded-3xl hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2;
+  @apply px-5 py-1 bg-[var(--linkup-purple)] dark:bg-[var(--linkup-purple)] text-[var(--gray-card)] dark:text-[var(--gray-dark-text-primary)] rounded-3xl hover:bg-[var(--linkup-purple-dark)] dark:hover:bg-[var(--linkup-purple-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] dark:focus:ring-[var(--linkup-purple)] focus:ring-offset-2;
 }
 
 /* Delete button */
 .follow-request__button--delete {
-  @apply px-5 py-1 bg-gray-200 text-gray-600 rounded-3xl hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  @apply px-5 py-1 bg-[var(--gray-light-bg)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] rounded-3xl hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)] dark:focus:ring-[var(--gray-dark-border)] focus:ring-offset-2;
 }
