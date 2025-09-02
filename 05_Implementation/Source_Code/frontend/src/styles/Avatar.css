@@ -1,4 +1,9 @@
-/* Avatar component styles using Tailwind */
+/*
+ * Styles for the Avatar component
+ * - Defines styles for avatar images, sizes, and plus indicator
+ * - Uses Tailwind classes and CSS variables for consistency
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,7 +15,7 @@
 
 /* Image wrapper styles */
 .avatar__image-wrapper {
-  @apply relative rounded-full border-2 border-purple-500;
+  @apply relative rounded-full border-2 border-[var(--linkup-purple)] dark:border-[var(--linkup-purple)];
 }
 
 .avatar__image {
@@ -18,11 +23,11 @@
 }
 
 .avatar__plus {
-  @apply absolute bottom-0 right-0 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold;
+  @apply absolute bottom-0 right-0 bg-[var(--blue-action)] dark:bg-[var(--blue-action)] text-[var(--gray-card)] dark:text-[var(--gray-dark-text-primary)] rounded-full flex items-center justify-center font-bold;
 }
 
 .avatar__username {
-  @apply text-xs text-gray-600 truncate max-w-[64px];
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] truncate max-w-[64px];
 }
 
 /* Size variants */
@@ -60,5 +65,5 @@
 
 /* Modifier for plus indicator */
 .avatar--has-plus .avatar__image-wrapper {
-  @apply border-blue-500;
+  @apply border-[var(--blue-action)] dark:border-[var(--blue-action)];
 }
