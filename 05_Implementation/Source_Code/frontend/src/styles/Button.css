@@ -1,24 +1,29 @@
-/* Button component styles using Tailwind */
+/*
+ * Styles for the Button component
+ * - Defines styles for different variants and sizes
+ * - Uses Tailwind classes and CSS variables for consistency
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Base button styles */
 .button-block {
-  @apply flex justify-center items-center w-full h-fit rounded-full font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2;
+  @apply flex justify-center items-center w-full h-fit rounded-full font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--linkup-purple)] focus-visible:ring-offset-2;
 }
 
 /* Variant styles */
 .button-block--primary {
-  @apply bg-purple-500 text-white hover:bg-opacity-90;
+  @apply bg-[var(--linkup-purple)] text-[var(--gray-card)] hover:bg-[var(--linkup-purple-dark)] dark:hover:bg-[var(--linkup-purple-dark)];
 }
 
 .button-block--secondary {
-  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  @apply bg-[var(--gray-light-bg)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)];
 }
 
 .button-block--tertiary {
-  @apply bg-transparent border border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white;
+  @apply bg-transparent border border-[var(--linkup-purple)] text-[var(--linkup-purple)] hover:bg-[var(--linkup-purple)] hover:text-[var(--gray-card)] dark:hover:bg-[var(--linkup-purple)] dark:hover:text-[var(--gray-dark-text-primary)];
 }
 
 /* Size styles */
