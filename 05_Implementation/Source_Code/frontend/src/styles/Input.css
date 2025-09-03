@@ -1,4 +1,9 @@
-/* Input component styles using Tailwind */
+/*
+ * Styles for the Input component
+ * - Defines styles for input fields and error states
+ * - Uses Tailwind classes and CSS variables for consistency
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,17 +20,17 @@
 
 /* Input label */
 .input-block__label {
-  @apply block text-gray-700 text-sm font-medium;
+  @apply block text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] text-sm font-medium;
 }
 
 /* Required indicator */
 .input-block__required {
-  @apply text-red-500 ml-1;
+  @apply text-[var(--error)] dark:text-[var(--error)] ml-1;
 }
 
 /* Password toggle button */
 .input-block__toggle--password {
-  @apply flex items-center text-gray-600 text-sm font-medium;
+  @apply flex items-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-sm font-medium;
 }
 
 /* Toggle text (hidden for screen readers) */
@@ -35,15 +40,15 @@
 
 /* Input field */
 .input-block__input {
-  @apply mb-1 w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600;
+  @apply mb-1 w-full p-3 border border-[var(--gray-border)] dark:border-[var(--gray-dark-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] dark:focus:ring-[var(--linkup-purple)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)];
 }
 
 /* Invalid input state */
 .input-block__input--invalid {
-  @apply border-red-500;
+  @apply border-[var(--error)] dark:border-[var(--error)];
 }
 
 /* Error message */
 .input-block__error {
-  @apply text-red-500 text-sm mt-1;
+  @apply text-[var(--error)] dark:text-[var(--error)] text-sm mt-1;
 }
