@@ -1,42 +1,104 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    /**
+     * Specifies the ECMAScript target version.
+     */
+    "target": "ES2017",
+
+    /**
+     * Specifies the libraries to include in type checking.
+     */
+    "lib": ["dom", "dom.iterable", "esnext"],
+
+    /**
+     * Allows JavaScript files to be included in the project.
+     */
     "allowJs": true,
+
+    /**
+     * Skips type checking for declaration files.
+     */
     "skipLibCheck": true,
+
+    /**
+     * Enables strict type-checking options.
+     */
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
+
+    /**
+     * Disallows implicit 'any' types (recommended to keep true for better type safety).
+     */
+    "noImplicitAny": false,
+
+    /**
+     * Prevents TypeScript from emitting output files (Next.js handles this).
+     */
     "noEmit": true,
+
+    /**
+     * Enables interoperability between CommonJS and ES Modules.
+     */
     "esModuleInterop": true,
+
+    /**
+     * Specifies the module system.
+     */
     "module": "esnext",
-    "moduleResolution": "node",
+
+    /**
+     * Specifies how modules are resolved.
+     */
+    "moduleResolution": "bundler",
+
+    /**
+     * Allows importing JSON files as modules.
+     */
     "resolveJsonModule": true,
+
+    /**
+     * Ensures each file can be safely transpiled without relying on other imports.
+     */
     "isolatedModules": true,
+
+    /**
+     * Configures JSX handling for Next.js.
+     */
     "jsx": "preserve",
+
+    /**
+     * Enables incremental compilation for faster builds.
+     */
     "incremental": true,
-    "baseUrl": "src",
-    "paths": {
-      "@/*": [
-        "*"
-      ]
-    },
+
+    /**
+     * Integrates Next.js TypeScript plugin.
+     */
     "plugins": [
       {
         "name": "next"
       }
-    ]
+    ],
+
+    /**
+     * Sets the base directory for resolving non-relative module names.
+     */
+    "baseUrl": "src",
+
+    /**
+     * Configures path aliases for easier imports.
+     */
+    "paths": {
+      "@/*": ["*"]
+    }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "next-env.d.ts",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+
+  /**
+   * Specifies which files to include in compilation.
+   */
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+
+  /**
+   * Specifies which files to exclude from compilation.
+   */
+  "exclude": ["node_modules"]
 }
