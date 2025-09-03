@@ -1,37 +1,170 @@
+/*
+ * Global styles for the LinkUp application
+ * - Initializes Tailwind CSS
+ * - Defines custom CSS variables for consistent theming (with RGB variants for opacity support)
+ * - Imports component-specific styles
+ * - Removes custom @layer utilities (replaced with inline rgba for better compatibility)
+ */
+
+@import "./AuthLayout.css";
+@import "./Input.css";
+@import "./Button.css";
+@import "./CodeInput.css";
+@import "./Avatar.css";
+@import "./FollowRequests.css";
+@import "./FollowRequestsSkeleton.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import "./Avatar.css";
-@import "./Input.css";
-@import "./Button.css";
-@import "./CodeInput.css";
-@import "./AuthLayout.css";
-@import "./NavIcon.css";
-@import "./SearchBar.css";
-@import "./Header.css";
-@import "./StoriesLoading.css";
-@import "./PostCard.css";
-@import "./PostCardLoading.css";
-@import "./PostModal.css";
-@import "./FollowRequests.css";
-@import "./FollowRequestsLoading.css";
-@import "./UserMenu.css";
-@import "./CreatePost.css";
-@import "./Notifications.css";
-@import "./CreateStories.css";
-@import "./FeedPage.css";
-@import "./loading.css";
-@import "./StoriesModal.css";
-@import "./profile.css";
-@import "./FollowerFollowingDialog.css";
-@import "./highlights.css";
-@import "./Bio.css";
-@import "./MainLayout.css";
-@import "./EditProfile.css";
-@import "./PrivateAccountNotice.css";
-@import "./StoriesPage.css";
+/* Define CSS variables for consistent theming */
+:root {
+  /* Primary brand color (purple) */
+  --linkup-purple: #6B46C1; /* Main purple for buttons, links, focus rings */
+  --linkup-purple-rgb: 107, 70, 193; /* RGB for opacity usage */
+  --linkup-purple-light: #A78BFA; /* Lighter purple for hovers, borders */
+  --linkup-purple-light-rgb: 167, 139, 250; /* RGB for opacity */
+  --linkup-purple-dark: #553C9A; /* Darker purple for active states */
+  --linkup-purple-dark-rgb: 85, 60, 154; /* RGB for opacity */
 
-body {
-    @apply bg-gray-50;
+  /* Neutral colors for light mode */
+  --gray-light-bg: #F9FAFB; /* bg-gray-50 for light backgrounds */
+  --gray-light-bg-rgb: 249, 250, 251; /* RGB for opacity */
+  --gray-bg: #F3F4F6; /* bg-gray-100 for main background */
+  --gray-bg-rgb: 243, 244, 246; /* RGB for opacity */
+  --gray-card: #FFFFFF; /* bg-white for cards and forms */
+  --gray-card-rgb: 255, 255, 255; /* RGB for opacity */
+  --gray-text-primary: #111827; /* text-gray-900 for primary text */
+  --gray-text-primary-rgb: 17, 24, 39; /* RGB for opacity */
+  --gray-text-secondary: #6B7280; /* text-gray-500 for secondary text */
+  --gray-text-secondary-rgb: 107, 114, 128; /* RGB for opacity */
+  --gray-border: #D1D5DB; /* border-gray-300 for borders */
+  --gray-border-rgb: 209, 213, 219; /* RGB for opacity */
+
+  /* Neutral colors for dark mode */
+  --gray-dark-bg: #111827; /* bg-gray-900 for main dark background */
+  --gray-dark-bg-rgb: 17, 24, 39; /* RGB for opacity */
+  --gray-dark-card: #1F2937; /* bg-gray-800 for dark cards and forms */
+  --gray-dark-card-rgb: 31, 41, 55; /* RGB for opacity */
+  --gray-dark-text-primary: #F9FAFB; /* text-gray-100 for dark primary text */
+  --gray-dark-text-primary-rgb: 249, 250, 251; /* RGB for opacity */
+  --gray-dark-text-secondary: #9CA3AF; /* text-gray-400 for dark secondary text */
+  --gray-dark-text-secondary-rgb: 156, 163, 175; /* RGB for opacity */
+  --gray-dark-border: #4B5563; /* border-gray-600 for dark borders */
+  --gray-dark-border-rgb: 75, 85, 99; /* RGB for opacity */
+
+  /* Secondary accent colors */
+  --blue-action: #3B82F6; /* blue-500 for actions like avatar plus */
+  --blue-action-rgb: 59, 130, 246; /* RGB for opacity */
+  --blue-light: #DBEAFE; /* blue-100 for light gradients */
+  --blue-light-rgb: 219, 234, 254; /* RGB for opacity */
+  --pink-gradient: #FCE7F3; /* pink-100 for auth gradients */
+  --pink-gradient-rgb: 252, 231, 243; /* RGB for opacity */
+
+  /* Feedback colors */
+  --success: #10B981; /* green-500 for success states */
+  --success-rgb: 16, 185, 129; /* RGB for opacity */
+  --error: #EF4444; /* red-500 for error states */
+  --error-rgb: 239, 68, 68; /* RGB for opacity */
+  --warning: #F59E0B; /* amber-500 for warnings (optional) */
+  --warning-rgb: 245, 158, 11; /* RGB for opacity */
+
+  --stories-max-width: 72rem; /* max-w-3xl -> adjust as needed */
+  --story-aspect-w: 9;
+  --story-aspect-h: 16;
+  --avatar-size: 4rem; /* 16 */
+  --avatar-inner-size: 3.5rem; /* 14 */
+  --ring-padding: 0.375rem; /* border offset when needed */
+  --anim-fast: 200ms;
+  --anim-medium: 350ms;
+  --anim-slow: 600ms;
+  --progress-duration: 5000ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  @keyframes storyRingPulse {
+    to { box-shadow: none; }
+  }
+}
+
+@layer utilities {
+  /* 🌐 Base styled scrollbar */
+  .scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;  
+  }
+
+  /* Track */
+  .scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Thumb */
+  .scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(var(--linkup-purple-rgb), 0.6);
+    border-radius: 9999px;
+    transition: background 0.3s;
+  }
+
+  /* Hover effect */
+  .scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--linkup-purple-rgb), 0.9);
+  }
+
+  /* Firefox support */
+  .scrollbar {
+    scrollbar-color: rgba(var(--linkup-purple-rgb), 0.6) transparent;
+    scrollbar-width: thin;
+  }
+
+  /* 🙈 Completely hidden scrollbar */
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hidden {
+    -ms-overflow-style: none;  /* IE/Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+
+  /* ✨ Thin minimal scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+
+
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Global reset and font stack */
+html, body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', sans-serif;
+  line-height: 1.5;
+}
+
+/* Global background and text */
+html {
+  @apply bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] transition-colors duration-300;
 }
