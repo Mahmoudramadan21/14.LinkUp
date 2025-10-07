@@ -1,0 +1,55 @@
+.explore {
+  @apply flex flex-col items-center min-h-screen py-6 px-4 sm:px-6 lg:px-8 transition-colors duration-300;
+  @apply bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)];
+}
+
+.explore__container {
+  @apply w-full max-w-7xl mx-auto;
+}
+
+.explore__title {
+  @apply text-center text-3xl sm:text-4xl font-bold mb-8 tracking-tight;
+  @apply text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.explore__posts_grid {
+  @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4;
+}
+
+.explore__post_tile {
+  @apply relative overflow-hidden rounded-lg cursor-pointer shadow-md hover:shadow-lg transition-shadow duration-200;
+}
+
+.explore__post_image,
+.explore__post_video {
+  @apply w-full h-full object-cover aspect-square;
+}
+
+.explore__loading {
+  @apply text-center text-lg mt-4;
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.explore__error {
+  @apply text-center text-lg mt-4;
+  @apply text-[var(--error)];
+}
+
+.explore__empty {
+  @apply text-center text-lg mt-8;
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.explore__load_more_trigger {
+  @apply h-1;
+}
+
+/* Modal navigation buttons */
+.feed__modal_nav_button {
+  @apply absolute top-1/2 transform -translate-y-1/2 text-white p-3 rounded-full hover:bg-black/70 focus:outline-none focus:ring-2 focus:ring-white transition-colors duration-200;
+  background-color: rgba(0, 0, 0, 0.5); /* بدل bg-black/50 */
+}
+
+.feed__modal_nav_button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
