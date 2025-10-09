@@ -1,0 +1,1812 @@
+@tailwind components;
+@tailwind utilities;
+
+/*
+  stories.module.css
+  - Optimized single-file version for story-related UI components
+  - Improvements:
+    • Structured with clear sections for better readability
+    • Uses CSS variables from global.css for consistent theming
+    • Full support for dark mode and accessibility
+    • Performance-optimized animations with will-change and prefers-reduced-motion
+    • Responsive design with Tailwind utilities
+    • Added styles for StoryReportModal and StoryDeleteConfirmationModal
+    • Reduced specificity for maintainability
+    • Removed unused or redundant styles
+*/
+
+/* ------------------------------------------------------------
+   Web Fonts (Imported via Google Fonts in globals.css)
+   ------------------------------------------------------------ */
+/* Fonts (Lora, Montserrat, Pacifico, Roboto Condensed, Oswald, Playfair Display) are loaded via Google Fonts in globals.css */
+/* System fonts (Arial, Times New Roman) are fallbacks, no import needed */
+
+/* ------------------------------------------------------------
+   Keyframes (optimized for performance, respects reduced-motion)
+   ------------------------------------------------------------ */
+@keyframes storyRingRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes progressBar {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes fadeInStory {
+  0% { opacity: 0; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes swipeHint {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes heartPulse {
+  0% { transform: scale(1); opacity: 1; }
+  20% { transform: scale(1.28); opacity: 0.92; }
+  50% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes avatarPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes modalFadeIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .storyRingPulse,
+  .progressBar,
+  .fadeInStory,
+  .swipeHint,
+  .heartPulse,
+  .avatarPop,
+  .modalFadeIn {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   Utilities (local helpers)
+   ------------------------------------------------------------ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.will-transform {
+  will-change: transform, opacity;
+}
+
+/* ------------------------------------------------------------
+   Stories Container / Header
+   ------------------------------------------------------------ */
+.stories {
+  @apply flex flex-col items-center bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)] py-6 px-4 sm:px-6 lg:px-8 transition-colors duration-300;
+}
+
+.stories__container {
+  @apply mx-auto max-w-xl;
+}
+
+.stories__title {
+  @apply text-center text-3xl sm:text-4xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mb-8 tracking-tight;
+}
+
+/* ------------------------------------------------------------
+   Stories Bar (avatars horizontal scroller)
+   ------------------------------------------------------------ */
+.stories__feed {
+  @apply flex gap-4;
+}
+
+.stories__bar {
+  @apply flex items-center gap-4 pb-4 overflow-x-auto snap-x snap-mandatory;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.stories__bar::-webkit-scrollbar {
+  display: none;
+}
+
+.stories__skeleton {
+  @apply bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] rounded-md animate-pulse;
+}
+
+.stories__avatar_wrapper {
+  @apply flex flex-col items-center cursor-pointer transition-transform duration-200 ease-out focus:outline-none;
+}
+.stories__avatar_wrapper:active {
+  @apply scale-100;
+}
+.stories__avatar_wrapper:focus-visible {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__avatar_ring.stories__skeleton {
+  @apply w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full;
+}
+
+.stories__avatar.stories__skeleton {
+  @apply w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full;
+}
+
+.stories__username.stories__skeleton {
+  @apply w-16 h-3 mt-1 rounded;
+}
+
+.stories__avatar_selected {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__avatar_ring {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  @apply rounded-full flex items-center justify-center;
+}
+
+.stories__avatar_ring_unviewed {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+}
+
+.stories__avatar_ring_unviewed::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  padding: 2px;
+  background: conic-gradient(
+    var(--linkup-purple),
+    var(--blue-action),
+    var(--linkup-purple-light),
+    var(--linkup-purple-dark),
+    var(--linkup-purple)
+  );
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: storyBorderSpin 4s linear infinite;
+}
+
+.stories__avatar_ring_unviewed img {
+  border-radius: 9999px;
+  display: block;
+}
+
+
+@keyframes storyBorderSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+.stories__avatar_ring_viewed {
+  @apply rounded-full border-2 border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+  background: transparent;
+}
+
+.stories__avatar {
+  width: var(--avatar-inner-size);
+  height: var(--avatar-inner-size);
+  @apply rounded-full object-cover box-content border-2 border-[var(--gray-card)] dark:border-[var(--gray-dark-card)];
+}
+
+.stories__username {
+  @apply text-xs text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mt-1 truncate max-w-[80px];
+}
+
+/* ------------------------------------------------------------
+   Viewer Modal (story viewer)
+   ------------------------------------------------------------ */
+.stories__viewer_modal_overlay {
+  @apply fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-300;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  scrollbar-width: thin;
+}
+
+.stories__viewer_modal {
+  @apply relative max-w-full md:max-w-6xl w-[90%] md:w-auto h-fit max-h-[95vh] md:h-[95vh] rounded-lg overflow-hidden shadow-2xl flex flex-col md:flex-row transition-colors duration-300;
+  background: color-mix(in srgb, var(--gray-card) 92%, transparent);
+  touch-action: pan-y;
+}
+
+.stories__viewer_header {
+  @apply absolute top-0 left-0 right-0 p-4 z-10 bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)];
+}
+
+.stories__viewer_user {
+  @apply flex justify-between items-center gap-2;
+}
+
+.stories__viewer_avatar {
+  @apply w-8 h-8 rounded-full object-cover;
+}
+
+.stories__viewer_username {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.stories__viewer_count {
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] ml-2;
+}
+
+.stories__viewer_close {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_main {
+  @apply flex flex-col md:flex-row gap-0 flex-1 w-full overflow-hidden pt-[3.25rem];
+}
+
+.stories__viewer_users {
+  @apply w-full h-fit md:h-full md:w-64 bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)] flex gap-3 md:flex-col p-3 md:p-4 overflow-x-auto md:overflow-y-auto transition-colors duration-300;
+  flex-shrink: 0;
+}
+.stories__viewer_users::-webkit-scrollbar {
+  display: none;
+}
+
+.stories__viewer_story {
+  @apply relative flex items-center justify-center w-full max-w-[420px] mx-auto md:mx-10 lg:mx-16 xl:mx-24 rounded-lg overflow-hidden transition-colors duration-300;
+  background: var(--gray-card);
+  aspect-ratio: var(--story-aspect-w) / var(--story-aspect-h);
+}
+
+
+.stories__viewer_story_header {
+  @apply flex justify-between items-center p-3 pt-8 absolute top-0 left-0 right-0 z-30;
+  background: linear-gradient(180deg, rgba(var(--gray-dark-bg-rgb), 0.2), transparent);
+}
+
+.stories__viewer_menu_button {
+  @apply bg-transparent border-none text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] cursor-pointer p-2 rounded-full hover:bg-[var(--gray-light)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_menu {
+  @apply absolute top-14 right-4 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-lg shadow-lg z-40 min-w-[140px] border border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+  animation: menuFadeIn 0.2s ease-out;
+}
+
+.stories__viewer_menu_item {
+  @apply flex items-center gap-3 p-3 bg-transparent border-none w-full text-left cursor-pointer text-sm font-medium text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-light)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_progress {
+  @apply absolute top-4 left-4 right-4 flex gap-1 z-10;
+}
+
+.stories__viewer_progress_bar {
+  @apply flex-1 h-1 rounded-full overflow-hidden bg-[rgba(0,0,0,0.25)] dark:bg-[rgba(255,255,255,0.35)];
+}
+
+.stories__viewer_progress_fill {
+  @apply h-full bg-[var(--linkup-purple)] will-transform;
+  animation: progressBar var(--progress-duration) linear forwards;
+}
+
+.stories__viewer_content {
+  @apply h-full w-full flex items-center justify-center;
+  animation: fadeInStory var(--anim-medium) ease-out;
+}
+
+.stories__viewer_media {
+  @apply absolute inset-0 w-full h-full object-cover;
+}
+
+.stories__viewer_latest_viewers {
+  @apply absolute bottom-4 left-4 flex items-center gap-2 z-10 cursor-pointer hover:opacity-80 transition-opacity duration-200 focus:outline-none;
+}
+
+.stories__viewer_avatars_stack {
+  @apply flex;
+}
+
+.stories__viewer_avatar_stack {
+  @apply rounded-full border-2 border-[var(--gray-card)] dark:border-[var(--gray-dark-card)] relative w-6 h-6 object-cover will-transform;
+  animation: avatarPop 0.3s ease-out;
+}
+
+.stories__viewer_latest_viewers:focus-visible {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__viewer_actions {
+  @apply absolute bottom-4 left-0 right-0 flex justify-center gap-6 z-10;
+}
+
+.stories__viewer_action {
+  @apply text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] flex items-center gap-1 hover:opacity-80 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_like_animate {
+  animation: heartPulse 880ms ease-in-out;
+}
+
+.stories__viewer_nav {
+  @apply absolute inset-0 flex;
+}
+
+.stories__viewer_nav_prev,
+.stories__viewer_nav_next {
+  @apply w-1/2 h-full cursor-pointer;
+}
+
+.stories__viewer_nav_hint {
+  @apply absolute top-1/2 -translate-y-1/2 text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] opacity-60 will-transform;
+  animation: swipeHint 880ms ease-in-out infinite;
+}
+
+.stories__viewer_nav_prev .stories__viewer_nav_hint {
+  left: 1rem;
+  transform: rotate(180deg) translateY(-50%);
+}
+
+.stories__viewer_nav_next .stories__viewer_nav_hint {
+  right: 1rem;
+  transform: translateY(-50%);
+}
+
+/* ------------------------------------------------------------
+   Story Report Modal
+   ------------------------------------------------------------ */
+.story-report-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-report-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--gray-dark-bg-rgb), 0.2) transparent;
+}
+.story-report-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.story-report-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.story-report-modal::-webkit-scrollbar-thumb {
+  background: rgba(var(--gray-dark-bg-rgb), 0.2);
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-report-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-report-modal__header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.story-report-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-report-modal__close {
+  @apply text-[var(--gray-text-secondary)] hover:text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-secondary)] dark:hover:text-[var(--gray-dark-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)] rounded-full p-2 transition-colors duration-200;
+}
+
+.story-report-modal__form {
+  @apply flex flex-col gap-4;
+}
+
+.story-report-modal__options {
+  @apply flex flex-col gap-2;
+}
+
+.story-report-modal__label {
+  @apply flex items-center gap-2 text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-report-modal__error {
+  @apply text-[var(--error)] text-sm;
+}
+
+.story-report-modal__buttons {
+  @apply flex gap-2;
+}
+
+.story-report-modal__button {
+  @apply flex-1 px-4 py-2 rounded-lg text-white bg-[var(--linkup-purple)] hover:bg-[var(--linkup-purple-dark)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.story-report-modal__cancel-button {
+  @apply flex-1 px-4 py-2 rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-card)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+/* ------------------------------------------------------------
+   Story Delete Confirmation Modal
+   ------------------------------------------------------------ */
+.story-delete-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-delete-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  max-height: 90vh;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-delete-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-delete-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mb-4;
+}
+
+.story-delete-modal__message {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] mb-6;
+}
+
+.story-delete-modal__buttons {
+  @apply flex gap-2;
+}
+
+.story-delete-modal__button {
+  @apply flex-1 px-4 py-2 rounded-lg text-white bg-[var(--error)] hover:bg-[var(--error-dark)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--error)];
+}
+
+.story-delete-modal__cancel-button {
+  @apply flex-1 px-4 py-2 rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-card)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+/* ------------------------------------------------------------
+   Loading / Empty / Error
+   ------------------------------------------------------------ */
+.stories__loading {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg;
+}
+
+.stories__skeleton {
+  @apply bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] rounded-md animate-pulse;
+}
+
+.stories__error {
+  @apply text-[var(--error)] text-sm mt-2 text-center;
+}
+
+.stories__empty {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg mx-auto mt-8;
+}
+
+/* ------------------------------------------------------------
+   Create Story Modal (toolbar + canvas + controls)
+   ------------------------------------------------------------ */
+.create-story-modal__overlay {
+  @apply fixed inset-0 flex items-center justify-center z-50;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.create-story-modal__container {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl w-full max-w-5xl mx-4 max-h-[95vh] overflow-y-auto shadow-lg;
+  transition: background-color var(--anim-medium);
+}
+
+.create-story-modal__header {
+  @apply p-4 flex justify-between items-center rounded-t-2xl bg-gradient-to-b from-[rgba(0,0,0,0.03)] dark:from-[rgba(255,255,255,0.02)];
+}
+
+.create-story-modal__title {
+  @apply text-xl font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__close {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__content {
+  @apply p-6 flex flex-col md:flex-row gap-6;
+}
+
+.create-story-modal__canvas-wrapper {
+  @apply relative w-full max-w-[540px] rounded-lg overflow-hidden shadow-md bg-black;
+  aspect-ratio: var(--story-aspect-w) / var(--story-aspect-h);
+}
+
+.create-story-modal__uploading {
+  @apply absolute inset-0 flex items-center justify-center bg-black/50 z-20;
+}
+
+.create-story-modal__uploading-text {
+  @apply text-white;
+}
+
+.create-story-modal__canvas {
+  @apply w-full h-full rounded-lg transition-all duration-100;
+  display: block;
+}
+
+.create-story-modal__canvas--draggable {
+  @apply cursor-grab;
+}
+
+.create-story-modal__canvas--dragging {
+  @apply cursor-grabbing opacity-90 scale-95;
+  transform-origin: center;
+}
+
+.create-story-modal__video-control {
+  @apply absolute top-2 left-2 p-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__toolbar {
+  @apply w-full md:w-80 flex flex-col gap-4;
+}
+
+.create-story-modal__user {
+  @apply flex items-center gap-3;
+}
+
+.create-story-modal__avatar {
+  @apply w-10 h-10 rounded-full object-cover;
+}
+
+.create-story-modal__username {
+  @apply font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__handle {
+  @apply text-sm text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.create-story-modal__text-input {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__text-input-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__text-input-field {
+  @apply p-2 border rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] w-full focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  font-family: Lora, Montserrat, Pacifico, "Roboto Condensed", Oswald, "Playfair Display", Arial, sans-serif;
+}
+
+.create-story-modal__color-picker {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__color-picker-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__color-options {
+  @apply grid grid-cols-6 gap-2;
+}
+
+.create-story-modal__color-option {
+  @apply w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__color-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__font-picker {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__font-picker-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__font-options {
+  @apply flex gap-2 overflow-x-auto;
+}
+
+.create-story-modal__font-option {
+  @apply p-2 rounded-lg border-2 border-transparent bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  font-family: Lora, Montserrat, Pacifico, "Roboto Condensed", Oswald, "Playfair Display", Arial, sans-serif;
+}
+
+.create-story-modal__font-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__size-slider {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__size-slider-field {
+  @apply w-full accent-[var(--linkup-purple)];
+}
+
+.create-story-modal__alignment {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__alignment-options {
+  @apply flex gap-2;
+}
+
+.create-story-modal__alignment-option {
+  @apply p-2 rounded-lg border-2 border-transparent bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__alignment-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__actions {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__actions-group {
+  @apply flex gap-2 flex-1 max-h-10;
+}
+
+.create-story-modal__action-btn {
+  @apply p-2 rounded-lg text-white flex items-center gap-2 hover:opacity-95 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__action-btn--add-media {
+  @apply flex-1 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__action-btn--add-text {
+  @apply flex-1 bg-[var(--linkup-purple)] hover:bg-[var(--linkup-purple-dark)];
+}
+
+.create-story-modal__action-btn--undo,
+.create-story-modal__action-btn--redo {
+  @apply bg-gray-500 flex-1;
+}
+
+.create-story-modal__action-btn--discard {
+  @apply bg-[var(--error)] flex-1;
+}
+
+.create-story-modal__action-btn--share {
+  @apply bg-green-500 flex-1;
+}
+
+.create-story-modal__action-btn--disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.create-story-modal__mode-selector {
+  @apply m-auto my-6 w-full md:w-80 flex flex-col gap-4 items-center;
+}
+
+.create-story-modal__mode-btn {
+  @apply flex flex-col justify-center items-center text-center gap-5 p-16 w-full max-w-md rounded-lg text-white font-medium cursor-pointer hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.02));
+}
+
+.create-story-modal__mode-btn--media {
+  background: linear-gradient(to bottom, #800080, #A52A2A);
+}
+
+.create-story-modal__mode-btn--text {
+  background: linear-gradient(to bottom, #008000, #ADFF2F);
+}
+
+.create-story-modal__mode-icon {
+  @apply text-white border-2 border-purple-600 rounded-full p-2 box-content;
+}
+
+.create-story-modal__preview-btn {
+  @apply bg-blue-500 text-white p-3 rounded-full hover:bg-blue-600 transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__recording-timer {
+  @apply flex items-center justify-center font-medium text-sm text-white bg-black bg-opacity-60 px-3 py-1 rounded-lg;
+}
+
+.create-story-modal__video-trimmer {
+  @apply flex flex-col gap-4;
+}
+
+.create-story-modal__trimmer-container {
+  @apply relative flex items-center gap-4;
+}
+
+.slider {
+  @apply relative w-full h-12;
+}
+
+.slider__track {
+  @apply absolute rounded-full h-2 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] w-full top-1/2 transform -translate-y-1/2 z-10;
+}
+
+.slider__range {
+  @apply absolute rounded-full h-2 bg-blue-500 dark:bg-blue-400 top-1/2 transform -translate-y-1/2 z-20;
+}
+
+.slider__progress {
+  @apply absolute rounded-full h-2 bg-green-500 dark:bg-green-400 top-1/2 transform -translate-y-1/2 z-20 transition duration-1000 ease-linear;
+}
+
+.slider__left-value,
+.slider__right-value {
+  @apply absolute text-xs font-medium text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] top-full mt-2;
+}
+
+.slider__left-value {
+  @apply left-0;
+}
+
+.slider__right-value {
+  @apply right-0;
+}
+
+.thumb {
+  @apply absolute w-full h-12 -top-2 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] z-30;
+}
+
+.thumb::-webkit-slider-thumb {
+  @apply appearance-none w-5 h-5 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] border-2 border-[var(--linkup-purple)] rounded-full shadow-md hover:scale-110 transition-transform duration-200;
+}
+
+.thumb::-moz-range-thumb {
+  @apply w-5 h-5 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] border-2 border-[var(--linkup-purple)] rounded-full shadow-md hover:scale-110 transition-transform duration-200;
+}
+
+.thumb--zindex-3 {
+  @apply z-30;
+}
+
+.thumb--zindex-4 {
+  @apply z-40;
+}
+
+.thumb--zindex-5 {
+  @apply z-50;
+}
+
+/* ------------------------------------------------------------
+   Story Viewers Modal
+   ------------------------------------------------------------ */
+.story-viewers-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  box-shadow: 0 10px 30px rgba(var(--gray-dark-bg-rgb), 0.2);
+  max-height: 24rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--gray-dark-bg-rgb), 0.2) transparent;
+}
+.story-viewers-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.story-viewers-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.story-viewers-modal::-webkit-scrollbar-thumb {
+  background: rgba(var(--gray-dark-bg-rgb), 0.2);
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-viewers-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-viewers-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-viewers-modal__header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.story-viewers-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-viewers-modal__counts {
+  @apply text-sm text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] ml-2;
+}
+
+.story-viewers-modal__close {
+  @apply text-[var(--gray-text-secondary)] hover:text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-secondary)] dark:hover:text-[var(--gray-dark-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)] rounded-full p-2 transition-colors duration-200;
+}
+
+.story-viewers-modal__list {
+  @apply flex flex-col gap-3;
+}
+
+.story-viewers-modal__item {
+  @apply flex items-center gap-3;
+}
+
+.story-viewers-modal__avatar {
+  @apply object-cover rounded-full w-10 h-10 border border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+}
+
+.story-viewers-modal__username {
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.story-viewers-modal__profile-name {
+  @apply text-sm font-medium text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-viewers-modal__like-icon {
+  @apply text-[var(--error)] dark:text-[var(--error-dark)] flex items-center justify-center w-6 h-6 will-transform;
+  animation: heartPulse 880ms ease-in-out infinite;
+}
+
+.story-viewers-modal__retry-button {
+  @apply px-3 py-1 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] rounded-md text-sm cursor-pointer hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+.story-viewers-modal__retry-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.story-viewers-modal__loading {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg;
+}
+
+.story-viewers-modal__error {
+  @apply text-[var(--error)] text-sm mt-2 text-center;
+}
+
+.story-viewers-modal__empty {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg mt-8;
+}
+
+/* ------------------------------------------------------------
+   Accessibility Focus Styles
+   ------------------------------------------------------------ */
+.stories__avatar_wrapper:focus-visible,
+.stories__viewer_action:focus-visible,
+.stories__viewer_latest_viewers:focus-visible,
+.stories__viewer_menu_button:focus-visible,
+.stories__viewer_menu_item:focus-visible,
+.create-story-modal__close:focus-visible,
+.create-story-modal__action-btn:focus-visible,
+.create-story-modal__mode-btn:focus-visible,
+.create-story-modal__preview-btn:focus-visible,
+.create-story-modal__canvas:focus-visible,
+.story-report-modal__close:focus-visible,
+.story-report-modal__button:focus-visible,
+.story-report-modal__cancel-button:focus-visible,
+.story-delete-modal__button:focus-visible,
+.story-delete-modal__cancel-button:focus-visible {
+  @apply outline-none ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+/* ------------------------------------------------------------
+   Performance Hints
+   ------------------------------------------------------------ */
+.stories__avatar_ring_unviewed,
+.stories__viewer_nav_hint,
+.stories__viewer_progress_fill,
+.stories__viewer_avatar_stack,
+.create-story-modal__canvas {
+  will-change: transform, opacity;
+}
+@tailwind components;
+@tailwind utilities;
+
+/*
+  stories.module.css
+  - Optimized single-file version for story-related UI components
+  - Improvements:
+    • Structured with clear sections for better readability
+    • Uses CSS variables from global.css for consistent theming
+    • Full support for dark mode and accessibility
+    • Performance-optimized animations with will-change and prefers-reduced-motion
+    • Responsive design with Tailwind utilities
+    • Added styles for StoryReportModal and StoryDeleteConfirmationModal
+    • Reduced specificity for maintainability
+    • Removed unused or redundant styles
+*/
+
+/* ------------------------------------------------------------
+   Web Fonts (Imported via Google Fonts in globals.css)
+   ------------------------------------------------------------ */
+/* Fonts (Lora, Montserrat, Pacifico, Roboto Condensed, Oswald, Playfair Display) are loaded via Google Fonts in globals.css */
+/* System fonts (Arial, Times New Roman) are fallbacks, no import needed */
+
+/* ------------------------------------------------------------
+   Keyframes (optimized for performance, respects reduced-motion)
+   ------------------------------------------------------------ */
+@keyframes storyRingRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes progressBar {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes fadeInStory {
+  0% { opacity: 0; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes swipeHint {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes heartPulse {
+  0% { transform: scale(1); opacity: 1; }
+  20% { transform: scale(1.28); opacity: 0.92; }
+  50% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes avatarPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes modalFadeIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .storyRingPulse,
+  .progressBar,
+  .fadeInStory,
+  .swipeHint,
+  .heartPulse,
+  .avatarPop,
+  .modalFadeIn {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   Utilities (local helpers)
+   ------------------------------------------------------------ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.will-transform {
+  will-change: transform, opacity;
+}
+
+/* ------------------------------------------------------------
+   Stories Container / Header
+   ------------------------------------------------------------ */
+.stories {
+  @apply flex flex-col items-center bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)] py-6 px-4 sm:px-6 lg:px-8 transition-colors duration-300;
+}
+
+.stories__container {
+  @apply mx-auto max-w-xl;
+}
+
+.stories__title {
+  @apply text-center text-3xl sm:text-4xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mb-8 tracking-tight;
+}
+
+/* ------------------------------------------------------------
+   Stories Bar (avatars horizontal scroller)
+   ------------------------------------------------------------ */
+.stories__feed {
+  @apply flex gap-4;
+}
+
+.stories__bar {
+  @apply flex items-center gap-4 pb-4 overflow-x-auto snap-x snap-mandatory;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.stories__bar::-webkit-scrollbar {
+  display: none;
+}
+
+.stories__skeleton {
+  @apply bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] rounded-md animate-pulse;
+}
+
+.stories__avatar_wrapper {
+  @apply flex flex-col items-center cursor-pointer transition-transform duration-200 ease-out focus:outline-none;
+}
+.stories__avatar_wrapper:active {
+  @apply scale-100;
+}
+.stories__avatar_wrapper:focus-visible {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__avatar_ring.stories__skeleton {
+  @apply w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full;
+}
+
+.stories__avatar.stories__skeleton {
+  @apply w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-full;
+}
+
+.stories__username.stories__skeleton {
+  @apply w-16 h-3 mt-1 rounded;
+}
+
+.stories__avatar_selected {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__avatar_ring {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  @apply rounded-full flex items-center justify-center;
+}
+
+.stories__avatar_ring_unviewed {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+}
+
+.stories__avatar_ring_unviewed::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  padding: 2px;
+  background: conic-gradient(
+    var(--linkup-purple),
+    var(--blue-action),
+    var(--linkup-purple-light),
+    var(--linkup-purple-dark),
+    var(--linkup-purple)
+  );
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: storyBorderSpin 4s linear infinite;
+}
+
+.stories__avatar_ring_unviewed img {
+  border-radius: 9999px;
+  display: block;
+}
+
+
+@keyframes storyBorderSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+.stories__avatar_ring_viewed {
+  @apply rounded-full border-2 border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+  background: transparent;
+}
+
+.stories__avatar {
+  width: var(--avatar-inner-size);
+  height: var(--avatar-inner-size);
+  @apply rounded-full object-cover box-content border-2 border-[var(--gray-card)] dark:border-[var(--gray-dark-card)];
+}
+
+.stories__username {
+  @apply text-xs text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mt-1 truncate max-w-[80px];
+}
+
+/* ------------------------------------------------------------
+   Viewer Modal (story viewer)
+   ------------------------------------------------------------ */
+.stories__viewer_modal_overlay {
+  @apply fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-300;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  scrollbar-width: thin;
+}
+
+.stories__viewer_modal {
+  @apply relative max-w-full md:max-w-6xl w-[90%] md:w-auto h-fit max-h-[95vh] md:h-[95vh] rounded-lg overflow-hidden shadow-2xl flex flex-col md:flex-row transition-colors duration-300;
+  background: color-mix(in srgb, var(--gray-card) 92%, transparent);
+  touch-action: pan-y;
+}
+
+.stories__viewer_header {
+  @apply absolute top-0 left-0 right-0 p-4 z-10 bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)];
+}
+
+.stories__viewer_user {
+  @apply flex justify-between items-center gap-2;
+}
+
+.stories__viewer_avatar {
+  @apply w-8 h-8 rounded-full object-cover;
+}
+
+.stories__viewer_username {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.stories__viewer_count {
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] ml-2;
+}
+
+.stories__viewer_close {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_main {
+  @apply flex flex-col md:flex-row gap-0 flex-1 w-full overflow-hidden pt-[3.25rem];
+}
+
+.stories__viewer_users {
+  @apply w-full h-fit md:h-full md:w-64 bg-[var(--gray-bg)] dark:bg-[var(--gray-dark-bg)] flex gap-3 md:flex-col p-3 md:p-4 overflow-x-auto md:overflow-y-auto transition-colors duration-300;
+  flex-shrink: 0;
+}
+.stories__viewer_users::-webkit-scrollbar {
+  display: none;
+}
+
+.stories__viewer_story {
+  @apply relative flex items-center justify-center w-full max-w-[420px] mx-auto md:mx-10 lg:mx-16 xl:mx-24 rounded-lg overflow-hidden transition-colors duration-300;
+  background: var(--gray-card);
+  aspect-ratio: var(--story-aspect-w) / var(--story-aspect-h);
+}
+
+
+.stories__viewer_story_header {
+  @apply flex justify-between items-center p-3 pt-8 absolute top-0 left-0 right-0 z-30;
+  background: linear-gradient(180deg, rgba(var(--gray-dark-bg-rgb), 0.2), transparent);
+}
+
+.stories__viewer_menu_button {
+  @apply bg-transparent border-none text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] cursor-pointer p-2 rounded-full hover:bg-[var(--gray-light)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_menu {
+  @apply absolute top-14 right-4 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-lg shadow-lg z-40 min-w-[140px] border border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+  animation: menuFadeIn 0.2s ease-out;
+}
+
+.stories__viewer_menu_item {
+  @apply flex items-center gap-3 p-3 bg-transparent border-none w-full text-left cursor-pointer text-sm font-medium text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-light)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_progress {
+  @apply absolute top-4 left-4 right-4 flex gap-1 z-10;
+}
+
+.stories__viewer_progress_bar {
+  @apply flex-1 h-1 rounded-full overflow-hidden bg-[rgba(0,0,0,0.25)] dark:bg-[rgba(255,255,255,0.35)];
+}
+
+.stories__viewer_progress_fill {
+  @apply h-full bg-[var(--linkup-purple)] will-transform;
+  animation: progressBar var(--progress-duration) linear forwards;
+}
+
+.stories__viewer_content {
+  @apply h-full w-full flex items-center justify-center;
+  animation: fadeInStory var(--anim-medium) ease-out;
+}
+
+.stories__viewer_media {
+  @apply absolute inset-0 w-full h-full object-cover;
+}
+
+.stories__viewer_latest_viewers {
+  @apply absolute bottom-4 left-4 flex items-center gap-2 z-10 cursor-pointer hover:opacity-80 transition-opacity duration-200 focus:outline-none;
+}
+
+.stories__viewer_avatars_stack {
+  @apply flex;
+}
+
+.stories__viewer_avatar_stack {
+  @apply rounded-full border-2 border-[var(--gray-card)] dark:border-[var(--gray-dark-card)] relative w-6 h-6 object-cover will-transform;
+  animation: avatarPop 0.3s ease-out;
+}
+
+.stories__viewer_latest_viewers:focus-visible {
+  @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+.stories__viewer_actions {
+  @apply absolute bottom-4 left-0 right-0 flex justify-center gap-6 z-10;
+}
+
+.stories__viewer_action {
+  @apply text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] flex items-center gap-1 hover:opacity-80 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.stories__viewer_like_animate {
+  animation: heartPulse 880ms ease-in-out;
+}
+
+.stories__viewer_nav {
+  @apply absolute inset-0 flex;
+}
+
+.stories__viewer_nav_prev,
+.stories__viewer_nav_next {
+  @apply w-1/2 h-full cursor-pointer;
+}
+
+.stories__viewer_nav_hint {
+  @apply absolute top-1/2 -translate-y-1/2 text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] opacity-60 will-transform;
+  animation: swipeHint 880ms ease-in-out infinite;
+}
+
+.stories__viewer_nav_prev .stories__viewer_nav_hint {
+  left: 1rem;
+  transform: rotate(180deg) translateY(-50%);
+}
+
+.stories__viewer_nav_next .stories__viewer_nav_hint {
+  right: 1rem;
+  transform: translateY(-50%);
+}
+
+/* ------------------------------------------------------------
+   Story Report Modal
+   ------------------------------------------------------------ */
+.story-report-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-report-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--gray-dark-bg-rgb), 0.2) transparent;
+}
+.story-report-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.story-report-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.story-report-modal::-webkit-scrollbar-thumb {
+  background: rgba(var(--gray-dark-bg-rgb), 0.2);
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-report-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-report-modal__header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.story-report-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-report-modal__close {
+  @apply text-[var(--gray-text-secondary)] hover:text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-secondary)] dark:hover:text-[var(--gray-dark-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)] rounded-full p-2 transition-colors duration-200;
+}
+
+.story-report-modal__form {
+  @apply flex flex-col gap-4;
+}
+
+.story-report-modal__options {
+  @apply flex flex-col gap-2;
+}
+
+.story-report-modal__label {
+  @apply flex items-center gap-2 text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-report-modal__error {
+  @apply text-[var(--error)] text-sm;
+}
+
+.story-report-modal__buttons {
+  @apply flex gap-2;
+}
+
+.story-report-modal__button {
+  @apply flex-1 px-4 py-2 rounded-lg text-white bg-[var(--linkup-purple)] hover:bg-[var(--linkup-purple-dark)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.story-report-modal__cancel-button {
+  @apply flex-1 px-4 py-2 rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-card)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+/* ------------------------------------------------------------
+   Story Delete Confirmation Modal
+   ------------------------------------------------------------ */
+.story-delete-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-delete-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  max-height: 90vh;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-delete-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-delete-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] mb-4;
+}
+
+.story-delete-modal__message {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] mb-6;
+}
+
+.story-delete-modal__buttons {
+  @apply flex gap-2;
+}
+
+.story-delete-modal__button {
+  @apply flex-1 px-4 py-2 rounded-lg text-white bg-[var(--error)] hover:bg-[var(--error-dark)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--error)];
+}
+
+.story-delete-modal__cancel-button {
+  @apply flex-1 px-4 py-2 rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-card)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+/* ------------------------------------------------------------
+   Loading / Empty / Error
+   ------------------------------------------------------------ */
+.stories__loading {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg;
+}
+
+.stories__skeleton {
+  @apply bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] rounded-md animate-pulse;
+}
+
+.stories__error {
+  @apply text-[var(--error)] text-sm mt-2 text-center;
+}
+
+.stories__empty {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg mx-auto mt-8;
+}
+
+/* ------------------------------------------------------------
+   Create Story Modal (toolbar + canvas + controls)
+   ------------------------------------------------------------ */
+.create-story-modal__overlay {
+  @apply fixed inset-0 flex items-center justify-center z-50;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.create-story-modal__container {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl w-full max-w-5xl mx-4 max-h-[95vh] overflow-y-auto shadow-lg;
+  transition: background-color var(--anim-medium);
+}
+
+.create-story-modal__header {
+  @apply p-4 flex justify-between items-center rounded-t-2xl bg-gradient-to-b from-[rgba(0,0,0,0.03)] dark:from-[rgba(255,255,255,0.02)];
+}
+
+.create-story-modal__title {
+  @apply text-xl font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__close {
+  @apply text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__content {
+  @apply p-6 flex flex-col md:flex-row gap-6;
+}
+
+.create-story-modal__canvas-wrapper {
+  @apply relative w-full max-w-[540px] rounded-lg overflow-hidden shadow-md bg-black;
+  aspect-ratio: var(--story-aspect-w) / var(--story-aspect-h);
+}
+
+.create-story-modal__uploading {
+  @apply absolute inset-0 flex items-center justify-center bg-black/50 z-20;
+}
+
+.create-story-modal__uploading-text {
+  @apply text-white;
+}
+
+.create-story-modal__canvas {
+  @apply w-full h-full rounded-lg transition-all duration-100;
+  display: block;
+}
+
+.create-story-modal__canvas--draggable {
+  @apply cursor-grab;
+}
+
+.create-story-modal__canvas--dragging {
+  @apply cursor-grabbing opacity-90 scale-95;
+  transform-origin: center;
+}
+
+.create-story-modal__video-control {
+  @apply absolute top-2 left-2 p-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__toolbar {
+  @apply w-full md:w-80 flex flex-col gap-4;
+}
+
+.create-story-modal__user {
+  @apply flex items-center gap-3;
+}
+
+.create-story-modal__avatar {
+  @apply w-10 h-10 rounded-full object-cover;
+}
+
+.create-story-modal__username {
+  @apply font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__handle {
+  @apply text-sm text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.create-story-modal__text-input {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__text-input-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__text-input-field {
+  @apply p-2 border rounded-lg bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] w-full focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  font-family: Lora, Montserrat, Pacifico, "Roboto Condensed", Oswald, "Playfair Display", Arial, sans-serif;
+}
+
+.create-story-modal__color-picker {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__color-picker-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__color-options {
+  @apply grid grid-cols-6 gap-2;
+}
+
+.create-story-modal__color-option {
+  @apply w-8 h-8 rounded-full border-2 border-transparent hover:scale-110 transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__color-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__font-picker {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__font-picker-label {
+  @apply text-sm font-semibold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__font-options {
+  @apply flex gap-2 overflow-x-auto;
+}
+
+.create-story-modal__font-option {
+  @apply p-2 rounded-lg border-2 border-transparent bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  font-family: Lora, Montserrat, Pacifico, "Roboto Condensed", Oswald, "Playfair Display", Arial, sans-serif;
+}
+
+.create-story-modal__font-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__size-slider {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__size-slider-field {
+  @apply w-full accent-[var(--linkup-purple)];
+}
+
+.create-story-modal__alignment {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__alignment-options {
+  @apply flex gap-2;
+}
+
+.create-story-modal__alignment-option {
+  @apply p-2 rounded-lg border-2 border-transparent bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__alignment-option--selected {
+  @apply ring-2 ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__actions {
+  @apply flex flex-col gap-2;
+}
+
+.create-story-modal__actions-group {
+  @apply flex gap-2 flex-1 max-h-10;
+}
+
+.create-story-modal__action-btn {
+  @apply p-2 rounded-lg text-white flex items-center gap-2 hover:opacity-95 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__action-btn--add-media {
+  @apply flex-1 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.create-story-modal__action-btn--add-text {
+  @apply flex-1 bg-[var(--linkup-purple)] hover:bg-[var(--linkup-purple-dark)];
+}
+
+.create-story-modal__action-btn--undo,
+.create-story-modal__action-btn--redo {
+  @apply bg-gray-500 flex-1;
+}
+
+.create-story-modal__action-btn--discard {
+  @apply bg-[var(--error)] flex-1;
+}
+
+.create-story-modal__action-btn--share {
+  @apply bg-green-500 flex-1;
+}
+
+.create-story-modal__action-btn--disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.create-story-modal__mode-selector {
+  @apply m-auto my-6 w-full md:w-80 flex flex-col gap-4 items-center;
+}
+
+.create-story-modal__mode-btn {
+  @apply flex flex-col justify-center items-center text-center gap-5 p-16 w-full max-w-md rounded-lg text-white font-medium cursor-pointer hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.02));
+}
+
+.create-story-modal__mode-btn--media {
+  background: linear-gradient(to bottom, #800080, #A52A2A);
+}
+
+.create-story-modal__mode-btn--text {
+  background: linear-gradient(to bottom, #008000, #ADFF2F);
+}
+
+.create-story-modal__mode-icon {
+  @apply text-white border-2 border-purple-600 rounded-full p-2 box-content;
+}
+
+.create-story-modal__preview-btn {
+  @apply bg-blue-500 text-white p-3 rounded-full hover:bg-blue-600 transition-colors duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+.create-story-modal__recording-timer {
+  @apply flex items-center justify-center font-medium text-sm text-white bg-black bg-opacity-60 px-3 py-1 rounded-lg;
+}
+
+.create-story-modal__video-trimmer {
+  @apply flex flex-col gap-4;
+}
+
+.create-story-modal__trimmer-container {
+  @apply relative flex items-center gap-4;
+}
+
+.slider {
+  @apply relative w-full h-12;
+}
+
+.slider__track {
+  @apply absolute rounded-full h-2 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-border)] w-full top-1/2 transform -translate-y-1/2 z-10;
+}
+
+.slider__range {
+  @apply absolute rounded-full h-2 bg-blue-500 dark:bg-blue-400 top-1/2 transform -translate-y-1/2 z-20;
+}
+
+.slider__progress {
+  @apply absolute rounded-full h-2 bg-green-500 dark:bg-green-400 top-1/2 transform -translate-y-1/2 z-20 transition duration-1000 ease-linear;
+}
+
+.slider__left-value,
+.slider__right-value {
+  @apply absolute text-xs font-medium text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] top-full mt-2;
+}
+
+.slider__left-value {
+  @apply left-0;
+}
+
+.slider__right-value {
+  @apply right-0;
+}
+
+.thumb {
+  @apply absolute w-full h-12 -top-2 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] z-30;
+}
+
+.thumb::-webkit-slider-thumb {
+  @apply appearance-none w-5 h-5 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] border-2 border-[var(--linkup-purple)] rounded-full shadow-md hover:scale-110 transition-transform duration-200;
+}
+
+.thumb::-moz-range-thumb {
+  @apply w-5 h-5 bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] border-2 border-[var(--linkup-purple)] rounded-full shadow-md hover:scale-110 transition-transform duration-200;
+}
+
+.thumb--zindex-3 {
+  @apply z-30;
+}
+
+.thumb--zindex-4 {
+  @apply z-40;
+}
+
+.thumb--zindex-5 {
+  @apply z-50;
+}
+
+/* ------------------------------------------------------------
+   Story Viewers Modal
+   ------------------------------------------------------------ */
+.story-viewers-modal {
+  @apply bg-[var(--gray-card)] dark:bg-[var(--gray-dark-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl transform transition-all duration-300;
+  box-shadow: 0 10px 30px rgba(var(--gray-dark-bg-rgb), 0.2);
+  max-height: 24rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--gray-dark-bg-rgb), 0.2) transparent;
+}
+.story-viewers-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.story-viewers-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.story-viewers-modal::-webkit-scrollbar-thumb {
+  background: rgba(var(--gray-dark-bg-rgb), 0.2);
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .story-viewers-modal {
+    animation: modalFadeIn 0.3s ease-out;
+  }
+}
+
+.story-viewers-modal__overlay {
+  @apply fixed inset-0 bg-[rgba(var(--gray-dark-bg-rgb),0.5)] backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300;
+}
+
+.story-viewers-modal__header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.story-viewers-modal__title {
+  @apply text-xl font-bold text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-viewers-modal__counts {
+  @apply text-sm text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] ml-2;
+}
+
+.story-viewers-modal__close {
+  @apply text-[var(--gray-text-secondary)] hover:text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-secondary)] dark:hover:text-[var(--gray-dark-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)] rounded-full p-2 transition-colors duration-200;
+}
+
+.story-viewers-modal__list {
+  @apply flex flex-col gap-3;
+}
+
+.story-viewers-modal__item {
+  @apply flex items-center gap-3;
+}
+
+.story-viewers-modal__avatar {
+  @apply object-cover rounded-full w-10 h-10 border border-[var(--gray-border)] dark:border-[var(--gray-dark-border)];
+}
+
+.story-viewers-modal__username {
+  @apply text-xs text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)];
+}
+
+.story-viewers-modal__profile-name {
+  @apply text-sm font-medium text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)];
+}
+
+.story-viewers-modal__like-icon {
+  @apply text-[var(--error)] dark:text-[var(--error-dark)] flex items-center justify-center w-6 h-6 will-transform;
+  animation: heartPulse 880ms ease-in-out infinite;
+}
+
+.story-viewers-modal__retry-button {
+  @apply px-3 py-1 bg-[var(--gray-light)] dark:bg-[var(--gray-dark-card)] text-[var(--gray-text-primary)] dark:text-[var(--gray-dark-text-primary)] rounded-md text-sm cursor-pointer hover:bg-[var(--gray-border)] dark:hover:bg-[var(--gray-dark-border)] focus:outline-none focus:ring-2 focus:ring-[var(--gray-border)];
+}
+
+.story-viewers-modal__retry-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.story-viewers-modal__loading {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg;
+}
+
+.story-viewers-modal__error {
+  @apply text-[var(--error)] text-sm mt-2 text-center;
+}
+
+.story-viewers-modal__empty {
+  @apply text-center text-[var(--gray-text-secondary)] dark:text-[var(--gray-dark-text-secondary)] text-lg mt-8;
+}
+
+/* ------------------------------------------------------------
+   Accessibility Focus Styles
+   ------------------------------------------------------------ */
+.stories__avatar_wrapper:focus-visible,
+.stories__viewer_action:focus-visible,
+.stories__viewer_latest_viewers:focus-visible,
+.stories__viewer_menu_button:focus-visible,
+.stories__viewer_menu_item:focus-visible,
+.create-story-modal__close:focus-visible,
+.create-story-modal__action-btn:focus-visible,
+.create-story-modal__mode-btn:focus-visible,
+.create-story-modal__preview-btn:focus-visible,
+.create-story-modal__canvas:focus-visible,
+.story-report-modal__close:focus-visible,
+.story-report-modal__button:focus-visible,
+.story-report-modal__cancel-button:focus-visible,
+.story-delete-modal__button:focus-visible,
+.story-delete-modal__cancel-button:focus-visible {
+  @apply outline-none ring-2 ring-[var(--linkup-purple)] ring-offset-2;
+}
+
+/* ------------------------------------------------------------
+   Performance Hints
+   ------------------------------------------------------------ */
+.stories__avatar_ring_unviewed,
+.stories__viewer_nav_hint,
+.stories__viewer_progress_fill,
+.stories__viewer_avatar_stack,
+.create-story-modal__canvas {
+  will-change: transform, opacity;
+}
