@@ -15,7 +15,7 @@ export interface Profile {
   followerCount: number;
   followingCount: number;
   likeCount: number;
-  isFollowing: boolean;
+  isFollowed: boolean;
   followStatus: "NONE" | "PENDING" | "ACCEPTED" | "REJECTED";
   hasUnViewedStories: boolean;
   hasActiveStories: boolean;
@@ -32,6 +32,7 @@ export interface Profile {
     isFollowed: boolean;
     latestInteraction?: string | null; // ISO date string
   }[];
+  conversationId ?: string | null;
 }
 
 export interface UpdateProfileRequest {
@@ -74,7 +75,7 @@ export interface FollowUser {
   profilePicture?: string | null;
   isPrivate: boolean;
   bio?: string | null;
-  isFollowing: boolean;
+  isFollowed: boolean | "pending";
 }
 
 export interface UserSuggestion {
@@ -82,6 +83,7 @@ export interface UserSuggestion {
   username: string;
   profilePicture?: string | null;
   bio?: string | null;
+  isFollowed: boolean | "pending";
 }
 
 export interface ProfileResponse {

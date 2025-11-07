@@ -12,17 +12,65 @@ import type { JSX } from 'react';
  * @type {Metadata}
  */
 export const metadata: Metadata = {
-  title: 'Password Reset Success',
-  description: 'Your password has been successfully reset. Log in to your LinkUp account.',
-  openGraph: {
-    title: 'LinkUp | Password Reset Success',
-    description: 'Your password has been successfully reset. Log in to your LinkUp account.',
-    type: 'website',
+  title: "Password Reset Successful | LinkUp",
+  description:
+    "Your password has been successfully reset. You can now log in to your LinkUp account securely.",
+  keywords: [
+    "LinkUp",
+    "password reset",
+    "success",
+    "login",
+    "account access",
+  ],
+  authors: [{ name: "LinkUp Team" }],
+  applicationName: "LinkUp",
+  generator: "Next.js",
+
+  // Canonical URL
+  alternates: {
+    canonical: "/password-reset-success",
   },
+
+  // Robots – these pages MUST NOT be indexed
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+      "max-snippet": -1,
+      "max-image-preview": "none",
+      "max-video-preview": -1,
+    },
+  },
+
+  // Open Graph
+  openGraph: {
+    title: "Password Reset Successful | LinkUp",
+    description:
+      "Your password has been reset successfully. You can now log in to your LinkUp account.",
+    url: "/password-reset-success",
+    siteName: "LinkUp",
+    type: "website",
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "Password Reset Completed",
+      },
+    ],
+  },
+
+  // Twitter
   twitter: {
-    card: 'summary_large_image',
-    title: 'LinkUp | Password Reset Success',
-    description: 'Your password has been successfully reset. Log in to your LinkUp account.',
+    card: "summary_large_image",
+    title: "Password Reset Successful | LinkUp",
+    description:
+      "Your LinkUp password has been reset successfully. You can now log in securely.",
+    images: ["/og-default.png"],
+    creator: "@LinkUp",
   },
 };
 

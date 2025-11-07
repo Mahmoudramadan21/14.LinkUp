@@ -20,41 +20,11 @@ const getConversationsRules = [
  * Validation rules for creating a one-on-one conversation
  * Validates single participant ID
  */
-const createConversationRules = [
+const startConversationRules = [
   body("participantId")
-    .isInt({ min: 1 })
-    .withMessage("participantId must be a positive integer")
-    .custom(async (participantId, { req }) => {
-      // Verify participant exists
-      const user = await prisma.user.findUnique({
-        where: { UserID: participantId },
-      });
-
-      if (!user) {
-        throw new Error("Participant not found");
-      }
-
-      // Prevent self-conversation
-      if (participantId === req.user.UserID) {
-        throw new Error("Cannot create conversation with yourself");
-      }
-
-      // Check for existing conversation
-      const existingConversation = await prisma.conversation.findFirst({
-        where: {
-          AND: [
-            { participants: { some: { UserID: req.user.UserID } } },
-            { participants: { some: { UserID: participantId } } },
-          ],
-        },
-      });
-
-      if (existingConversation) {
-        throw new Error("Conversation with this user already exists");
-      }
-
-      return true;
-    }),
+    .isInt()
+    .withMessage("Participant ID must be an integer")
+    .toInt(),
 ];
 
 /**
@@ -113,19 +83,6 @@ const sendMessageRules = [
       }
     }),
 
-  body("attachment").custom((_, { req }) => {
-    if (!req.file) return true; // Attachment is optional
-    const allowedTypes = ["image/jpeg", "image/png", "video/mp4"];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      throw new Error("Invalid media type. Only JPEG, PNG, and MP4 allowed");
-    }
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    if (req.file.size > maxSize) {
-      throw new Error("Media file too large. Maximum size is 50MB");
-    }
-    return true;
-  }),
-
   body().custom((value, { req }) => {
     const hasContent = req.body.content && req.body.content.length > 0;
     const hasAttachment = !!req.file;
@@ -134,6 +91,39 @@ const sendMessageRules = [
     }
     return true;
   }),
+];
+
+const replyStoryRules = [
+  body("storyId")
+    .isInt()
+    .withMessage("Story ID must be integer")
+    .toInt()
+    .custom(async (value, { req }) => {
+      const story = await prisma.story.findUnique({
+        where: { StoryID: value },
+        select: {
+          StoryID: true,
+          UserID: true,
+          ExpiresAt: true,
+          User: { select: { IsBanned: true } },
+        },
+      });
+
+      if (!story) throw new Error("Story not found");
+      if (story.ExpiresAt < new Date()) throw new Error("Story has expired");
+      if (story.User.IsBanned) throw new Error("Cannot reply to banned user");
+      if (story.UserID === req.user.UserID)
+        throw new Error("Cannot reply to your own story");
+
+      return true;
+    }),
+
+  body("content")
+    .optional()
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage("Message too long")
+    .trim(),
 ];
 
 /**
@@ -164,11 +154,31 @@ const handleTypingRules = [
   body("isTyping").isBoolean().withMessage("Must be boolean"),
 ];
 
+// validators/messageValidators.js
+
+const searchConversationsRules = [
+  query("q")
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("Search query must be 1-50 characters")
+    .escape(),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage("Limit must be between 1-50"),
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Page must be positive integer"),
+];
+
 module.exports = {
   getConversationsRules,
-  createConversationRules,
+  startConversationRules,
   getMessagesRules,
   sendMessageRules,
+  replyStoryRules,
   addReactionRules,
   handleTypingRules,
+  searchConversationsRules,
 };

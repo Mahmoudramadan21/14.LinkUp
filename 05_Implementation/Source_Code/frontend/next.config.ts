@@ -15,6 +15,14 @@ const nextConfig = {
     domains: ["res.cloudinary.com"],
   },
 
+  webpack(config) {
+    config.module.rules.push({
+      test: /\.svg$/,
+      use: ["@svgr/webpack"],
+    });
+    return config;
+  },
+
   /**
    * Enables source maps in production for debugging.
    * Note: This may increase bundle size and should be disabled if not needed.

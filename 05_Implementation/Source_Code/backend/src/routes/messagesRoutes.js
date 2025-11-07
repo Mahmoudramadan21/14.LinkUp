@@ -3,40 +3,50 @@ const router = express.Router();
 const { validate } = require("../middleware/validationMiddleware");
 const { authMiddleware } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const rateLimit = require("express-rate-limit");
 const {
   getConversationsRules,
-  createConversationRules,
-  getMessagesRules,
   sendMessageRules,
-  addReactionRules,
-  handleTypingRules,
+  editMessageRules,
+  searchMessagesRules,
+  startConversationRules,
+  replyStoryRules,
+  searchConversationsRules
 } = require("../validators/messageValidators");
 const {
   getConversations,
-  createConversation,
+  startConversation,
   getMessages,
   sendMessage,
-  addReaction,
-  handleTyping,
-  getActiveFollowing,
-  getSuggestedChatUsers,
+  replyToStory,
+  editMessage,
+  deleteMessage,
+  searchMessages,
+  searchConversations
 } = require("../controllers/messagesController");
 
-// Apply authentication middleware to all routes
-router.use(authMiddleware);
+// Rate limiting: 30 messages per 15 seconds per user
+const messageRateLimiter = rateLimit({
+  windowMs: 15 * 1000,
+  max: 30,
+  keyGenerator: (req) => `msg:${req.user.UserID}`,
+  message: "Too many messages. Please slow down.",
+  skip: (req) => req.user?.Role === "ADMIN",
+});
 
 /**
  * @swagger
  * tags:
  *   name: Messages
- *   description: Real-time one-on-one messaging
+ *   description: Secure, real-time one-on-one messaging with E2EE, voice, link preview, infinite scroll, and reactions
  */
 
 /**
  * @swagger
- * /messanger/conversations:
+ * /messages/conversations:
  *   get:
- *     summary: Get list of user conversations
+ *     summary: Get paginated list of user's conversations
+ *     description: Returns conversations with last message, unread count, and other participant info. Optimized to avoid N+1.
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -45,20 +55,18 @@ router.use(authMiddleware);
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
- *         description: Page number for pagination
+ *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
+ *           default: 15
  *           maximum: 50
- *           default: 10
  *         description: Number of conversations per page
  *     responses:
  *       200:
- *         description: List of user conversations
+ *         description: List of conversations
  *         content:
  *           application/json:
  *             schema:
@@ -71,7 +79,6 @@ router.use(authMiddleware);
  *                     properties:
  *                       conversationId:
  *                         type: string
- *                         example: "conv_123"
  *                       lastMessage:
  *                         type: object
  *                         nullable: true
@@ -80,6 +87,7 @@ router.use(authMiddleware);
  *                             type: string
  *                           content:
  *                             type: string
+ *                             nullable: true
  *                           createdAt:
  *                             type: string
  *                             format: date-time
@@ -87,9 +95,9 @@ router.use(authMiddleware);
  *                             type: integer
  *                       unreadCount:
  *                         type: integer
- *                         example: 2
  *                       otherParticipant:
  *                         type: object
+ *                         nullable: true
  *                         properties:
  *                           UserID:
  *                             type: integer
@@ -98,31 +106,35 @@ router.use(authMiddleware);
  *                           ProfilePicture:
  *                             type: string
  *                             nullable: true
+ *                           LastActive:
+ *                             type: string
+ *                             format: date-time
+ *                       updatedAt:
+ *                         type: string
+ *                         format: date-time
  *                 total:
  *                   type: integer
- *                   example: 50
  *                 page:
  *                   type: integer
- *                   example: 1
  *                 limit:
  *                   type: integer
- *                   example: 10
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
-router.get("/conversations", getConversationsRules, validate, getConversations);
+router.get(
+  "/conversations",
+  authMiddleware,
+  getConversationsRules,
+  validate,
+  getConversations
+);
 
 /**
  * @swagger
- * /messanger/conversations:
+ * /messages/start:
  *   post:
- *     summary: Create a new one-on-one conversation
+ *     summary: Start a conversation with a user
+ *     description: Creates a new conversation if not exists, or returns existing one
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -132,68 +144,48 @@ router.get("/conversations", getConversationsRules, validate, getConversations);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - participantId
+ *             required: [participantId]
  *             properties:
  *               participantId:
  *                 type: integer
- *                 example: 2
- *                 description: ID of the other user to start a conversation with
+ *                 description: UserID of the person to message
  *     responses:
- *       201:
- *         description: Conversation created successfully
+ *       200:
+ *         description: Conversation ready
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id:
+ *                 conversationId:
  *                   type: string
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 updatedAt:
- *                   type: string
- *                   format: date-time
  *                 participants:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
- *                         type: string
- *                       ProfilePicture:
- *                         type: string
- *                         nullable: true
+ *                       UserID: { type: integer }
+ *                       Username: { type: string }
+ *                       ProfilePicture: { type: string, nullable: true }
  *       400:
- *         description: Invalid participant ID or conversation already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Invalid participant or cannot message self
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
 router.post(
-  "/conversations",
-  createConversationRules,
+  "/start",
+  authMiddleware,
+  startConversationRules,
   validate,
-  createConversation
+  startConversation
 );
 
 /**
  * @swagger
- * /messanger/conversations/{conversationId}/messages:
+ * /messages/conversations/{conversationId}/messages:
  *   get:
- *     summary: Get messages in a conversation
+ *     summary: Get messages in a conversation (infinite scroll)
+ *     description: Returns decrypted messages with attachments, reactions, and reply info. Supports pagination via `before`.
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -208,49 +200,37 @@ router.post(
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 100
  *           default: 20
- *         description: Number of messages to retrieve
+ *           maximum: 100
+ *         description: Number of messages to return
  *       - in: query
  *         name: before
  *         schema:
  *           type: string
  *           format: date-time
- *         description: Fetch messages before this timestamp
+ *         description: ISO timestamp to load messages before this time
  *     responses:
  *       200:
- *         description: Conversation details with messages
+ *         description: List of decrypted messages
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id:
- *                   type: string
- *                 otherParticipant:
- *                   type: object
- *                   properties:
- *                     UserID:
- *                       type: integer
- *                     Username:
- *                       type: string
- *                     ProfilePicture:
- *                       type: string
- *                       nullable: true
  *                 messages:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       id:
+ *                       Id:
  *                         type: string
- *                       content:
+ *                       Content:
  *                         type: string
- *                       createdAt:
+ *                         nullable: true
+ *                       CreatedAt:
  *                         type: string
  *                         format: date-time
- *                       sender:
+ *                       Sender:
  *                         type: object
  *                         properties:
  *                           UserID:
@@ -260,107 +240,67 @@ router.post(
  *                           ProfilePicture:
  *                             type: string
  *                             nullable: true
- *                       attachments:
+ *                       Attachments:
+ *                         type: array
+ *                         items:
+ *                           $ref: '#/components/schemas/Attachment'
+ *                       Reactions:
  *                         type: array
  *                         items:
  *                           type: object
  *                           properties:
- *                             id:
+ *                             User:
+ *                               type: object
+ *                               properties:
+ *                                 UserID:
+ *                                   type: integer
+ *                                 Username:
+ *                                   type: string
+ *                             Emoji:
  *                               type: string
- *                             url:
- *                               type: string
- *                             type:
- *                               type: string
- *                             fileName:
- *                               type: string
- *                               nullable: true
- *                             fileSize:
- *                               type: integer
- *                               nullable: true
- *                       reactions:
- *                         type: array
- *                         items:
- *                           type: object
- *                           properties:
- *                             id:
- *                               type: string
- *                             emoji:
- *                               type: string
- *                             userId:
- *                               type: integer
- *                       readBy:
+ *                       ReadBy:
  *                         type: array
  *                         items:
  *                           type: object
  *                           properties:
  *                             UserID:
  *                               type: integer
- *                       replyTo:
+ *                       ReplyTo:
  *                         type: object
  *                         nullable: true
  *                         properties:
- *                           id:
+ *                           Id:
  *                             type: string
- *                           content:
+ *                           Content:
  *                             type: string
- *                           senderId:
+ *                           SenderId:
  *                             type: integer
- *                 lastMessage:
- *                   type: object
- *                   nullable: true
- *                   properties:
- *                     id:
- *                       type: string
- *                     content:
- *                       type: string
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *                     sender:
- *                       type: object
- *                       properties:
- *                         UserID:
- *                           type: integer
- *                         Username:
- *                           type: string
- *                         ProfilePicture:
- *                           type: string
- *                           nullable: true
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 updatedAt:
- *                   type: string
- *                   format: date-time
- *                 totalMessages:
- *                   type: integer
+ *                           IsDeleted:
+ *                             type: boolean
+ *                       IsEdited:
+ *                         type: boolean
+ *                       IsDeleted:
+ *                         type: boolean
+ *                 hasMore:
+ *                   type: boolean
+ *       403:
+ *         description: Not a participant in this conversation
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         description: Conversation not found or access denied
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
 router.get(
   "/conversations/:conversationId/messages",
-  getMessagesRules,
+  authMiddleware,
   validate,
   getMessages
 );
 
 /**
  * @swagger
- * /messanger/conversations/{conversationId}/messages:
+ * /messages/conversations/{conversationId}/messages:
  *   post:
- *     summary: Send a message in a conversation
+ *     summary: Send a new message (text, voice, image, file, or reply)
+ *     description: Supports E2EE, link preview, voice notes, and file attachments. Rate limited.
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -370,7 +310,6 @@ router.get(
  *         required: true
  *         schema:
  *           type: string
- *         description: UUID of the conversation
  *     requestBody:
  *       required: true
  *       content:
@@ -380,103 +319,103 @@ router.get(
  *             properties:
  *               content:
  *                 type: string
- *                 maxLength: 2000
- *                 example: "Hello, how are you?"
- *                 description: Message content, required if no attachment is provided
+ *                 description: Message text (optional if attachment exists)
  *               attachment:
  *                 type: string
  *                 format: binary
- *                 description: Optional file attachment (image, video, audio, or other file)
+ *                 description: Image, video, audio, or file
  *               replyToId:
  *                 type: string
- *                 example: "msg_123"
- *                 description: Optional ID of message being replied to
+ *                 description: ID of message being replied to
  *     responses:
  *       201:
  *         description: Message sent successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 content:
- *                   type: string
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 sender:
- *                   type: object
- *                   properties:
- *                     UserID:
- *                       type: integer
- *                     Username:
- *                       type: string
- *                     ProfilePicture:
- *                       type: string
- *                       nullable: true
- *                 attachments:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       url:
- *                         type: string
- *                       type:
- *                         type: string
- *                       fileName:
- *                         type: string
- *                         nullable: true
- *                       fileSize:
- *                         type: integer
- *                         nullable: true
- *                 replyTo:
- *                   type: object
- *                   nullable: true
- *                   properties:
- *                     id:
- *                       type: string
- *                     content:
- *                       type: string
- *                     senderId:
- *                       type: integer
+ *               $ref: '#/components/schemas/Message'
  *       400:
- *         description: Invalid message content, attachment, or replyToId
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Invalid input or missing content/attachment
+ *       403:
+ *         description: Not a participant
+ *       429:
+ *         description: Rate limit exceeded
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         description: Conversation not found or access denied
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
 router.post(
   "/conversations/:conversationId/messages",
+  authMiddleware,
+  messageRateLimiter,
   upload.single("attachment"),
-  sendMessageRules,
+  // sendMessageRules,
   validate,
   sendMessage
 );
 
 /**
  * @swagger
- * /messanger/messages/{messageId}/reactions:
+ * /messages/reply-story:
  *   post:
- *     summary: Add a reaction to a message
+ *     summary: Reply to a story with reference (Instagram-style)
+ *     description: |
+ *       Sends a message referencing a specific story.
+ *       - The story appears as a preview in chat
+ *       - Clicking it opens the original story
+ *       - Auto-creates conversation if needed
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [storyId]
+ *             properties:
+ *               storyId:
+ *                 type: integer
+ *                 description: ID of the story being replied to
+ *               content:
+ *                 type: string
+ *                 description: Optional text message
+ *     responses:
+ *       201:
+ *         description: Reply sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   $ref: '#/components/schemas/Message'
+ *                 conversationId:
+ *                   type: string
+ *                 isNewConversation:
+ *                   type: boolean
+ *                 storyPreview:
+ *                   type: object
+ *                   properties:
+ *                     StoryID: { type: integer }
+ *                     MediaURL: { type: string }
+ *                     ExpiresAt: { type: string, format: date-time }
+ */
+router.post(
+  "/reply-story",
+  authMiddleware,
+  messageRateLimiter,
+  replyStoryRules,
+  validate,
+  replyToStory
+);
+
+/**
+ * @swagger
+ * /messages/{messageId}/update:
+ *   patch:
+ *     summary: Edit a message (sender only)
+ *     description: Updates message content. Only the sender can edit.
  *     tags: [Messages]
  *     security:
  *       - bearerAuth: []
@@ -486,7 +425,6 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
- *         description: UUID of the message
  *     requestBody:
  *       required: true
  *       content:
@@ -494,80 +432,14 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - emoji
+ *               - content
  *             properties:
- *               emoji:
+ *               content:
  *                 type: string
- *                 maxLength: 10
- *                 example: "👍"
- *     responses:
- *       201:
- *         description: Reaction added successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 messageId:
- *                   type: string
- *                 emoji:
- *                   type: string
- *       400:
- *         description: Invalid emoji or reaction already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         description: Message not found or access denied
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post(
-  "/messages/:messageId/reactions",
-  addReactionRules,
-  validate,
-  addReaction
-);
-
-/**
- * @swagger
- * /messanger/conversations/typing:
- *   post:
- *     summary: Notify typing status in a conversation (HTTP fallback)
- *     tags: [Messages]
- *     description: Stores typing status in Redis. For real-time typing indicators, use Socket.IO 'typing' event instead.
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - conversationId
- *             properties:
- *               conversationId:
- *                 type: string
- *                 example: "conv_123"
- *               isTyping:
- *                 type: boolean
- *                 default: true
- *                 example: true
+ *                 description: New message content
  *     responses:
  *       200:
- *         description: Typing status stored successfully
+ *         description: Message edited successfully
  *         content:
  *           application/json:
  *             schema:
@@ -575,117 +447,173 @@ router.post(
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: true
- *       400:
- *         description: Invalid conversation ID or isTyping value
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Not the sender of the message
  *       404:
- *         description: Conversation not found or access denied
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Message not found
+ *       401:
+ *         description: Unauthorized
  */
-router.post("/conversations/typing", handleTypingRules, validate, handleTyping);
+router.patch(
+  "/:messageId/update",
+  authMiddleware,
+  // editMessageRules,
+  validate,
+  editMessage
+);
 
 /**
  * @swagger
- * /messanger/active-following:
- *   get:
- *     summary: Get active users the current user follows
+ * /messages/{messageId}/delete:
+ *   delete:
+ *     summary: Delete a message (sender only)
+ *     description: Soft deletes the message. Only the sender can delete.
  *     tags: [Messages]
- *     description: Returns users followed by the current user who were active in the last 5 minutes
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: List of active followed users
+ *         description: Message deleted successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 activeFollowing:
+ *                 success:
+ *                   type: boolean
+ *       403:
+ *         description: Not the sender of the message
+ *       404:
+ *         description: Message not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete("/:messageId/delete", authMiddleware, validate, deleteMessage);
+
+/**
+ * @swagger
+ * /messages/conversations/{conversationId}/search:
+ *   get:
+ *     summary: Search messages within a conversation
+ *     description: Full-text search with case-insensitive matching on decrypted content.
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Search query
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Search results with decrypted content
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
+ *                       Id:
  *                         type: string
- *                       ProfilePicture:
+ *                       Content:
  *                         type: string
- *                         nullable: true
- *                       lastActive:
+ *                       CreatedAt:
  *                         type: string
  *                         format: date-time
- *                 count:
- *                   type: integer
- *                   example: 2
+ *                       SenderId:
+ *                         type: integer
+ *       400:
+ *         description: Missing search query
+ *       403:
+ *         description: Not a participant
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
-router.get("/active-following", validate, getActiveFollowing);
+router.get(
+  "/conversations/:conversationId/search",
+  authMiddleware,
+  // searchMessagesRules,
+  validate,
+  searchMessages
+);
+
 
 /**
  * @swagger
- * /messanger/suggested-chat-users:
+ * /messages/conversations/search:
  *   get:
- *     summary: Get suggested users to start a chat with
+ *     summary: Search user's conversations by participant name or username
+ *     description: |
+ *       Searches through user's active conversations for participants matching the query.
+ *       Returns the same format as `/conversations` but filtered by search term.
+ *       Supports pagination and real-time updates.
  *     tags: [Messages]
- *     description: Returns users followed by the current user with no existing conversations
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 50
+ *         description: Search term (username or display name)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *           minimum: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *           maximum: 50
+ *         description: Results per page
  *     responses:
  *       200:
- *         description: List of suggested users
+ *         description: Filtered conversations
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 suggestedUsers:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       UserID:
- *                         type: integer
- *                       Username:
- *                         type: string
- *                       ProfilePicture:
- *                         type: string
- *                         nullable: true
- *                 count:
- *                   type: integer
- *                   example: 3
+ *               $ref: '#/components/responses/ConversationSearchResponse'
+ *       400:
+ *         description: Missing or invalid search query
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: Unauthorized
  */
-router.get("/suggested-chat-users", validate, getSuggestedChatUsers);
+router.get(
+  "/conversations/search",
+  authMiddleware,
+  searchConversationsRules,
+  validate,
+  searchConversations
+);
 
 module.exports = router;

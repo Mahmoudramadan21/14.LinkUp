@@ -4,7 +4,7 @@ export interface User {
   ProfileName?: string;
   ProfilePicture?: string | null;
   IsPrivate?: boolean;
-  isFollowed?: boolean;
+  isFollowed?: boolean | "pending";
   likedAt?: string;
 }
 
@@ -29,7 +29,7 @@ export interface LikedBy {
   username: string;
   profileName: string | undefined;
   profilePicture: string | null | undefined;
-  isFollowed: boolean;
+  isFollowed: boolean | "pending";
   likedAt: string;
 }
 
@@ -45,7 +45,7 @@ export interface Post {
   shareCount: number;
   isSaved: boolean;
   isUnseen: boolean;
-  isFollowed: boolean;
+  isFollowed?: boolean | "pending";
   isSuggested?: boolean;
   CreatedAt: string;
   saveTime?: string;
@@ -100,6 +100,8 @@ export interface SimpleSuccessResponse {
   success?: boolean;
   message?: string;
   action?: "liked" | "unliked" | "saved" | "unsaved";
+  status?: "NONE" | "PENDING" | "ACCEPTED" | "REJECTED" | undefined;
+
 }
 
 export interface UsersResponse {

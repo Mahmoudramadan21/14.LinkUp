@@ -32,14 +32,13 @@ interface RootLayoutProps {
 
 /**
  * Renders the root layout for the application.
- * Wraps the app with Redux Provider and initializes authentication state.
- * 
+ * Wraps the app with Redux and Theme Providers and initializes authentication state.
  * @param {RootLayoutProps} props - The component props.
  * @returns {ReactElement} The root layout with children.
  */
 export default function RootLayout({ children }: RootLayoutProps): ReactElement {
   return (
-    <html lang="en" className="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <html lang="en" suppressHydrationWarning={true}>
       <head>
         {/* Preconnect to Google Fonts for faster font loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -49,8 +48,8 @@ export default function RootLayout({ children }: RootLayoutProps): ReactElement 
           rel="stylesheet"
         />
       </head>
-      <body>
-        <Providers>
+      <body suppressHydrationWarning={true}>
+          <Providers>
           <AuthInitializer />
           {children}
         </Providers>

@@ -76,7 +76,7 @@ const initialState: StoryState = {
   hasMoreMyStories: true,
   loading: {
     createStory: false,
-    getStoryFeed: false,
+    getStoryFeed: true,
     getStoryViews: false,
     getStoryViewersWithLikes: false,
     recordStoryView: false,
@@ -84,7 +84,7 @@ const initialState: StoryState = {
     toggleStoryLike: false,
     deleteStory: false,
     reportStory: false,
-    getUserStories: false,
+    getUserStories: true,
     getMyStories: false,
   },
   error: {

@@ -1,0 +1,248 @@
+/*
+ * =============================================================================
+ *  connections.module.css
+ * =============================================================================
+ *
+ * Complete styling for the Connections page (/connections)
+ * Includes:
+ *   • Followers / Following / Friend Requests / People You May Know tabs
+ *   • Responsive grid of user cards with follow/accept/reject actions
+ *   • Search bar + elegant radial gradient background effect
+ *   • Infinite scroll support
+ *   • Full dark mode, accessibility, and print support
+ *
+ * Features:
+ *   • Beautiful gradient title with text clipping
+ *   • Subtle hover lift effect on user cards
+ *   • Smooth tab transitions and active states
+ *   • WCAG 2.1 AA compliant focus rings
+ *   • Respects prefers-reduced-motion
+ *   • Custom thin purple scrollbars
+ *   • Print-optimized layout
+ *   • GPU-accelerated animations via will-change
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Accessibility – Disable animations for reduced motion preference
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .connections__user-card,
+  .connections__user-card-button--accept,
+  .connections__user-card-button--reject,
+  .connections__search-bar-input,
+  .connections__user-list {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ==========================================================================
+   Page Container + Background Effect
+   ========================================================================== */
+.connections__container {
+  @apply bg-[var(--app-bg)] py-lg transition-colors duration-medium relative overflow-visible;
+}
+
+/* Subtle radial gradient overlay for visual depth */
+.connections__container::before {
+  content: '';
+  @apply absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(var(--linkup-purple-rgb),0.15),transparent)] opacity-60 pointer-events-none z-[-1];
+}
+
+/* ==========================================================================
+   Page Title – Gradient text effect
+   ========================================================================== */
+.connections__title {
+  @apply text-2xl md:text-3xl lg:text-4xl font-bold text-center mb-md tracking-tight md-down:text-xl sm-down:text-lg;
+  background: var(--gradient-purple-teal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ==========================================================================
+   Search Bar
+   ========================================================================== */
+.connections__search-bar {
+  @apply relative max-w-lg mx-auto mb-lg bg-[var(--card-bg)] rounded-full border border-[var(--border-color)] shadow-sm;
+}
+
+.connections__search-bar-icon {
+  @apply absolute left-sm top-1/2 -translate-y-1/2 text-[var(--text-muted)] md-down:text-sm sm-down:text-sm;
+}
+
+.connections__search-bar-input {
+  @apply w-full pl-10 pr-md py-sm bg-transparent text-[var(--text-primary)] rounded-full 
+         focus-ring md-down:text-sm sm-down:text-sm animate-fadeInModal will-transform;
+}
+
+/* ==========================================================================
+   Tabs Navigation
+   ========================================================================== */
+.connections__tabs {
+  @apply flex max-w-lg mx-auto mb-lg bg-[var(--section-bg)] rounded-full p-xs 
+         border border-[var(--border-color)] shadow-inner 
+         md-down:overflow-x-auto sm-down:overflow-x-auto;
+}
+
+.connections__tab {
+  @apply flex-1 px-md py-sm text-center text-[var(--text-secondary)] font-medium 
+         cursor-pointer hover:bg-[var(--linkup-purple)] hover:text-[var(--card-bg)] 
+         focus-ring rounded-full transition-all duration-fast 
+         md-down:text-sm sm-down:text-xs;
+}
+
+.connections__tab--active {
+  @apply btn-rounded--purple font-semibold shadow-md;
+}
+
+/* ==========================================================================
+   Tab Panels
+   ========================================================================== */
+.connections__tab-panel {
+  @apply w-full;
+}
+
+.connections__tab-panel--active {
+  @apply block opacity-100;
+}
+
+.connections__tab-panel-empty {
+  @apply block text-center text-[var(--text-muted)] text-lg mt-lg 
+         md-down:text-base sm-down:text-sm italic;
+}
+
+/* ==========================================================================
+   User Grid & Cards
+   ========================================================================== */
+.connections__user-list {
+  @apply grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 animate-fadeInModal;
+}
+
+.connections__user-card {
+  @apply flex items-center p-4 bg-[var(--section-bg)] rounded-xl shadow-md 
+         transition-transform duration-200 will-transform;
+}
+
+.connections__user-card:hover {
+  @apply translate-y-[-2px];
+}
+
+.connections__user-card:focus-visible {
+  @apply focus-ring;
+}
+
+/* Avatar */
+.connections__user-card-avatar {
+  @apply avatar--md min-h-avatar-md h-auto max-h-12 max-w-12;
+}
+
+/* Info */
+.connections__user-card-info {
+  @apply flex-1 ml-md md-down:ml-sm;
+}
+
+.connections__user-card-name {
+  @apply text-base font-semibold text-[var(--text-primary)] sm-down:text-sm;
+}
+
+.connections__user-card-bio {
+  @apply text-sm text-[var(--text-muted)] md-down:text-xs 
+         overflow-hidden text-ellipsis 
+         [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical];
+}
+
+/* Action Buttons */
+.connections__user-card-actions {
+  @apply flex gap-sm md-down:gap-sm sm-down:gap-xs ml-2;
+}
+
+.connections__user-card-button--accept {
+  @apply btn-rounded--success md-down:text-base sm-down:text-sm will-transform;
+}
+
+.connections__user-card-button--reject {
+  @apply btn-rounded bg-[var(--error)] md-down:text-base sm-down:text-sm will-transform;
+}
+
+/* Focus rings for action buttons */
+.connections__user-card-button--pending:focus-visible,
+.connections__user-card-button--unfollow:focus-visible {
+  @apply focus-ring;
+}
+
+/* ==========================================================================
+   Loading & Infinite Scroll
+   ========================================================================== */
+.connections__loading {
+  @apply flex justify-center items-center mt-lg text-[var(--text-muted)] 
+         text-lg md-down:text-base sm-down:text-sm animate-pulse;
+}
+
+.connections__sentinel {
+  @apply block h-20 text-center text-[var(--text-muted)] 
+         text-base md-down:text-sm sm-down:text-xs;
+}
+
+/* ==========================================================================
+   Custom Scrollbars – Thin purple style
+   ========================================================================== */
+.connections__tabs,
+.connections__user-list {
+  scrollbar-width: thin;
+}
+
+.connections__tabs::-webkit-scrollbar,
+.connections__user-list::-webkit-scrollbar {
+  @apply h-2 w-2;
+}
+
+.connections__tabs::-webkit-scrollbar-thumb,
+.connections__user-list::-webkit-scrollbar-thumb {
+  @apply bg-[rgba(var(--linkup-purple-rgb),0.6)] rounded-full 
+         hover:bg-[rgba(var(--linkup-purple-rgb),0.9)];
+}
+
+.connections__tabs::-webkit-scrollbar-track,
+.connections__user-list::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+/* ==========================================================================
+   Accessibility – Unified focus styles
+   ========================================================================== */
+.connections__tab:focus-visible,
+.connections__user-card:focus-visible,
+.connections__user-card-button--accept:focus-visible,
+.connections__user-card-button--reject:focus-visible,
+.connections__search-bar-input:focus-visible {
+  @apply focus-ring;
+}
+
+/* ==========================================================================
+   Print Styles – Clean black & white output
+   ========================================================================== */
+@media print {
+  .connections__container {
+    @apply bg-white text-black;
+  }
+  .connections__user-list {
+    @apply grid-cols-1 gap-2;
+  }
+  .connections__user-card {
+    @apply border-b border-gray-200 shadow-none p-2;
+  }
+  .connections__user-card-avatar {
+    @apply w-10 h-10;
+  }
+  .connections__user-card-name {
+    @apply text-base;
+  }
+  .connections__user-card-bio {
+    @apply text-sm;
+  }
+}

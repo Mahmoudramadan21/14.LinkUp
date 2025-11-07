@@ -14,6 +14,7 @@ const router = express.Router();
  *   description: Search endpoints
  */
 
+
 /**
  * @swagger
  * /search:
@@ -50,7 +51,7 @@ const router = express.Router();
  *         description: Number of results per page
  *     responses:
  *       200:
- *         description: Search results
+ *         description: Search results with users and posts
  *         content:
  *           application/json:
  *             schema:
@@ -61,25 +62,31 @@ const router = express.Router();
  *                   items:
  *                     type: object
  *                     properties:
- *                       UserID:
+ *                       userId:
  *                         type: integer
  *                         example: 1
- *                       Username:
+ *                       username:
  *                         type: string
  *                         example: john_doe
- *                       ProfilePicture:
+ *                       profilePicture:
  *                         type: string
+ *                         nullable: true
  *                         example: https://example.com/john.jpg
- *                       Bio:
+ *                       bio:
  *                         type: string
+ *                         nullable: true
  *                         example: I love coding!
- *                       IsPrivate:
+ *                       isPrivate:
  *                         type: boolean
  *                         example: false
  *                       isFollowed:
- *                         type: boolean
- *                         example: true
- *                         description: Indicates if the authenticated user is following this user
+ *                         type: string
+ *                         enum: [true, false, "pending"]
+ *                         description: |
+ *                           Follow status:
+ *                           - `true`: User is followed (ACCEPTED)
+ *                           - `false`: Not followed
+ *                           - `"pending"`: Follow request is pending
  *                 posts:
  *                   type: array
  *                   items:
@@ -90,6 +97,7 @@ const router = express.Router();
  *         $ref: '#/components/responses/UnauthorizedError'
  */
 router.get("/", authMiddleware, searchValidationRules, search);
+
 
 /**
  * @swagger

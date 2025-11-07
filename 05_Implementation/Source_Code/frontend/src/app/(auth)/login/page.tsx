@@ -12,17 +12,65 @@ import type { JSX } from 'react';
  * @type {Metadata}
  */
 export const metadata: Metadata = {
-  title: 'Login',
-  description: 'Log in to LinkUp to connect with friends and share your moments.',
-  openGraph: {
-    title: 'LinkUp | Login',
-    description: 'Log in to LinkUp to connect with friends and share your moments.',
-    type: 'website',
+  title: "Log In | LinkUp",
+  description:
+    "Log in to LinkUp to connect with friends, share your moments, and explore your personalized feed.",
+  keywords: [
+    "LinkUp",
+    "login",
+    "sign in",
+    "account login",
+    "LinkUp login",
+    "social network login",
+  ],
+  authors: [{ name: "LinkUp Team" }],
+  applicationName: "LinkUp",
+  generator: "Next.js",
+
+  // Canonical URL
+  alternates: {
+    canonical: "/login",
   },
+
+  // Robots (login pages CAN be indexed)
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+
+  // Open Graph
+  openGraph: {
+    title: "Login | LinkUp",
+    description:
+      "Access your LinkUp account to connect with friends and explore updates.",
+    url: "/login",
+    siteName: "LinkUp",
+    type: "website",
+    images: [
+      {
+        url: "/og-login.png",
+        width: 1200,
+        height: 630,
+        alt: "LinkUp Login",
+      },
+    ],
+  },
+
+  // Twitter
   twitter: {
-    card: 'summary_large_image',
-    title: 'LinkUp | Login',
-    description: 'Log in to LinkUp to connect with friends and share your moments.',
+    card: "summary_large_image",
+    title: "Login | LinkUp",
+    description:
+      "Log in to your LinkUp account and continue connecting with the community.",
+    images: ["/og-login.png"],
+    creator: "@LinkUp",
   },
 };
 

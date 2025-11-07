@@ -58,7 +58,7 @@ const initialState: HighlightState = {
   loading: {
     createHighlight: false,
     getUserHighlights: false,
-    getUserHighlightById: false,
+    getUserHighlightById: true,
     updateHighlight: false,
     deleteHighlight: false,
   },
@@ -480,33 +480,45 @@ const highlightSlice = createSlice({
         state.loading.deleteHighlight = true;
         state.error.deleteHighlight = null;
       })
-      .addCase(
-        deleteHighlightThunk.fulfilled,
-        (
-          state,
-          action: PayloadAction<
-            SimpleSuccessResponse & { username: string },
-            string,
-            { arg: { highlightId: number; username: string } }
-          >
-        ) => {
-          state.loading.deleteHighlight = false;
-          const { highlightId, username } = action.meta.arg;
-          if (state.highlightsByUsername[username]) {
-            state.highlightsByUsername[username].highlights = state.highlightsByUsername[
-              username
-            ].highlights.filter((h) => h.highlightId !== highlightId);
-            state.highlightsByUsername[username].pagination.totalCount -= 1;
-            state.highlightsByUsername[username].pagination.totalPages = Math.ceil(
-              state.highlightsByUsername[username].pagination.totalCount /
-                state.highlightsByUsername[username].pagination.limit
-            );
-            if (state.highlightsByUsername[username].highlights.length === 0) {
-              delete state.highlightsByUsername[username];
-            }
-          }
-        }
-      )
+.addCase(
+  deleteHighlightThunk.fulfilled,
+  (
+    state,
+    action: PayloadAction<
+      SimpleSuccessResponse & { username: string },
+      string,
+      { arg: { highlightId: number; username: string } }
+    >
+  ) => {
+    state.loading.deleteHighlight = false;
+    const { highlightId, username } = action.meta.arg;
+    console.log('Before deletion:', {
+      username,
+      highlightId,
+      highlights: state.highlightsByUsername[username]?.highlights,
+    });
+    if (state.highlightsByUsername[username]) {
+      state.highlightsByUsername[username].highlights = state.highlightsByUsername[
+        username
+      ].highlights.filter((h) => h.highlightId !== highlightId);
+      state.highlightsByUsername[username].pagination.totalCount -= 1;
+      state.highlightsByUsername[username].pagination.totalPages = Math.ceil(
+        state.highlightsByUsername[username].pagination.totalCount /
+          state.highlightsByUsername[username].pagination.limit
+      );
+      console.log('After deletion:', {
+        highlights: state.highlightsByUsername[username]?.highlights,
+        totalCount: state.highlightsByUsername[username]?.pagination.totalCount,
+      });
+      if (state.highlightsByUsername[username].highlights.length === 0) {
+        delete state.highlightsByUsername[username];
+        console.log('Deleted username from highlightsByUsername:', username);
+      }
+    } else {
+      console.warn('Username not found in highlightsByUsername:', username);
+    }
+  }
+)
       .addCase(
         deleteHighlightThunk.rejected,
         (state, action: PayloadAction<string | undefined>) => {

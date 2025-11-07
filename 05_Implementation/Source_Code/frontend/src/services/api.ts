@@ -162,12 +162,17 @@ const createApiInstance = (): AxiosInstance => {
       // Handle 401 (Unauthorized - No token provided or refresh token failed)
       if (
         error.response?.status === 401 &&
-      (
+        (
           error.response?.data?.error === "No token provided" ||
-          error.response?.data?.error === "Token expired or invalid, please refresh token"
-        ) &&        !originalRequest._retryCount
-      ) {
-        originalRequest._retryCount = 1; // retry once only
+          error.response?.data?.error?.includes?.("No access token provided") ||
+          error.response?.data?.error === "Token expired or invalid, please refresh token" ||
+          error.response?.data?.message === "No token provided" ||
+          error.response?.data?.message?.includes?.("No access token provided")
+        ) &&
+        !originalRequest._retryCount
+      ){
+        console.log("401 Unauthorized - attempting token refresh", errorResponse.message);
+        originalRequest._retryCount = 2; 
         try {
           if (process.env.NODE_ENV === "development") {
             console.warn("Access token missing/expired → refreshing...");

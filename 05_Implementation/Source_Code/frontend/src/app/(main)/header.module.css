@@ -1,0 +1,203 @@
+/*
+ * =============================================================================
+ *  Header / Top Navigation Bar – Production Ready
+ * =============================================================================
+ *
+ * Global sticky header used across the entire app on all screens
+ *
+ * Features:
+ *   • Perfect sticky behavior with backdrop blur
+ *   • Fully responsive: collapses to hamburger menu on mobile
+ *   • Live search with suggestions dropdown
+ *   • Notification badge with proper contrast
+ *   • Active state highlighting
+ *   • Smooth hover scale animation (respects prefers-reduced-motion)
+ *   • Mobile search expand/collapse behavior
+ *   • Dark mode perfection with explicit overrides
+ *   • WCAG 2.1 AA compliant focus rings
+ *   • Built 100% with design tokens — zero hardcoded colors
+ *   • GPU-friendly transitions & transforms
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Main Header Container – Sticky + Blur Effect
+   ========================================================================== */
+.header__container {
+  @apply sticky top-0 z-50 flex items-center justify-between gap-8 p-3 md:p-4
+         shadow-lg transition-all duration-300 bg-[var(--section-bg)] backdrop-blur-sm;
+  min-height: 60px;
+}
+
+/* Dark mode: deeper background + subtle bottom border */
+.dark .header__container {
+  @apply bg-[var(--app-bg)] border-b border-[var(--border-color)];
+}
+
+/* ==========================================================================
+   Logo
+   ========================================================================== */
+.header__logo {
+  @apply object-contain w-24 md:w-32 transition-transform duration-200;
+}
+
+/* ==========================================================================
+   Search Bar
+   ========================================================================== */
+.header__search {
+  @apply relative md:flex-1 max-w-xs md:max-w-md;
+  position: relative;
+}
+
+.header__search-icon {
+  @apply absolute left-4 top-1/2 -translate-y-1/2 
+         text-[var(--text-secondary)] w-5 h-5 pointer-events-none;
+}
+
+.header__search-input {
+  @apply w-full pl-12 pr-4 py-2.5 rounded-full border
+         text-[var(--text-primary)] bg-[var(--card-bg)]
+         placeholder:text-[var(--text-secondary)] text-sm md:text-base
+         focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)]
+         transition-all duration-200 shadow-sm z-50;
+  min-height: 44px;
+}
+
+/* Search Suggestions Dropdown */
+.header__search-suggestions {
+  @apply absolute top-6 left-0 right-0 pt-6 -z-40 max-h-96 w-[calc(100vw-120px)] md:w-auto overflow-y-auto
+         bg-[var(--card-bg)] border border-[var(--border-color)] 
+         rounded-b-2xl shadow-2xl;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.header__search-suggestions::-webkit-scrollbar {
+  @apply w-2;
+}
+
+.header__search-suggestions::-webkit-scrollbar-thumb {
+  @apply bg-[var(--border-color)] rounded-full;
+}
+
+/* ==========================================================================
+   Mobile Menu Toggle (Hamburger)
+   ========================================================================== */
+.header__menu-toggle {
+  @apply md:hidden text-lg p-2 rounded-full
+         hover:bg-[var(--neutral-gray-light)] dark:hover:bg-[var(--border-color)]
+         focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)]
+         transition-all duration-200;
+}
+
+/* ==========================================================================
+   Navigation Links
+   ========================================================================== */
+.header__nav {
+  @apply hidden md:flex items-center space-x-6;
+}
+
+/* Mobile: Full-screen dropdown menu */
+.header__nav--open {
+  @apply flex flex-col absolute top-full left-0 right-0 p-4 shadow-xl md:hidden
+         bg-[var(--card-bg)] dark:bg-[var(--app-bg)] space-y-3 
+         border-t border-[var(--border-color)];
+}
+
+.header__nav-link {
+  @apply flex justify-center items-center text-lg text-[var(--text-secondary)]
+         hover:text-[var(--linkup-purple)] dark:hover:text-[var(--linkup-purple-light)]
+         focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)]
+         p-2 md:p-0 rounded-full transition-all duration-200;
+}
+
+.header__nav-link--active {
+  @apply text-[var(--linkup-purple)] dark:text-[var(--linkup-purple-light)] font-semibold relative;
+}
+
+.header__nav-link--active::after {
+  content: "";
+  @apply absolute left-0 -bottom-4 w-full h-[6px] bg-[var(--linkup-purple)] rounded-t-lg;
+}
+
+.header__nav-label {
+  @apply ml-3 text-sm md:text-base font-medium md:hidden;
+}
+
+/* ==========================================================================
+   Right-side Actions (Notifications, Messages, Create, Profile)
+   ========================================================================== */
+.header__actions {
+  @apply flex items-center space-x-3 md:space-x-4;
+}
+
+.header__action-icon,
+.header__action-button {
+  @apply text-xl md:text-2xl text-[var(--text-secondary)]
+         hover:text-[var(--linkup-purple)] dark:hover:text-[var(--linkup-purple-light)]
+         focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)]
+         transition-all duration-200 p-2 rounded-full;
+}
+
+.header__action-notification {
+  @apply relative;
+}
+
+.header__notification-badge {
+  @apply absolute top-0 right-0 px-1.5 py-0.5 text-xs rounded-full
+         bg-[var(--error)] text-[var(--card-bg)] dark:text-[var(--text-primary)]
+         transform translate-x-1/2 -translate-y-1/2 text-[10px] font-bold;
+}
+
+/* ==========================================================================
+   Micro-interactions – Hover scale (only if motion is allowed)
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  .header__nav-link:hover,
+  .header__action-icon:hover,
+  .header__action-button:hover {
+    @apply scale-110;
+  }
+}
+
+/* ==========================================================================
+   Responsive – Mobile Adjustments
+   ========================================================================== */
+@media (max-width: 768px) {
+  .header__container {
+    @apply p-2 gap-4;
+  }
+
+  /* Search moves to center on mobile when active */
+  .header__search {
+    @apply -order-1;
+  }
+
+  .header__search--mobile-active {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 90%;
+  }
+
+  .header__search-input {
+    @apply pr-0 w-0 transition-none;
+  }
+
+  .header__search--mobile-active .header__search-input {
+    @apply w-[calc(100vw-120px)];
+  }
+
+  .header__menu-toggle {
+    @apply order-4;
+  }
+}
+
+@media (max-width: 640px) {
+  .header__actions {
+    @apply space-x-2;
+  }
+}

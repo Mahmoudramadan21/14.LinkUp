@@ -8,16 +8,22 @@ const logger = require("./logger");
  */
 const startRedisCleanup = () => {
   // Run every hour at minute 0
-  cron.schedule("0 * * * *", async () => {
-    try {
-      logger.info("Starting Redis cleanup job for expired refresh tokens");
-      const pattern = "refresh_token:*";
-      const deletedCount = await redis.delPattern(pattern);
-      logger.info(`Redis cleanup job completed, deleted ${deletedCount} expired keys`);
-    } catch (error) {
-      logger.error("Redis cleanup error", { error: error.message });
+  cron.schedule(
+    "0 * * * *",
+    async () => {
+      try {
+        logger.info("Starting Redis cleanup job for expired refresh tokens");
+        const pattern = "refresh_token:*";
+        const deletedCount = await redis.delPattern(pattern);
+        logger.info(`Redis cleanup job completed, deleted ${deletedCount} expired keys`);
+      } catch (error) {
+        logger.error("Redis cleanup error", { error: error.message });
+      }
+    },
+    {
+      timezone: "Africa/Cairo",
     }
-  });
+  );
 };
 
 /**

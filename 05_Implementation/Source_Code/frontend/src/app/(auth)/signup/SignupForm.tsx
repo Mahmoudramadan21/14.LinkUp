@@ -6,48 +6,85 @@
  * Supports accessibility and error handling.
  */
 
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import Input from '@/components/ui/common/Input';
 import Button from '@/components/ui/common/Button';
 import Link from 'next/link';
-import { useSignup } from '@/hooks/auth/useSignup';
-
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '@/store';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { SignupFormData, signupSchema } from '@/utils/validationSchemas';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { SignupRequest } from '@/types/auth';
+import { clearError, signupThunk } from '@/store/authSlice';
+import styles from "../auth-layout.module.css"
 
 /**
  * Renders the signup form with input fields and submission logic.
  * @returns {JSX.Element} The signup form component.
  */
 const SignupForm: React.FC = () => {
-const {
-  register,
-  handleSubmit,
-  errors,
-  onSubmit,
-  isLoading,
-  serverError,
-} = useSignup();
+  const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
+  const {
+    loading: { signup: isLoading },
+    error: { signup: serverError },
+  } = useSelector((state: RootState) => state.auth);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+  });
+
+  const onSubmit = async (data: SignupFormData) => {
+    const signupData: SignupRequest = {
+      profileName: data.profileName,
+      username: data.username,
+      email: data.email,
+      password: data.password,
+      gender: data.gender,
+      dateOfBirth: data.dateOfBirth,
+    };
+    try {
+      await dispatch(signupThunk(signupData)).unwrap();
+      router.push("/");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      // Error handled in store
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      dispatch(clearError("signup"));
+    };
+  }, [dispatch]);
 
   const [marketingConsent, setMarketingConsent] = useState<boolean>(false);
 
   return (
     <section
-      className="auth-form auth-form--signup"
+      className={`${styles["auth-form"]} ${styles["auth-form--signup"]}`}
       role="form"
       aria-labelledby="signup-form-title"
       aria-describedby="signup-form-subtitle"
       itemScope
       itemType="http://schema.org/Person"
     >
-      <div className="auth-form__container">
-        <h1 id="signup-form-title" className="auth-form__title auth-form__title--signup">
+      <div className={styles["auth-form__container"]}>
+        <h1 id="signup-form-title" className={`${styles["auth-form__title"]} ${styles["auth-form__title--signup"]}`}>
           Sign up
         </h1>
-        <p className="auth-form__subtitle auth-form__subtitle--signup">
+        <p className={`${styles["auth-form__subtitle"]} ${styles["auth-form__subtitle--signup"]}`}>
           Sign up with your email address
         </p>
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="auth-form__form"
+          className={styles["auth-form__form"]}
           aria-label="Signup form"
           noValidate
         >
@@ -101,7 +138,7 @@ const {
             required
             autoComplete="new-password"
           />
-          <p className="auth-form__info">
+          <p className={styles["auth-form__info"]}>
             Password must be at least 8 characters long, include an uppercase
             letter, a lowercase letter, a number, and a special character (@$!%*?&).
           </p>
@@ -127,33 +164,33 @@ const {
             error={errors.dateOfBirth?.message}
             required
           />
-          <div className="auth-form__options">
-            <label className="auth-form__checkbox">
+          <div className={styles["auth-form__options"]}>
+            <label className={styles["auth-form__checkbox"]}>
               <input
                 type="checkbox"
                 checked={marketingConsent}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setMarketingConsent(e.target.checked)
                 }
-                className="auth-form__checkbox-input"
+                className={styles["auth-form__checkbox-input"]}
               />
-              <span className="auth-form__checkbox-label">
+              <span className={styles["auth-form__checkbox-label"]}>
                 Share data with content providers for marketing.
               </span>
             </label>
           </div>
-          <p className="auth-form__info">
+          <p className={`${styles["auth-form__info"]} inline-block`}>
             By signing up, you agree to the{' '}
-            <Link href="/terms" className="auth-form__link" prefetch={false}>
+            <Link href="/terms" className={styles["auth-form__link"]} prefetch={false}>
               Terms
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="auth-form__link" prefetch={false}>
+            <Link href="/privacy" className={styles["auth-form__link"]} prefetch={false}>
               Privacy Policy
             </Link>.
           </p>
           {serverError && (
-            <div className="auth-form__error" role="alert" aria-live="assertive">
+            <div className={styles["auth-form__error"]} role="alert" aria-live="assertive">
               {serverError}
             </div>
           )}
@@ -165,9 +202,9 @@ const {
           >
             {isLoading ? 'Signing up...' : 'Sign up'}
           </Button>
-          <p className="auth-form__signup">
+          <p className={styles["auth-form__signup"]}>
             Have an account?{' '}
-            <Link href="/login" className="auth-form__link" prefetch={false}>
+            <Link href="/login" className={styles["auth-form__link"]} prefetch={false}>
               Log in
             </Link>
           </p>

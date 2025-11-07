@@ -11,12 +11,13 @@ datasource db {
 enum Role {
   USER
   ADMIN
-  BANNED 
+  BANNED
 }
 
 enum Gender {
   MALE
   FEMALE
+  OTHER
 }
 
 enum FollowStatus {
@@ -53,129 +54,197 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+  VOICE
+}
+
 model AuditLog {
-  AuditLogID  Int      @id @default(autoincrement())
-  Action      String
-  AdminID     Int?
-  UserID      Int?
-  Details     String?
-  createdAt   DateTime @default(now())
-  Admin       User?    @relation("AdminAudit", fields: [AdminID], references: [UserID])
-  User        User?    @relation("UserAudit", fields: [UserID], references: [UserID])
+  AuditLogID Int      @id @default(autoincrement())
+  Action     String
+  AdminID    Int?
+  UserID     Int?
+  Details    String?
+  CreatedAt  DateTime @default(now())
+  Admin      User?    @relation("AdminAudit", fields: [AdminID], references: [UserID])
+  User       User?    @relation("UserAudit", fields: [UserID], references: [UserID])
+
   @@index([AdminID])
   @@index([UserID])
-  @@index([createdAt])
+  @@index([CreatedAt])
 }
 
 model User {
-  UserID             Int              @id @default(autoincrement())
-  Username           String           @unique
-  ProfileName        String
-  Email              String           @unique
-  Password           String
-  Gender             Gender
-  ProfilePicture     String?
-  CoverPicture       String?
-  Bio                String?
-  Address            String?
-  JobTitle           String?
-  DateOfBirth        DateTime
-  IsPrivate          Boolean          @default(false)
-  Role               Role             @default(USER)
-  CreatedAt          DateTime         @default(now())
-  UpdatedAt          DateTime         @updatedAt
-  resetToken         String?
-  resetTokenExpiry   DateTime?
-  Posts              Post[]
-  Stories            Story[]
-  StoryViews         StoryView[]      @relation("StoryViewUser")
-  StoryLikes         StoryLike[]      @relation("StoryLikeUser")
-  Comments           Comment[]
-  CommentLikes       CommentLike[]    @relation("CommentLikeUser")
-  Likes              Like[]
-  lastActive         DateTime?        @updatedAt
-  conversations      Conversation[]   @relation("ParticipantConversations")
-  sentMessages       Message[]        @relation("MessageSender")
-  readMessages       Message[]        @relation("MessageReadBy")
-  reactions          Reaction[]
-  Followers          Follower[]       @relation("Followers")
-  Following          Follower[]       @relation("Following")
-  Notifications      Notification[]   @relation("NotificationUser")
-  SentNotifications  Notification[]   @relation("NotificationSender")
+  UserID                  Int       @id @default(autoincrement())
+  Username                String    @unique
+  ProfileName             String
+  Email                   String    @unique
+  Password                String
+  Gender                  Gender
+  ProfilePicture          String?
+  CoverPicture            String?
+  Bio                     String?
+  Address                 String?
+  JobTitle                String?
+  DateOfBirth             DateTime
+  IsPrivate               Boolean   @default(false)
+  Role                    Role      @default(USER)
+  CreatedAt               DateTime  @default(now())
+  UpdatedAt               DateTime  @updatedAt
+  ResetToken              String?
+  ResetTokenExpiry        DateTime?
+  LastActive              DateTime? @updatedAt
+  IsBanned                Boolean   @default(false)
+  BanReason               String?
   NotificationPreferences Json?
-  Reports            Report[]         @relation("Reporter")
-  StoryReports       StoryReport[]    @relation("StoryReporter") // Added for story reports
-  SupportRequests    SupportRequest[]
-  IsBanned           Boolean          @default(false)
-  BanReason          String?
-  SavedPosts         SavedPost[]
-  Highlights         Highlight[]
-  AdminAuditLogs     AuditLog[]       @relation("AdminAudit")
-  UserAuditLogs      AuditLog[]       @relation("UserAudit")
-  PostViews          PostView[]       @relation("UserToPostViews")
+
+  // Relations
+  Posts             Post[]
+  Stories           Story[]
+  StoryViews        StoryView[]      @relation("StoryViewUser")
+  StoryLikes        StoryLike[]      @relation("StoryLikeUser")
+  Comments          Comment[]
+  CommentLikes      CommentLike[]    @relation("CommentLikeUser")
+  Likes             Like[]
+  Conversations     Conversation[]   @relation("ParticipantConversations")
+  SentMessages      Message[]        @relation("MessageSender")
+  ReadMessages      Message[]        @relation("MessageReadBy")
+  Reactions         Reaction[]
+  Followers         Follower[]       @relation("Followers")
+  Following         Follower[]       @relation("Following")
+  Notifications     Notification[]   @relation("NotificationUser")
+  SentNotifications Notification[]   @relation("NotificationSender")
+  Reports           Report[]         @relation("Reporter")
+  StoryReports      StoryReport[]    @relation("StoryReporter")
+  SupportRequests   SupportRequest[]
+  SavedPosts        SavedPost[]
+  Highlights        Highlight[]
+  AdminAuditLogs    AuditLog[]       @relation("AdminAudit")
+  UserAuditLogs     AuditLog[]       @relation("UserAudit")
+  PostViews         PostView[]       @relation("UserToPostViews")
+  MessageEdits      MessageEdit[]
+  MessageDeletes    MessageDelete[]
+
   @@index([Username])
   @@index([Email])
+  @@index([LastActive])
 }
 
 model Notification {
-  NotificationID Int            @id @default(autoincrement())
-  UserID        Int
-  User          User           @relation(fields: [UserID], references: [UserID], name: "NotificationUser")
-  SenderID      Int?
-  Sender        User?          @relation(fields: [SenderID], references: [UserID], name: "NotificationSender")
-  Type          NotificationType 
-  Content       String
-  IsRead        Boolean        @default(false)
-  CreatedAt     DateTime       @default(now())
-  Metadata      Json?
-  @@index([CreatedAt])
+  NotificationID Int              @id @default(autoincrement())
+  UserID         Int
+  User           User             @relation("NotificationUser", fields: [UserID], references: [UserID])
+  SenderID       Int?
+  Sender         User?            @relation("NotificationSender", fields: [SenderID], references: [UserID])
+  Type           NotificationType
+  Content        String
+  IsRead         Boolean          @default(false)
+  CreatedAt      DateTime         @default(now())
+  Metadata       Json?
+
   @@index([UserID, CreatedAt])
+  @@index([CreatedAt])
 }
 
 model Conversation {
-  id           String       @id @default(uuid())
-  participants User[]       @relation("ParticipantConversations")
-  messages     Message[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  @@index([updatedAt])
+  Id            String    @id @default(uuid())
+  Participants  User[]    @relation("ParticipantConversations")
+  Messages      Message[]
+  CreatedAt     DateTime  @default(now())
+  UpdatedAt     DateTime  @updatedAt
+  LastMessage   Message?  @relation("ConversationLastMessage", fields: [LastMessageId], references: [Id])
+  LastMessageId String?   @unique
+
+  @@index([UpdatedAt])
 }
 
 model Message {
-  id             String       @id @default(uuid())
-  content        String
-  sender         User         @relation("MessageSender", fields: [senderId], references: [UserID])
-  senderId       Int
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  conversationId String
-  readBy         User[]       @relation("MessageReadBy")
-  readAt         DateTime?
-  attachments    Attachment[]
-  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  replyToId      String?
-  replies        Message[]    @relation("MessageReplies")
-  reactions      Reaction[]
-  createdAt      DateTime     @default(now())
+  Id             String         @id @default(uuid())
+  ConversationId String
+  Conversation   Conversation   @relation(fields: [ConversationId], references: [Id])
+  SenderId       Int
+  Sender         User           @relation("MessageSender", fields: [SenderId], references: [UserID])
+  Content        String?
+  Status         MessageStatus  @default(SENT)
+  ReadBy         User[]         @relation("MessageReadBy")
+  ReadAt         DateTime?
+  Attachments    Attachment[]
+  ReplyTo        Message?       @relation("MessageReplies", fields: [ReplyToId], references: [Id], onDelete: Restrict)
+  ReplyToId      String?
+  Replies        Message[]      @relation("MessageReplies")
+  Reactions      Reaction[]
+  CreatedAt      DateTime       @default(now())
+  UpdatedAt      DateTime       @updatedAt
+  IsEdited       Boolean        @default(false)
+  IsDeleted      Boolean        @default(false)
+  DeletedAt      DateTime?
+  EditHistory    MessageEdit[]
+  DeleteRecord   MessageDelete?
+
+  Metadata Json?
+
+  // Last message pointer
+  ConversationLastMessage Conversation? @relation("ConversationLastMessage")
+
+  @@index([ConversationId, CreatedAt])
+  @@index([SenderId])
+}
+
+model MessageEdit {
+  Id         String   @id @default(uuid())
+  MessageId  String
+  Message    Message  @relation(fields: [MessageId], references: [Id], onDelete: Cascade)
+  OldContent String?
+  EditedAt   DateTime @default(now())
+  EditorId   Int
+  Editor     User     @relation(fields: [EditorId], references: [UserID])
+
+  @@index([MessageId])
+}
+
+model MessageDelete {
+  Id        String   @id @default(uuid())
+  MessageId String   @unique
+  Message   Message  @relation(fields: [MessageId], references: [Id], onDelete: Restrict)
+  DeletedBy Int
+  Deleter   User     @relation(fields: [DeletedBy], references: [UserID])
+  DeletedAt DateTime @default(now())
 }
 
 model Attachment {
-  id        String   @id @default(uuid())
-  url       String
-  type      String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  messageId String
-  fileName  String?
-  fileSize  Int?
+  Id        String         @id @default(uuid())
+  MessageId String
+  Message   Message        @relation(fields: [MessageId], references: [Id], onDelete: Cascade)
+  Url       String
+  Type      AttachmentType
+  FileName  String?
+  FileSize  Int?
+  Duration  Float?
+  Thumbnail String?
+  Metadata  Json?
+
+  @@index([MessageId])
 }
 
 model Reaction {
-  id        String   @id @default(uuid())
-  emoji     String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  messageId String
-  user      User     @relation(fields: [userId], references: [UserID])
-  userId    Int
-  @@unique([messageId, userId])
+  Id        String  @id @default(uuid())
+  MessageId String
+  Message   Message @relation(fields: [MessageId], references: [Id], onDelete: Cascade)
+  UserId    Int
+  User      User    @relation(fields: [UserId], references: [UserID])
+  Emoji     String
+
+  @@unique([MessageId, UserId])
+  @@index([MessageId])
 }
 
 model RateLimiting {
@@ -185,41 +254,43 @@ model RateLimiting {
 }
 
 model Post {
-  PostID       Int          @id @default(autoincrement())
+  PostID       Int         @id @default(autoincrement())
   UserID       Int
-  User         User         @relation(fields: [UserID], references: [UserID])
+  User         User        @relation(fields: [UserID], references: [UserID])
   Content      String?
   ImageURL     String?
   VideoURL     String?
-  CreatedAt    DateTime     @default(now())
-  UpdatedAt    DateTime     @updatedAt
+  CreatedAt    DateTime    @default(now())
+  UpdatedAt    DateTime    @updatedAt
   Comments     Comment[]
   Likes        Like[]
   Reports      Report[]
   SavedPosts   SavedPost[]
   privacy      PostPrivacy @default(PUBLIC)
   SharedPostID Int?
-  SharedPost   Post?        @relation("SharedPosts", fields: [SharedPostID], references: [PostID])
-  Shares       Post[]       @relation("SharedPosts")
-  PostViews    PostView[]   @relation("PostToPostViews")
+  SharedPost   Post?       @relation("SharedPosts", fields: [SharedPostID], references: [PostID])
+  Shares       Post[]      @relation("SharedPosts")
+  PostViews    PostView[]  @relation("PostToPostViews")
+
   @@index([CreatedAt])
   @@index([UserID, CreatedAt])
   @@index([SharedPostID])
 }
 
 model Comment {
-  CommentID      Int           @id @default(autoincrement())
-  PostID         Int
-  Post           Post          @relation(fields: [PostID], references: [PostID])
-  UserID         Int
-  User           User          @relation(fields: [UserID], references: [UserID])
-  Content        String
-  CreatedAt      DateTime      @default(now())
-  UpdatedAt DateTime @default(now()) @updatedAt
+  CommentID       Int           @id @default(autoincrement())
+  PostID          Int
+  Post            Post          @relation(fields: [PostID], references: [PostID])
+  UserID          Int
+  User            User          @relation(fields: [UserID], references: [UserID])
+  Content         String
+  CreatedAt       DateTime      @default(now())
+  UpdatedAt       DateTime      @default(now()) @updatedAt
   ParentCommentID Int?          @map("parentCommentId")
   ParentComment   Comment?      @relation("CommentReplies", fields: [ParentCommentID], references: [CommentID], onDelete: Cascade)
-  Replies        Comment[]     @relation("CommentReplies")
-  CommentLikes   CommentLike[] @relation("CommentLikes")
+  Replies         Comment[]     @relation("CommentReplies")
+  CommentLikes    CommentLike[] @relation("CommentLikes")
+
   @@index([PostID, CreatedAt])
   @@index([ParentCommentID])
 }
@@ -231,34 +302,37 @@ model CommentLike {
   UserID    Int
   User      User     @relation("CommentLikeUser", fields: [UserID], references: [UserID])
   CreatedAt DateTime @default(now())
+
   @@unique([UserID, CommentID])
   @@index([CommentID])
 }
 
 model Story {
-  StoryID       Int              @id @default(autoincrement())
-  UserID        Int
-  User          User             @relation(fields: [UserID], references: [UserID])
-  MediaURL      String
-  CreatedAt     DateTime         @default(now())
-  ExpiresAt     DateTime
-  StoryLikes    StoryLike[]
-  StoryViews    StoryView[]      @relation("StoryToStoryView")
-  StoryReports  StoryReport[]    @relation("StoryToReports") // Added for story reports
+  StoryID         Int              @id @default(autoincrement())
+  UserID          Int
+  User            User             @relation(fields: [UserID], references: [UserID])
+  MediaURL        String
+  CreatedAt       DateTime         @default(now())
+  ExpiresAt       DateTime
+  StoryLikes      StoryLike[]
+  StoryViews      StoryView[]      @relation("StoryToStoryView")
+  StoryReports    StoryReport[]    @relation("StoryToReports")
   StoryHighlights StoryHighlight[] @relation("StoryToHighlight")
+
   @@index([UserID])
   @@index([ExpiresAt])
 }
 
 model StoryView {
-  ViewID    Int      @id @default(autoincrement())
-  StoryID   Int
-  Story     Story    @relation("StoryToStoryView", fields: [StoryID], references: [StoryID], onDelete: Cascade)
-  UserID    Int
-  User      User     @relation("StoryViewUser", fields: [UserID], references: [UserID])
-  ViewedAt  DateTime @default(now())
-  @@index([StoryID])
+  ViewID   Int      @id @default(autoincrement())
+  StoryID  Int
+  Story    Story    @relation("StoryToStoryView", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  UserID   Int
+  User     User     @relation("StoryViewUser", fields: [UserID], references: [UserID])
+  ViewedAt DateTime @default(now())
+
   @@unique([StoryID, UserID])
+  @@index([StoryID])
 }
 
 model StoryLike {
@@ -268,18 +342,20 @@ model StoryLike {
   UserID    Int
   User      User     @relation("StoryLikeUser", fields: [UserID], references: [UserID])
   CreatedAt DateTime @default(now())
+
   @@unique([UserID, StoryID])
   @@index([StoryID])
 }
 
 model Highlight {
-  HighlightID   Int              @id @default(autoincrement())
-  UserID        Int
-  User          User             @relation(fields: [UserID], references: [UserID])
-  Title         String           @db.VarChar(50)
-  CoverImage    String
-  CreatedAt     DateTime         @default(now())
+  HighlightID     Int              @id @default(autoincrement())
+  UserID          Int
+  User            User             @relation(fields: [UserID], references: [UserID])
+  Title           String           @db.VarChar(50)
+  CoverImage      String
+  CreatedAt       DateTime         @default(now())
   StoryHighlights StoryHighlight[] @relation("HighlightToStory")
+
   @@index([UserID])
   @@index([CreatedAt])
 }
@@ -287,9 +363,10 @@ model Highlight {
 model StoryHighlight {
   StoryID     Int
   HighlightID Int
-  Story       Story    @relation("StoryToHighlight", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  Story       Story     @relation("StoryToHighlight", fields: [StoryID], references: [StoryID], onDelete: Cascade)
   Highlight   Highlight @relation("HighlightToStory", fields: [HighlightID], references: [HighlightID], onDelete: Cascade)
-  AssignedAt  DateTime @default(now())
+  AssignedAt  DateTime  @default(now())
+
   @@id([StoryID, HighlightID])
 }
 
@@ -309,6 +386,7 @@ model Like {
   UserID    Int
   User      User     @relation(fields: [UserID], references: [UserID])
   CreatedAt DateTime @default(now())
+
   @@unique([UserID, PostID])
 }
 
@@ -321,35 +399,38 @@ model Follower {
   Status         FollowStatus @default(PENDING)
   CreatedAt      DateTime     @default(now())
   UpdatedAt      DateTime     @updatedAt
+
   @@index([UserID, Status])
   @@index([FollowerUserID])
 }
 
 model Report {
-  ReportID    Int          @id @default(autoincrement())
-  Post        Post         @relation(fields: [PostID], references: [PostID])
-  PostID      Int
-  Reporter    User         @relation("Reporter", fields: [ReporterID], references: [UserID])
-  ReporterID  Int
-  Reason      String
-  Status      ReportStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  ReportID   Int          @id @default(autoincrement())
+  PostID     Int
+  Post       Post         @relation(fields: [PostID], references: [PostID])
+  ReporterID Int
+  Reporter   User         @relation("Reporter", fields: [ReporterID], references: [UserID])
+  Reason     String
+  Status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
   @@index([PostID])
   @@index([ReporterID])
   @@index([Status])
 }
 
 model StoryReport {
-  ReportID    Int          @id @default(autoincrement())
-  Story       Story        @relation("StoryToReports", fields: [StoryID], references: [StoryID], onDelete: Cascade)
-  StoryID     Int
-  Reporter    User         @relation("StoryReporter", fields: [ReporterID], references: [UserID])
-  ReporterID  Int
-  Reason      String
-  Status      ReportStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  ReportID   Int          @id @default(autoincrement())
+  StoryID    Int
+  Story      Story        @relation("StoryToReports", fields: [StoryID], references: [StoryID], onDelete: Cascade)
+  ReporterID Int
+  Reporter   User         @relation("StoryReporter", fields: [ReporterID], references: [UserID])
+  Reason     String
+  Status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
   @@index([StoryID])
   @@index([ReporterID])
   @@index([Status])
@@ -365,12 +446,13 @@ model SupportRequest {
 }
 
 model PostView {
-  ViewID    Int      @id @default(autoincrement())
-  PostID    Int
-  UserID    Int
-  ViewedAt  DateTime @default(now())
-  Post      Post     @relation("PostToPostViews", fields: [PostID], references: [PostID], onDelete: Cascade)
-  User      User     @relation("UserToPostViews", fields: [UserID], references: [UserID])
+  ViewID   Int      @id @default(autoincrement())
+  PostID   Int
+  Post     Post     @relation("PostToPostViews", fields: [PostID], references: [PostID], onDelete: Cascade)
+  UserID   Int
+  User     User     @relation("UserToPostViews", fields: [UserID], references: [UserID])
+  ViewedAt DateTime @default(now())
+
   @@unique([PostID, UserID])
   @@index([PostID])
   @@index([UserID])

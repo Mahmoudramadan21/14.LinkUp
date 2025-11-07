@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction, createAction } from "@reduxjs/toolkit";
 import {
   createPost,
   getPosts,
@@ -23,6 +23,7 @@ import {
   getUserPosts,
   getSavedPosts,
 } from "@/services/postService";
+import { search } from "@/services/searchService"; // Added import for search
 import {
   Post,
   CreatePostRequest,
@@ -41,21 +42,31 @@ import {
   BatchPostViewsRequest,
   BatchPostViewsResponse,
 } from "@/types/post";
+import { SearchResponse } from "@/types/search"; // Added for SearchResponse
 import { AxiosError } from "axios";
 import { RootState } from "./index";
-import { followUserThunk, unfollowUserThunk } from "./profileSlice"; // Import profile thunks
+import { followUserThunk, unfollowUserThunk } from "./profileSlice";
 
-// Post state interface
+// Post state interface (Added search-related fields)
 interface PostState {
   posts: Post[];
   hasMore: boolean;
   explorePosts: Post[];
   flicks: Post[];
-  usersPosts: { userId: number; posts: Post[] }[];
+  usersPosts: { username: string; posts: Post[] }[];
   savedPosts: Post[];
-  hasMoreUsersPosts: { userId: number; hasMore: boolean }[];
+  hasMoreUsersPosts: { username: string; hasMore: boolean }[];
   hasMoreSavedPosts: boolean;
   currentPost: Post | null;
+  searchPostResults: Post[]; // Added: Array of searched posts
+  searchPostPagination?: { // Added: Pagination info for search posts
+    page: number;
+    limit: number;
+    totalPages: number;
+    totalPosts: number; // Assuming backend returns totalPosts
+  };
+  hasMoreSearchPosts: boolean; // Added: For load more in search
+  currentSearchPostQuery: string | null; // Added: To cache last search query
   loading: {
     createPost: boolean;
     getPosts: boolean;
@@ -79,6 +90,7 @@ interface PostState {
     deleteComment: boolean;
     getCommentReplies: boolean;
     recordBatchPostViews: boolean;
+    searchPosts: boolean; // Added: Loading for search posts
   };
   error: {
     createPost: string | null;
@@ -103,10 +115,11 @@ interface PostState {
     deleteComment: string | null;
     getCommentReplies: string | null;
     recordBatchPostViews: string | null;
+    searchPosts: string | null; // Added: Error for search posts
   };
 }
 
-// Initial state
+// Initial state (Added search fields)
 const initialState: PostState = {
   posts: [],
   hasMore: true,
@@ -117,13 +130,16 @@ const initialState: PostState = {
   hasMoreUsersPosts: [],
   hasMoreSavedPosts: true,
   currentPost: null,
+  searchPostResults: [], // Added
+  hasMoreSearchPosts: false, // Added
+  currentSearchPostQuery: null, // Added
   loading: {
     createPost: false,
-    getPosts: false,
-    getExplorePosts: false,
-    getFlicks: false,
+    getPosts: true,
+    getExplorePosts: true,
+    getFlicks: true,
     getUserPosts: false,
-    getSavedPosts: false,
+    getSavedPosts: true,
     getPostById: false,
     updatePost: false,
     deletePost: false,
@@ -140,6 +156,7 @@ const initialState: PostState = {
     deleteComment: false,
     getCommentReplies: false,
     recordBatchPostViews: false,
+    searchPosts: true, // Added
   },
   error: {
     createPost: null,
@@ -164,8 +181,26 @@ const initialState: PostState = {
     deleteComment: null,
     getCommentReplies: null,
     recordBatchPostViews: null,
+    searchPosts: null, // Added
   },
 };
+
+// Async thunks (Added searchPostsThunk)
+export const searchPostsThunk = createAsyncThunk<
+  SearchResponse,
+  { query: string; page?: number; limit?: number },
+  { rejectValue: string }
+>("post/searchPosts", async ({ query, page = 1, limit = 10 }, { rejectWithValue }) => {
+  try {
+    const response = await search({ query, type: "POSTS", page, limit });
+    return response;
+  } catch (error: unknown) {
+    const axiosError = error as AxiosError<{ message?: string }>;
+    return rejectWithValue(
+      axiosError.response?.data?.message || "Failed to search posts"
+    );
+  }
+});
 
 // Async thunks
 export const createPostThunk = createAsyncThunk<
@@ -202,11 +237,11 @@ export const getPostsThunk = createAsyncThunk<
 
 export const getUserPostsThunk = createAsyncThunk<
   PostsResponse,
-  { userId: number; params: { page?: number; limit?: number } },
+  { username: string; params: { page?: number; limit?: number } },
   { rejectValue: string }
->("post/getUserPosts", async ({ userId, params }, { rejectWithValue }) => {
+>("post/getUserPosts", async ({ username, params }, { rejectWithValue }) => {
   try {
-    const response = await getUserPosts(userId, params);
+    const response = await getUserPosts(username, params);
     return response;
   } catch (error: unknown) {
     const axiosError = error as AxiosError<{ message?: string }>;
@@ -657,6 +692,12 @@ export const recordBatchPostViewsThunk = createAsyncThunk<
   }
 });
 
+
+export const updateUserFollowStatus = createAction<{
+  userId: number;
+  isFollowed: boolean | "pending";
+}>("post/updateUserFollowStatus");
+
 const postSlice = createSlice({
   name: "post",
   initialState,
@@ -674,10 +715,72 @@ const postSlice = createSlice({
       state.hasMoreUsersPosts = [];
       state.hasMoreSavedPosts = true;
       state.currentPost = null;
+      state.searchPostResults = []; // Added: Clear search posts
+      state.currentSearchPostQuery = null;
+      state.hasMoreSearchPosts = false;
+    },
+    clearFeedPosts: (state) => {
+      state.posts = [];
+    },
+    clearSearchPostResults: (state) => { // Added: Reducer to clear search posts
+      state.searchPostResults = [];
+      state.currentSearchPostQuery = null;
+      state.hasMoreSearchPosts = false;
+      state.searchPostPagination = undefined;
     },
   },
   extraReducers: (builder) => {
     builder
+      // Search Posts (Added)
+      .addCase(searchPostsThunk.pending, (state) => {
+        state.loading.searchPosts = true;
+        state.error.searchPosts = null;
+      })
+      .addCase(
+        searchPostsThunk.fulfilled,
+        (
+          state,
+          action: PayloadAction<
+            SearchResponse,
+            string,
+            { arg: { query: string; page?: number; limit?: number } }
+          >
+        ) => {
+          state.loading.searchPosts = false;
+          const { query, page = 1 } = action.meta.arg;
+          state.currentSearchPostQuery = query;
+
+          // Avoid duplicates using Set
+          // const existingPostIds = new Set(state.searchPostResults.map((p) => p.PostID));
+          // const newPosts = action.payload.posts.filter(
+          //   (p) => !existingPostIds.has(p.PostID)
+          // );
+
+          // Append or replace
+          // state.searchPostResults =
+          //   page > 1
+          //     ? [...state.searchPostResults, ...newPosts]
+          //     : action.payload.posts;
+
+
+          // Update pagination (Assuming backend returns totalPosts, totalPages in SearchResponse)
+          // If not, adjust backend or use length-based hasMore
+          state.searchPostPagination = {
+            page,
+            limit: action.meta.arg.limit || 10,
+            totalPages: (action.payload as any).totalPages || Math.ceil((action.payload as any).totalPosts / (action.meta.arg.limit || 10)),
+            totalPosts: (action.payload as any).totalPosts || action.payload.posts.length,
+          };
+          state.hasMoreSearchPosts = page < (state.searchPostPagination.totalPages || 1);
+        }
+      )
+      .addCase(
+        searchPostsThunk.rejected,
+        (state, action: PayloadAction<string | undefined>) => {
+          state.loading.searchPosts = false;
+          state.error.searchPosts = action.payload ?? "Failed to search posts";
+        }
+      )
       // Create Post
       .addCase(createPostThunk.pending, (state) => {
         state.loading.createPost = true;
@@ -694,15 +797,15 @@ const postSlice = createSlice({
             shareCount: 0,
           };
           state.posts.unshift(newPost);
-          const userId = action.payload.post.User.UserID;
+          const username = action.payload.post.User.Username;
           const userPostsIndex = state.usersPosts.findIndex(
-            (up) => up.userId === userId
+            (up) => up.username === username
           );
           if (userPostsIndex !== -1) {
             state.usersPosts[userPostsIndex].posts.unshift(newPost);
           } else {
-            state.usersPosts.push({ userId, posts: [newPost] });
-            state.hasMoreUsersPosts.push({ userId, hasMore: true });
+            state.usersPosts.push({ username, posts: [newPost] });
+            state.hasMoreUsersPosts.push({ username, hasMore: true });
           }
         }
       )
@@ -767,7 +870,7 @@ const postSlice = createSlice({
             string,
             {
               arg: {
-                userId: number;
+                username: string;
                 params: { page?: number; limit?: number };
               };
               requestId: string;
@@ -776,16 +879,17 @@ const postSlice = createSlice({
           >
         ) => {
           state.loading.getUserPosts = false;
-          const userId = action.meta.arg.userId;
+          const username = action.meta.arg.username;
           const userPostsIndex = state.usersPosts.findIndex(
-            (up) => up.userId === userId
+            (up) => up.username === username
           );
+          const payload = Array.isArray(action.payload) ? action.payload : [];
           if (action.meta.arg.params.page && action.meta.arg.params.page > 1) {
             if (userPostsIndex !== -1) {
               const existingIds = new Set(
                 state.usersPosts[userPostsIndex].posts.map((p) => p.PostID)
               );
-              const newPosts = action.payload.filter(
+              const newPosts = payload.filter(
                 (p) => !existingIds.has(p.PostID)
               );
               state.usersPosts[userPostsIndex].posts = [
@@ -793,33 +897,33 @@ const postSlice = createSlice({
                 ...newPosts,
               ];
             } else {
-              state.usersPosts.push({ userId, posts: action.payload });
+              state.usersPosts.push({ username, posts: payload });
               state.hasMoreUsersPosts.push({
-                userId,
+                username,
                 hasMore:
-                  action.payload.length ===
+                  payload.length ===
                   (action.meta.arg.params.limit || 10),
               });
             }
           } else {
             if (userPostsIndex !== -1) {
-              state.usersPosts[userPostsIndex].posts = action.payload;
+              state.usersPosts[userPostsIndex].posts = payload;
             } else {
-              state.usersPosts.push({ userId, posts: action.payload });
+              state.usersPosts.push({ username, posts: payload });
               state.hasMoreUsersPosts.push({
-                userId,
+                username,
                 hasMore:
-                  action.payload.length ===
+                  payload.length ===
                   (action.meta.arg.params.limit || 10),
               });
             }
           }
           const hasMoreIndex = state.hasMoreUsersPosts.findIndex(
-            (h) => h.userId === userId
+            (h) => h.username === username
           );
           if (hasMoreIndex !== -1) {
             state.hasMoreUsersPosts[hasMoreIndex].hasMore =
-              action.payload.length === (action.meta.arg.params.limit || 10);
+              payload.length === (action.meta.arg.params.limit || 10);
           }
         }
       )
@@ -980,7 +1084,7 @@ const postSlice = createSlice({
         (state, action: PayloadAction<Post>) => {
           state.loading.updatePost = false;
           const updateUserPosts = (userPosts: {
-            userId: number;
+            username: string;
             posts: Post[];
           }) => {
             const index = userPosts.posts.findIndex(
@@ -994,6 +1098,11 @@ const postSlice = createSlice({
             }
           };
           state.posts = state.posts.map((post) =>
+            post.PostID === action.payload.PostID
+              ? { ...post, ...action.payload }
+              : post
+          );
+          state.searchPostResults = state.searchPostResults.map((post) =>
             post.PostID === action.payload.PostID
               ? { ...post, ...action.payload }
               : post
@@ -1105,6 +1214,7 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach(updatePost);
+          state.searchPostResults.forEach(updatePost);
           state.explorePosts.forEach(updatePost);
           state.flicks.forEach(updatePost);
           state.usersPosts.forEach((userPosts) =>
@@ -1138,7 +1248,7 @@ const postSlice = createSlice({
             post.likeCount += justLiked ? -1 : 1;
             post.Likes = post.Likes || [];
             if (justLiked) {
-              post.Likes = post.Likes.filter((like) => like.userId!== userId);
+              post.Likes = post.Likes.filter((like) => like.userId !== userId);
             } else {
               post.Likes.unshift({
                 userId: userId,
@@ -1152,6 +1262,7 @@ const postSlice = createSlice({
           }
         };
         state.posts.forEach(updatePost);
+        state.searchPostResults.forEach(updatePost);
         state.explorePosts.forEach(updatePost);
         state.flicks.forEach(updatePost);
         state.usersPosts.forEach((userPosts) =>
@@ -1187,7 +1298,9 @@ const postSlice = createSlice({
               post.commentCount += 1;
             }
           };
+          
           state.posts.forEach(updatePost);
+          state.searchPostResults.forEach(updatePost);
           state.explorePosts.forEach(updatePost);
           state.flicks.forEach(updatePost);
           state.usersPosts.forEach((userPosts) =>
@@ -1235,6 +1348,11 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach((post) => {
+            if (post.Comments) {
+              post.Comments.forEach(updateComment);
+            }
+          });
+          state.searchPostResults.forEach((post) => {
             if (post.Comments) {
               post.Comments.forEach(updateComment);
             }
@@ -1305,6 +1423,11 @@ const postSlice = createSlice({
               post.Comments.forEach(updateComment);
             }
           });
+          state.searchPostResults.forEach((post) => {
+            if (post.Comments) {
+              post.Comments.forEach(updateComment);
+            }
+          });
           state.explorePosts.forEach((post) => {
             if (post.Comments) {
               post.Comments.forEach(updateComment);
@@ -1362,6 +1485,11 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach((post) => {
+            if (post.Comments) {
+              post.Comments.forEach((comment) => updateComment(comment, post));
+            }
+          });
+          state.searchPostResults.forEach((post) => {
             if (post.Comments) {
               post.Comments.forEach((comment) => updateComment(comment, post));
             }
@@ -1438,6 +1566,10 @@ const postSlice = createSlice({
             ...post,
             Comments: post.Comments?.map(updateComment),
           }));
+          state.searchPostResults = state.searchPostResults.map((post) => ({
+            ...post,
+            Comments: post.Comments?.map(updateComment),
+          }));
           state.explorePosts = state.explorePosts.map((post) => ({
             ...post,
             Comments: post.Comments?.map(updateComment),
@@ -1483,6 +1615,15 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach((post) => {
+            if (post.Comments) {
+              post.Comments = post.Comments.filter(
+                (c) => c.CommentID !== commentId
+              );
+              post.commentCount = post.Comments.length;
+              post.Comments.forEach(updateComment);
+            }
+          });
+          state.searchPostResults.forEach((post) => {
             if (post.Comments) {
               post.Comments = post.Comments.filter(
                 (c) => c.CommentID !== commentId
@@ -1568,6 +1709,7 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach(toggleSave);
+          state.searchPostResults.forEach(toggleSave);
           state.explorePosts.forEach(toggleSave);
           state.flicks.forEach(toggleSave);
           state.usersPosts.forEach((userPosts) =>
@@ -1599,6 +1741,7 @@ const postSlice = createSlice({
                 : undefined;
             }
           };
+          state.searchPostResults.forEach(toggleSave);
           state.posts.forEach(toggleSave);
           state.explorePosts.forEach(toggleSave);
           state.flicks.forEach(toggleSave);
@@ -1649,6 +1792,7 @@ const postSlice = createSlice({
             }
           };
           state.posts.forEach(updatePost);
+          state.searchPostResults.forEach(updatePost);
           state.explorePosts.forEach(updatePost);
           state.flicks.forEach(updatePost);
           state.usersPosts.forEach((userPosts) =>
@@ -1876,10 +2020,14 @@ const postSlice = createSlice({
           action: PayloadAction<SimpleSuccessResponse, string, { arg: number }>
         ) => {
           const userId = action.meta.arg;
+          const status = action.payload.status || "ACCEPTED";
+          const isFollowedValue: boolean | "pending" =
+            status === "PENDING" ? "pending" : true;
+
           const updatePostLikes = (post: Post) => {
             if (post.Likes) {
               post.Likes = post.Likes.map((like) =>
-                like.userId === userId ? { ...like, isFollowed: true } : like
+                like.userId === userId ? { ...like, isFollowed: isFollowedValue } : like
               );
             }
           };
@@ -1973,10 +2121,27 @@ const postSlice = createSlice({
             updatePostLikes(state.currentPost);
           }
         }
-      );
+      )
+      .addCase(updateUserFollowStatus, (state, action) => {
+      const { userId, isFollowed } = action.payload;
+
+      const updatePostUser = (post: Post) => {
+        if (post.User.UserID === userId) {
+          post.User.isFollowed = isFollowed;
+        }
+      };
+
+      state.posts.forEach(updatePostUser);
+      state.explorePosts.forEach(updatePostUser);
+      state.flicks.forEach(updatePostUser);
+      state.usersPosts.forEach((up) => up.posts.forEach(updatePostUser));
+      state.savedPosts.forEach(updatePostUser);
+      state.searchPostResults.forEach(updatePostUser);
+      if (state.currentPost) updatePostUser(state.currentPost);
+    });
   },
 });
 
-export const { clearError, clearPosts } = postSlice.actions;
+export const { clearError, clearPosts, clearFeedPosts, clearSearchPostResults } = postSlice.actions;
 
 export default postSlice.reducer;

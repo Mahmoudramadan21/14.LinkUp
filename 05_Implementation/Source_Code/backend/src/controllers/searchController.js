@@ -1,43 +1,161 @@
 const { validationResult } = require("express-validator");
+const redis = require("../utils/redis");
 const prisma = require("../utils/prisma");
 const {
   handleValidationError,
   handleServerError,
 } = require("../utils/errorHandler");
+const logger = require("../utils/logger");
+
+// Constant for configuration
+const POST_CACHE_TTL = 3600; // 1 hour cache duration for debugging
 
 /**
- * Handles search for users or posts based on query
- * Supports pagination and type (ALL, USERS, POSTS)
- * Returns filtered search results
+ * Clears cache for a specific post and all posts for a user
+ * Uses a Redis set to track cache keys
+ */
+async function clearPostsCache(userId, postId) {
+  try {
+    // Clear specific post cache
+    await redis.del(`post:${postId}`);
+    logger.info(`Successfully deleted cache for key: post:${postId}`);
+
+    // Clear all posts cache for the user using a set
+    const cacheSetKey = `user:posts:keys:${userId}`;
+    let cacheKeys = [];
+    try {
+      cacheKeys = await redis.smembers(cacheSetKey);
+    } catch (smembersError) {
+      logger.error(
+        `Redis smembers error for ${cacheSetKey}: ${smembersError.message}`
+      );
+      // Continue without cache keys if smembers fails
+    }
+    if (cacheKeys.length > 0) {
+      await redis.del(cacheKeys);
+      await redis.del(cacheSetKey); // Clear the set itself
+      logger.info(
+        `Successfully deleted ${cacheKeys.length} cache keys for user ${userId}`
+      );
+    } else {
+      logger.info(`No cache keys found for user ${userId}`);
+    }
+  } catch (cacheError) {
+    logger.error(
+      `Failed to clear cache for post ${postId}: ${cacheError.message}`
+    );
+  }
+}
+
+/**
+ * Adds a cache key to the user's set of post cache keys
+ */
+async function addToPostsCacheSet(userId, cacheKey) {
+  try {
+    const cacheSetKey = `user:posts:keys:${userId}`;
+    await redis.sadd(cacheSetKey, cacheKey);
+    logger.info(`Added cache key ${cacheKey} to set ${cacheSetKey}`);
+  } catch (cacheError) {
+    logger.error(
+      `Failed to add cache key ${cacheKey} to set: ${cacheError.message}`
+    );
+  }
+}
+
+// === Helper: Cache Result ===
+async function cacheResult(cacheKey, userId, data) {
+  try {
+    await redis.set(cacheKey, JSON.stringify(data), "EX", POST_CACHE_TTL);
+    await addToPostsCacheSet(userId, cacheKey);
+  } catch (err) {
+    logger.warn(`Failed to cache search result: ${err.message}`);
+  }
+}
+
+// Simple groupBy helper
+function groupBy(arr, keyFn) {
+  return arr.reduce((acc, item) => {
+    const key = keyFn(item);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+/**
+ * Global Search – Users + Posts
+ * -------------------------------------------------
+ * • Supports type = ALL | USERS | POSTS
+ * • Calculates isFollowed: true | false | "pending"
+ * • Uses Set for O(1) lookup (no map needed)
+ * • Batch queries + Map to avoid N+1
+ * • Caches result in Redis (TTL 5 minutes)
+ * • Secure pagination limits
  */
 const search = async (req, res) => {
-  // Check for validation errors in the request
+  // ---------- 1. Validation ----------
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return handleValidationError(res, errors);
-  }
+  if (!errors.isEmpty()) return handleValidationError(res, errors);
 
-  // Extract query parameters (search term, type, page, limit)
-  const { query, type = "ALL", page = 1, limit = 10 } = req.query;
+  const { query = '', type = 'ALL' } = req.query;
+  let page = Math.max(1, Number(req.query.page) || 1);
+  let limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
   const userId = req.user.UserID;
-  const skip = (page - 1) * limit; // Calculate records to skip for pagination
+  const skip = (page - 1) * limit;
 
   try {
-    let users = []; // Store user search results
-    let posts = []; // Store post search results
+    // ---------- 2. Cache Check ----------
+    const lastView = await prisma.postView.findFirst({
+      where: { UserID: userId },
+      orderBy: { ViewedAt: 'desc' },
+      select: { ViewedAt: true },
+    });
+    const viewTs = lastView?.ViewedAt?.getTime() ?? 0;
+    const cacheKey = `search:${userId}:${query}:${type}:${page}:${limit}:${viewTs}`;
 
-    // Search for users if type is USERS or ALL
-    if (type === "USERS" || type === "ALL") {
-      // Find users matching the query, excluding the current user
-      const foundUsers = await prisma.user.findMany({
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        return res.json({ users: data.users ?? [], posts: data.posts ?? [] });
+      } catch (_) {
+        logger.warn('Search cache parse error');
+      }
+    }
+
+    // ---------- 3. Parallel: Following (ACCEPTED + PENDING) + Viewed ----------
+    const [followingRes, pendingRes, viewedRes] = await Promise.all([
+      prisma.follower.findMany({
+        where: { FollowerUserID: userId, Status: 'ACCEPTED' },
+        select: { UserID: true },
+      }),
+      prisma.follower.findMany({
+        where: { FollowerUserID: userId, Status: 'PENDING' },
+        select: { UserID: true },
+      }),
+      prisma.postView.findMany({
+        where: { UserID: userId },
+        select: { PostID: true },
+      }),
+    ]);
+
+    // Sets for fast lookup
+    const acceptedIds = new Set(followingRes.map(f => f.UserID));
+    const pendingIds = new Set(pendingRes.map(f => f.UserID));
+    const viewedPostIds = new Set(viewedRes.map(v => v.PostID));
+
+    let users = [];
+    let posts = [];
+
+    // ---------- 4. SEARCH USERS ----------
+    if (['USERS', 'ALL'].includes(type)) {
+      const found = await prisma.user.findMany({
         where: {
           OR: [
-            { Username: { contains: query, mode: "insensitive" } },
-            { Email: { contains: query, mode: "insensitive" } },
+            { Username: { contains: query, mode: 'insensitive' } },
+            { Email: { contains: query, mode: 'insensitive' } },
           ],
-          NOT: {
-            UserID: userId,
-          },
+          NOT: { UserID: userId },
         },
         select: {
           UserID: true,
@@ -46,39 +164,36 @@ const search = async (req, res) => {
           Bio: true,
           IsPrivate: true,
         },
+        orderBy: { Username: 'asc' },
         skip,
         take: limit,
       });
 
-      // Check if the current user follows each found user
-      users = await Promise.all(
-        foundUsers.map(async (user) => {
-          const followStatus = await prisma.follower.findFirst({
-            where: {
-              UserID: user.UserID,
-              FollowerUserID: userId,
-              Status: "ACCEPTED",
-            },
-            select: { Status: true },
-          });
+      users = found.map(u => {
+        const uid = u.UserID;
+        let isFollowed = false;
+        if (acceptedIds.has(uid)) isFollowed = true;
+        else if (pendingIds.has(uid)) isFollowed = 'pending';
 
-          return {
-            ...user,
-            isFollowed: !!followStatus, // Add follow status to user data
-          };
-        })
-      );
+        return {
+          userId: uid,
+          username: u.Username,
+          profilePicture: u.ProfilePicture,
+          bio: u.Bio,
+          isPrivate: u.IsPrivate,
+          isFollowed,
+        };
+      });
     }
 
-    // Search for posts if type is POSTS or ALL
-    if (type === "POSTS" || type === "ALL") {
-      // Find posts matching the query with their owners
-      const allPosts = await prisma.post.findMany({
+    // ---------- 5. SEARCH POSTS ----------
+    if (['POSTS', 'ALL'].includes(type)) {
+      const rawPosts = await prisma.post.findMany({
         where: {
-          Content: { contains: query, mode: "insensitive" },
+          Content: { contains: query, mode: 'insensitive' },
           OR: [
-            { privacy: "PUBLIC" },
-            { privacy: "FOLLOWERS_ONLY" },
+            { privacy: 'PUBLIC' },
+            { privacy: 'FOLLOWERS_ONLY' },
             { UserID: userId },
           ],
         },
@@ -87,45 +202,227 @@ const search = async (req, res) => {
             select: {
               UserID: true,
               Username: true,
+              ProfilePicture: true,
               IsPrivate: true,
-              Followers: {
-                where: {
-                  FollowerUserID: userId,
-                  Status: "ACCEPTED",
-                },
-                select: { FollowerUserID: true },
-              },
             },
           },
+          SharedPost: {
+            include: {
+              User: { select: { UserID: true, Username: true, ProfilePicture: true } },
+              _count: { select: { Likes: true, Comments: true, Shares: true } },
+            },
+          },
+          _count: { select: { Likes: true, Comments: true, Shares: true } },
         },
+        orderBy: { CreatedAt: 'desc' },
         skip,
-        take: limit,
+        take: limit * 2,
       });
 
-      // Filter posts based on privacy settings
-      posts = allPosts.filter((post) => {
-        const postOwner = post.User;
-        if (post.UserID === userId) return true; // Show user's own posts
-        if (post.privacy === "PUBLIC") return true; // Show public posts
-        if (!postOwner.IsPrivate && post.privacy === "FOLLOWERS_ONLY")
-          return true; // Show followers-only posts if account is not private
-        // Show private or followers-only posts if user follows the owner
-        return postOwner.Followers.some(
-          (follower) => follower.FollowerUserID === userId
-        );
+      // Privacy filter
+      const filteredPosts = rawPosts.filter(p => {
+        if (p.UserID === userId) return true;
+        if (p.privacy === 'PUBLIC') return true;
+        if (p.privacy === 'FOLLOWERS_ONLY' && !p.User.IsPrivate) return true;
+        return acceptedIds.has(p.UserID); // Only accepted followers
       });
+
+      if (!filteredPosts.length) {
+        await cacheResult(cacheKey, { users, posts: [] });
+        return res.json({ users, posts: [] });
+      }
+
+      const postIds = filteredPosts.map(p => p.PostID);
+
+      // Batch interactions
+      const [
+        userLikes,
+        userSaves,
+        allLikes,
+        rootComments,
+      ] = await Promise.all([
+        prisma.like.findMany({ where: { PostID: { in: postIds }, UserID: userId }, select: { PostID: true } }),
+        prisma.savedPost.findMany({ where: { PostID: { in: postIds }, UserID: userId }, select: { PostID: true } }),
+        prisma.like.findMany({
+          where: { PostID: { in: postIds } },
+          orderBy: { CreatedAt: 'desc' },
+          include: { User: { select: { UserID: true, Username: true, ProfileName: true, ProfilePicture: true } } },
+        }),
+        prisma.comment.findMany({
+          where: { PostID: { in: postIds }, ParentCommentID: null },
+          orderBy: { CreatedAt: 'desc' },
+          include: {
+            User: { select: { UserID: true, Username: true, ProfilePicture: true } },
+            CommentLikes: {
+              orderBy: { CreatedAt: 'desc' },
+              take: 3,
+              include: { User: { select: { Username: true, ProfilePicture: true } } },
+            },
+            Replies: {
+              orderBy: { CreatedAt: 'asc' },
+              take: 3,
+              include: {
+                User: { select: { UserID: true, Username: true, ProfilePicture: true } },
+                CommentLikes: {
+                  orderBy: { CreatedAt: 'asc' },
+                  take: 3,
+                  include: { User: { select: { Username: true, ProfilePicture: true } } },
+                },
+                _count: { select: { CommentLikes: true } },
+              },
+            },
+            _count: { select: { CommentLikes: true, Replies: true } },
+          },
+        }),
+      ]);
+
+      // Group data
+      const likesMap = new Map();
+      const commentsMap = new Map();
+
+      allLikes.forEach(l => {
+        if (!likesMap.has(l.PostID)) likesMap.set(l.PostID, []);
+        likesMap.get(l.PostID).push(l);
+      });
+
+      rootComments.forEach(c => {
+        if (!commentsMap.has(c.PostID)) commentsMap.set(c.PostID, []);
+        commentsMap.get(c.PostID).push(c);
+      });
+
+      const likedSet = new Set(userLikes.map(l => l.PostID));
+      const savedSet = new Set(userSaves.map(s => s.PostID));
+
+      // Format posts
+      const formatted = filteredPosts.map(p => {
+        const pid = p.PostID;
+        const isLiked = likedSet.has(pid);
+        const isSaved = savedSet.has(pid);
+        const isUnseen = !viewedPostIds.has(pid);
+
+        // Determine follow status for post owner
+        const ownerId = p.User.UserID;
+        let isFollowed = false;
+        if (acceptedIds.has(ownerId)) isFollowed = true;
+        else if (pendingIds.has(ownerId)) isFollowed = 'pending';
+
+        // Likes priority
+        const likes = likesMap.get(pid) ?? [];
+        const myLike = likes.find(l => l.User.UserID === userId);
+        const followingLikes = likes.filter(l => acceptedIds.has(l.User.UserID) && l.User.UserID !== userId);
+        const otherLikes = likes.filter(l => l.User.UserID !== userId && !acceptedIds.has(l.User.UserID));
+
+        const topLikes = [
+          ...(myLike ? [myLike] : []),
+          ...followingLikes.slice(0, myLike ? 9 : 10),
+          ...otherLikes.slice(0, Math.max(0, 10 - (myLike ? 1 : 0) - followingLikes.length)),
+        ].map(l => {
+          const uid = l.User.UserID;
+          let followed = false;
+          if (acceptedIds.has(uid)) followed = true;
+          else if (pendingIds.has(uid)) followed = 'pending';
+
+          return {
+            userId: uid,
+            username: l.User.Username,
+            profileName: l.User.ProfileName,
+            profilePicture: l.User.ProfilePicture,
+            isFollowed: followed,
+            likedAt: l.CreatedAt.toISOString(),
+          };
+        });
+
+        // Comments priority
+        const comments = (commentsMap.get(pid) ?? []).map(c => ({
+          ...c,
+          priority: c.UserID === userId ? 0 : acceptedIds.has(c.UserID) ? 1 : 2,
+        }));
+
+        const sorted = comments
+          .sort((a, b) => a.priority - b.priority || b.CreatedAt - a.CreatedAt)
+          .slice(0, 3);
+
+        const Comments = sorted.map(c => ({
+          CommentID: c.CommentID,
+          Content: c.Content,
+          CreatedAt: c.CreatedAt,
+          User: c.User,
+          isMine: c.UserID === userId,
+          isLiked: c.CommentLikes.some(l => l.UserID === userId),
+          likeCount: c._count.CommentLikes,
+          replyCount: c._count.Replies,
+          likedBy: c.CommentLikes.map(l => ({
+            username: l.User.Username,
+            profilePicture: l.User.ProfilePicture,
+          })),
+          Replies: c.Replies.map(r => ({
+            CommentID: r.CommentID,
+            Content: r.Content,
+            CreatedAt: r.CreatedAt,
+            User: r.User,
+            isMine: r.UserID === userId,
+            isLiked: r.CommentLikes.some(l => l.UserID === userId),
+            likeCount: r._count.CommentLikes,
+            likedBy: r.CommentLikes.map(l => ({
+              username: l.User.Username,
+              profilePicture: l.User.ProfilePicture,
+            })),
+          })),
+        }));
+
+        return {
+          PostID: p.PostID,
+          Content: p.Content,
+          ImageURL: p.ImageURL,
+          VideoURL: p.VideoURL,
+          CreatedAt: p.CreatedAt,
+          UpdatedAt: p.UpdatedAt,
+          privacy: p.privacy,
+          User: {
+            UserID: p.User.UserID,
+            Username: p.User.Username,
+            ProfilePicture: p.User.ProfilePicture,
+            IsPrivate: p.User.IsPrivate,
+            isFollowed,
+          },
+          isMine: p.UserID === userId,
+          isLiked,
+          isSaved,
+          isUnseen,
+          likeCount: p._count.Likes,
+          commentCount: p._count.Comments,
+          shareCount: p._count.Shares,
+          Likes: topLikes,
+          Comments,
+          SharedPost: p.SharedPost
+            ? {
+                PostID: p.SharedPost.PostID,
+                Content: p.SharedPost.Content,
+                ImageURL: p.SharedPost.ImageURL,
+                VideoURL: p.SharedPost.VideoURL,
+                CreatedAt: p.SharedPost.CreatedAt,
+                User: p.SharedPost.User,
+                likeCount: p.SharedPost._count.Likes,
+                commentCount: p.SharedPost._count.Comments,
+                shareCount: p.SharedPost._count.Shares,
+              }
+            : null,
+        };
+      });
+
+      posts = formatted.slice(0, limit);
     }
 
-    // Send the search results
-    res.status(200).json({
-      users,
-      posts,
-    });
-  } catch (error) {
-    // Handle server errors
-    handleServerError(res, error, "Error while searching");
+    // ---------- 6. Cache & Respond ----------
+    await cacheResult(cacheKey, { users, posts });
+    return res.json({ users, posts });
+
+  } catch (err) {
+    logger.error(`Search error: ${err.message}`, { stack: err.stack });
+    return handleServerError(res, err, 'Search operation failed');
   }
 };
+
 
 /**
  * Handles search for users or messages in the messenger

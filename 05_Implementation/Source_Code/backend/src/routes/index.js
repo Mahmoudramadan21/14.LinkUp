@@ -15,7 +15,7 @@ router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
 router.use("/posts", postRoutes);
 router.use("/stories", storyRoutes);
-router.use("/messanger", messagesRoutes);
+router.use('/messages', messagesRoutes);
 router.use("/highlights", highlightRoutes);
 router.use("/admin", adminRoutes);
 router.use("/notifications", notificationRoutes);

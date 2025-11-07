@@ -75,7 +75,7 @@ const getProfileByUsername = async (req, res) => {
     }
 
     // Check if the current user is following this user and get follow status
-    let isFollowing = false;
+    let isFollowed = false;
     let followStatus = "NONE";
     if (currentUserId !== user.UserID) {
       const followStatusQuery = await prisma.follower.findFirst({
@@ -85,7 +85,7 @@ const getProfileByUsername = async (req, res) => {
         },
       });
       if (followStatusQuery) {
-        isFollowing = followStatusQuery.Status === "ACCEPTED";
+        isFollowed = followStatusQuery.Status === "ACCEPTED";
         followStatus = followStatusQuery.Status;
       }
     }
@@ -119,7 +119,7 @@ const getProfileByUsername = async (req, res) => {
     const hasAccess =
       !user.IsPrivate || // Public account
       user.UserID === currentUserId || // Own account
-      isFollowing; // Private but followed
+      isFollowed; // Private but followed
 
     // Fetch mutual followers (users who follow the target user and are followed by the current user)
     let followedBy = [];
@@ -220,6 +220,30 @@ const getProfileByUsername = async (req, res) => {
       }
     }
 
+    let conversationId = null;
+
+    if (currentUserId !== user.UserID) {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          Participants: {
+            some: { UserID: currentUserId },
+          },
+          AND: [
+            {
+              Participants: {
+                some: { UserID: user.UserID },
+              },
+            },
+          ],
+        },
+        select: {
+          Id: true,
+        },
+      });
+
+      conversationId = conversation?.Id || null;
+    }
+
     const response = {
       profile: {
         userId: user.UserID,
@@ -238,14 +262,15 @@ const getProfileByUsername = async (req, res) => {
         followerCount: user._count.Followers,
         followingCount: user._count.Following,
         likeCount: user._count.Likes,
-        isFollowing,
+        isFollowed,
         profileName: user.ProfileName,
         followStatus,
         hasUnViewedStories,
         hasActiveStories,
         hasAccess,
         isMine: user.UserID === currentUserId,
-        followedBy, // Added: up to 3 mutual followers
+        followedBy,
+        conversationId,
       },
     };
 
@@ -724,19 +749,14 @@ function groupBy(arr, keyFn) {
  */
 const getUserPosts = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { username } = req.params; // Changed from userId to username
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     const currentUserId = req.user?.UserID;
-    const parsedUserId = parseInt(userId);
-
-    if (isNaN(parsedUserId)) {
-      return res.status(400).json({ error: "Invalid user ID format" });
-    }
 
     // === Fetch user & privacy check ===
     const user = await prisma.user.findUnique({
-      where: { UserID: parsedUserId },
+      where: { Username: username }, // Changed from UserID to Username
       select: { UserID: true, Username: true, IsPrivate: true },
     });
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -755,9 +775,10 @@ const getUserPosts = async (req, res) => {
       hasAccess = !!followRelationship;
     }
     if (!hasAccess) {
-      return res.status(403).json({
-        error: "Private account",
-        message: `You must follow @${user.Username} to view their posts`,
+      return res.status(200).json({
+        message: `@${user.Username} has a private account. You must follow them to view their posts.`,
+        hasAccess: false,
+        posts: [],
       });
     }
 
@@ -765,7 +786,7 @@ const getUserPosts = async (req, res) => {
     const posts = await prisma.post.findMany({
       skip: offset,
       take: parseInt(limit), // Fetch extra to account for filtering
-      where: { UserID: parsedUserId },
+      where: { UserID: user.UserID }, // Use user.UserID from fetched user
       orderBy: { CreatedAt: "desc" }, // Newest to oldest
       include: {
         User: {
@@ -788,7 +809,7 @@ const getUserPosts = async (req, res) => {
     });
 
     const filteredPosts = posts.filter(
-      (p) => !p.User.IsPrivate || isOwner || currentUserId === p.User.UserID
+      (p) => hasAccess || !p.User.IsPrivate || isOwner
     );
     const postIds = filteredPosts.map((p) => p.PostID);
 
@@ -895,22 +916,15 @@ const getUserPosts = async (req, res) => {
           followingIds.includes(l.User.UserID) &&
           l.User.UserID !== currentUserId
       );
-      const otherLikes = likes.filter(
-        (l) => ![currentUserId, ...followingIds].includes(l.User.UserID)
-      );
 
       const Likes = [
         ...(myLike ? [myLike] : []),
         ...followingLikes.slice(0, myLike ? 9 : 10),
-        ...otherLikes.slice(
-          0,
-          Math.max(0, 10 - (myLike ? 1 : 0) - followingLikes.length)
-        ),
       ].map((like) => ({
-        UserID: like.User.UserID,
-        Username: like.User.Username,
-        ProfileName: like.User.ProfileName,
-        ProfilePicture: like.User.ProfilePicture,
+        userId: like.User.UserID,
+        username: like.User.Username,
+        profileName: like.User.ProfileName,
+        profilePicture: like.User.ProfilePicture,
         isFollowed: followingIds.includes(like.User.UserID),
         likedAt: like.CreatedAt.toISOString(),
       }));
@@ -1153,22 +1167,15 @@ const getSavedPosts = async (req, res) => {
       const followingLikes = likes.filter(
         (l) => followingIds.includes(l.User.UserID) && l.User.UserID !== userId
       );
-      const otherLikes = likes.filter(
-        (l) => ![userId, ...followingIds].includes(l.User.UserID)
-      );
 
       const Likes = [
         ...(myLike ? [myLike] : []),
         ...followingLikes.slice(0, myLike ? 9 : 10),
-        ...otherLikes.slice(
-          0,
-          Math.max(0, 10 - (myLike ? 1 : 0) - followingLikes.length)
-        ),
       ].map((like) => ({
-        UserID: like.User.UserID,
-        Username: like.User.Username,
-        ProfileName: like.User.ProfileName,
-        ProfilePicture: like.User.ProfilePicture,
+        userId: like.User.UserID,
+        username: like.User.Username,
+        profileName: like.User.ProfileName,
+        profilePicture: like.User.ProfilePicture,
         isFollowed: followingIds.includes(like.User.UserID),
         likedAt: like.CreatedAt.toISOString(),
       }));
@@ -1386,17 +1393,23 @@ const followUser = async (req, res) => {
     });
 
     if (existingFollow) {
+      if (existingFollow.Status === "PENDING") {
+        return res.status(200).json({
+          message: "Your follow request is still pending",
+          status: "PENDING",
+        });
+      }
+
       const statusMap = {
-        PENDING: "Your follow request is still pending",
         ACCEPTED: "You are already following this user",
         REJECTED: "Your previous follow request was rejected",
       };
       return res.status(409).json({
-        error:
-          statusMap[existingFollow.Status] || "Already following this user",
+        error: statusMap[existingFollow.Status] || "Already following this user",
         status: existingFollow.Status,
       });
     }
+
 
     const follow = await prisma.follower.create({
       data: {
@@ -1605,6 +1618,7 @@ const getPendingFollowRequests = async (req, res) => {
           select: {
             UserID: true,
             Username: true,
+            ProfileName: true,
             ProfilePicture: true,
             Bio: true,
           },
@@ -1619,7 +1633,13 @@ const getPendingFollowRequests = async (req, res) => {
       count: requests.length,
       pendingRequests: requests.map((r) => ({
         requestId: r.FollowerID,
-        user: r.FollowerUser,
+        user: {
+          userId: r.FollowerUser.UserID,
+          username: r.FollowerUser.Username,
+          profileName: r.FollowerUser.ProfileName,
+          profilePicture: r.FollowerUser.ProfilePicture,
+          bio: r.FollowerUser.Bio,
+        },
         createdAt: r.CreatedAt,
       })),
     });
@@ -1744,6 +1764,12 @@ const getFollowers = async (req, res) => {
     });
     const followingIds = new Set(currentUserFollowing.map((f) => f.UserID));
 
+    const pendingUserFollowing = await prisma.follower.findMany({
+      where: { FollowerUserID: currentUserId, Status: "PENDING" },
+      select: { UserID: true },
+    });
+    const pendingIds = new Set(pendingUserFollowing.map((f) => f.UserID));
+
     // Count followers
     const totalCount = await prisma.follower.count({
       where: { UserID: user.UserID, Status: "ACCEPTED" },
@@ -1786,7 +1812,7 @@ const getFollowers = async (req, res) => {
         profilePicture: u.ProfilePicture,
         isPrivate: u.IsPrivate,
         bio: u.Bio,
-        isFollowed: followingIds.has(u.UserID),
+        isFollowed: followingIds.has(u.UserID) ? true : pendingIds.has(u.UserID) ? "pending" : false,
         isCurrentUser: u.UserID === currentUserId,
         followCreatedAt: f.CreatedAt,
       });
@@ -2071,11 +2097,23 @@ const getUserSuggestions = async (req, res) => {
     });
     const followingIds = following.map((f) => f.UserID);
 
+    const pendingFollows = await prisma.follower.findMany({
+      where: {
+        FollowerUserID: currentUserId,
+        Status: "PENDING",
+      },
+      select: {
+        UserID: true,
+      },
+    });
+    const pendingFollowIds = pendingFollows.map((f) => f.UserID);
+    console.log("pendingFollowIds", pendingFollowIds);
+
     // Get all eligible user IDs (excluding current user, banned users, and followed users)
     const eligibleUsers = await prisma.user.findMany({
       where: {
         UserID: {
-          notIn: [currentUserId, ...followingIds],
+          notIn: [currentUserId, ...followingIds, ...pendingFollowIds],
         },
         IsBanned: false,
       },
@@ -2124,6 +2162,7 @@ const getUserSuggestions = async (req, res) => {
         username: user.Username,
         profilePicture: user.ProfilePicture,
         bio: user.Bio,
+        isFollowed: false,
       })),
     };
 
