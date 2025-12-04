@@ -1,28 +1,27 @@
+// app/providers.tsx
 'use client';
 
-/**
- * Redux provider component for the LinkUp application.
- * Wraps the application with the Redux store to enable state management.
- */
-
+import { ThemeProvider } from 'next-themes';
 import { Provider } from 'react-redux';
 import store from '@/store';
-import type { ReactNode, ReactElement } from 'react';
+import { ReactNode } from 'react';
 
-/**
- * Props for the Providers component.
- * @interface ProvidersProps
- */
 interface ProvidersProps {
-  /** The child components to be wrapped by the Redux provider. */
   children: ReactNode;
 }
 
-/**
- * Provides the Redux store to the application.
- * @param {ProvidersProps} props - The component props.
- * @returns {ReactElement} The Redux provider wrapping the children.
- */
-export function Providers({ children }: ProvidersProps): ReactElement {
-  return <Provider store={store}>{children}</Provider>;
+export function Providers({ children }: ProvidersProps) {
+  return (
+    <Provider store={store}>
+      <ThemeProvider
+        attribute="class"          
+        defaultTheme="system"      
+        enableSystem                
+        enableColorScheme           
+        storageKey="theme"   
+      >
+        {children}
+      </ThemeProvider>
+    </Provider>
+  );
 }

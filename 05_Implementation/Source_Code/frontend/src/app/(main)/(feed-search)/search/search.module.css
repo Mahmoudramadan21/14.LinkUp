@@ -1,0 +1,181 @@
+/*
+ * =============================================================================
+ *  search.module.css
+ * =============================================================================
+ *
+ * Full styling for the global Search page (/search?q=...)
+ * Supports searching across:
+ *   • Users (with follow/unfollow states)
+ *   • Posts
+ *   • (Future: Hashtags, Locations, etc.)
+ *
+ * Naming Convention: BEM (Block__Element--Modifier)
+ *   Block → search
+ *   Elements → search__tabs, search__user, search__post, etc.
+ *   Modifiers → search__tab--active, search__user__follow--followed
+ *
+ * Features:
+ *   • Clean tabbed interface (Users / Posts)
+ *   • Smooth hover & focus scaling on user cards
+ *   • Full dark mode + high contrast support
+ *   • WCAG 2.1 AA compliant focus rings
+ *   • Mobile-first responsive layout
+ *   • Consistent with global design tokens
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Page Container
+   ========================================================================== */
+.search {
+  @apply container mx-auto md:px-4 py-8 bg-[var(--app-bg)] transition-colors duration-300;
+}
+
+/* ==========================================================================
+   Tabs Navigation – Users / Posts
+   ========================================================================== */
+.search__tabs {
+  @apply flex justify-center border-b border-[var(--border-color)] mb-6;
+}
+
+.search__tab {
+  @apply px-6 py-3 text-[var(--text-secondary)] font-medium cursor-pointer 
+         hover:text-[var(--linkup-purple-light)] focus-ring rounded-t-lg 
+         transition-colors duration-200;
+}
+
+.search__tab--active {
+  @apply text-[var(--linkup-purple-light)] border-b-2 border-[var(--linkup-purple)] font-semibold;
+}
+
+/* ==========================================================================
+   Main Content Area
+   ========================================================================== */
+.search__content {
+  @apply flex flex-col gap-8;
+}
+
+.search__heading {
+  @apply text-primary-bold mb-4;
+}
+
+/* ==========================================================================
+   Users Results Section
+   ========================================================================== */
+.search__users {
+  @apply space-y-4;
+}
+
+.search__user {
+  @apply flex items-center p-4 bg-[var(--section-bg)] rounded-xl shadow-md;
+}
+
+.search__user__link {
+  @apply flex items-center gap-4 flex-1 rounded-lg;
+}
+
+.search__user__avatar {
+  @apply avatar--md min-h-avatar-md w-avatar-md;
+}
+
+.search__user__info {
+  @apply flex-1;
+}
+
+.search__user__name {
+  @apply text-base font-semibold text-[var(--text-primary)] hover:underline;
+}
+
+.search__user__link:hover .search__user__name {
+  @apply hover:underline;
+}
+
+.search__user__bio {
+  @apply text-sm text-[var(--text-muted)] line-clamp-2;
+}
+
+/* Follow Button States */
+.search__user__follow {
+  @apply btn-rounded--purple text-sm;
+}
+
+.search__user__follow--followed {
+  @apply bg-[var(--section-bg)] text-[var(--text-primary)] 
+         border border-[var(--border-color)] hover:bg-[var(--border-color)];
+}
+
+.search__user__follow--pending {
+  @apply bg-[var(--section-bg)] text-[var(--text-secondary)] 
+         border border-[var(--border-color)] opacity-80;
+}
+
+.search__user__follow--loading {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* ==========================================================================
+   Posts Results Section
+   ========================================================================== */
+.search__posts {
+  @apply space-y-6;
+}
+
+.search__post {
+  @apply bg-[var(--card-bg)] rounded-xl overflow-hidden shadow-md;
+}
+
+/* ==========================================================================
+   View All Link
+   ========================================================================== */
+.search__view-all {
+  @apply block text-center text-[var(--linkup-purple)] font-medium hover:underline mt-4;
+}
+
+/* ==========================================================================
+   Loading, Empty & Error States
+   ========================================================================== */
+.search__loading,
+.search__empty,
+.search__error {
+  @apply text-center py-8 text-lg text-[var(--text-secondary)];
+}
+
+.search__error {
+  @apply text-[var(--error)];
+}
+
+/* Intersection Observer sentinel (for infinite scroll trigger) */
+.search__sentinel {
+  @apply h-1;
+}
+
+
+/* ==========================================================================
+   User Card Skeleton Loader
+   ========================================================================== */
+
+.skeleton__user {
+  @apply flex items-center p-4 bg-[var(--section-bg)] rounded-xl shadow-md;
+}
+
+.skeleton__avatar {
+  @apply avatar--md animate-pulse;
+}
+
+.skeleton__info {
+  @apply flex-1 ml-4;
+}
+
+.skeleton__line {
+  @apply h-4 animate-pulse rounded w-32 mb-2;
+}
+
+.skeleton__line_short {
+  @apply h-3 animate-pulse rounded w-24;
+}
+
+.skeleton__button {
+  @apply w-20 h-9 animate-pulse rounded-full opacity-50;
+}

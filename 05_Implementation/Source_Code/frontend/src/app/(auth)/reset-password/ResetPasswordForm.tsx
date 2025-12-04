@@ -10,23 +10,56 @@ import { memo, useEffect, useRef } from 'react';
 import Input from '@/components/ui/common/Input';
 import Button from '@/components/ui/common/Button';
 import Link from 'next/link';
-import { useResetPassword } from '@/hooks/auth/useResetPassword';
 import type { JSX } from 'react';
-
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '@/store';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { ResetPasswordFormData, resetPasswordSchema } from '@/utils/validationSchemas';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { clearError, resetPasswordThunk } from '@/store/authSlice';
+import styles from "../auth-layout.module.css"
 
 /**
  * Renders the reset password form with input fields and submission logic.
  * @returns {JSX.Element} The reset password form component.
  */
 const ResetPasswordForm= (): JSX.Element => {
+  const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
+  const {
+    loading: { resetPassword: isLoading },
+    error: { resetPassword: serverError },
+  } = useSelector((state: RootState) => state.auth);
+
   const {
     register,
     handleSubmit,
-    errors,
-    onSubmit,
-    isLoading,
-    serverError,
-   } = useResetPassword();
+    formState: { errors },
+  } = useForm<ResetPasswordFormData>({
+    resolver: zodResolver(resetPasswordSchema),
+  });
+
+  const onSubmit = async (data: ResetPasswordFormData) => {
+    try {
+      await dispatch(
+        resetPasswordThunk({
+          newPassword: data.newPassword,
+        })
+      ).unwrap();
+      router.push("/password-reset-success");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      // Error handled in store
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      dispatch(clearError("resetPassword"));
+    };
+  }, [dispatch]);
+
 
   const errorRef = useRef<HTMLDivElement>(null);
 
@@ -38,23 +71,23 @@ const ResetPasswordForm= (): JSX.Element => {
 
   return (
     <section
-      className="auth-form auth-form--reset-password"
+      className={`${styles["auth-form"]} ${styles["auth-form--reset-password"]}`}
       role="form"
       aria-labelledby="reset-password-form-title"
       aria-describedby="reset-password-form-subtitle"
       itemScope
       itemType="http://schema.org/Person"
     >
-      <div className="auth-form__container">
-        <h1 id="reset-password-form-title" className="auth-form__title">
+      <div className={styles["auth-form__container"]}>
+        <h1 id="reset-password-form-title" className={styles["auth-form__title"]}>
           Reset Password
         </h1>
-        <p id="reset-password-form-subtitle" className="auth-form__subtitle">
+        <p id="reset-password-form-subtitle" className={styles["auth-form__subtitle"]}>
           Set a new password for your account to access all features.
         </p>
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="auth-form__form"
+          className={styles["auth-form__form"]}
           aria-label="Reset password form"
           noValidate
         >
@@ -80,7 +113,7 @@ const ResetPasswordForm= (): JSX.Element => {
           />
           {serverError && (
             <div
-              className="auth-form__error"
+              className={styles["auth-form__error"]}
               role="alert"
               aria-live="assertive"
               ref={errorRef}
@@ -97,8 +130,8 @@ const ResetPasswordForm= (): JSX.Element => {
           >
             {isLoading ? 'Updating...' : 'Update Password'}
           </Button>
-          <p className="auth-form__signup">
-            <Link href="/login" className="auth-form__link" prefetch={false}>
+          <p className={styles["auth-form__signup"]}>
+            <Link href="/login" className={styles["auth-form__link"]} prefetch={false}>
               Back to Sign In
             </Link>
           </p>

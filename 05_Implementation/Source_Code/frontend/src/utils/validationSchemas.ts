@@ -218,6 +218,152 @@ export const sharePostSchema = z.object({
     .optional(),
 });
 
+// Update profile validation schema
+export const updateProfileSchema = z.object({
+  username: z
+    .string()
+    .nonempty("Username is required")
+    .refine(
+      (val) => !val || (val.length >= 3 && val.length <= 20),
+      { message: "Username must be between 3 and 20 characters" }
+    )
+    .refine(
+      (val) => !val || usernameRegex.test(val),
+      { message: "Username must contain only alphanumeric characters and underscores" }
+    ),
+  email: z
+    .string()
+    .nonempty("Email is required")
+    .refine(
+      (val) => !val || emailRegex.test(val),
+      { message: "Please enter a valid email address" }
+    ),
+  bio: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || val.length <= 150,
+      { message: "Bio must be less than 150 characters" }
+    ),
+  address: z.string().optional(),
+  jobTitle: z.string().optional(),
+  dateOfBirth: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      { message: "Invalid date format. Use YYYY-MM-DD" }
+    ),
+  isPrivate: z
+    .boolean()
+    .optional(),
+  firstName: z
+    .string()
+    .nonempty("First name is required")
+    .refine(
+      (val) => !val || (val.length >= 2 && val.length <= 50),
+      { message: "First name must be between 2 and 50 characters" }
+    )
+    .refine(
+      (val) => !val || /^[a-zA-Z\s]+$/.test(val),
+      { message: "First name must contain only letters and spaces" }
+    ),
+  lastName: z
+    .string()
+    .nonempty("Last name is required")
+    .refine(
+      (val) => !val || (val.length >= 2 && val.length <= 50),
+      { message: "Last name must be between 2 and 50 characters" }
+    )
+    .refine(
+      (val) => !val || /^[a-zA-Z\s]+$/.test(val),
+      { message: "Last name must contain only letters and spaces" }
+    ),
+  profilePicture: z
+    .instanceof(File)
+    .optional()
+    .refine(
+      (file) => {
+        if (!file) return true;
+        const allowedTypes = ["image/jpeg", "image/png"];
+        return allowedTypes.includes(file.type);
+      },
+      { message: "Profile picture must be a JPEG or PNG file" }
+    )
+    .refine(
+      (file) => {
+        if (!file) return true;
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        return file.size <= maxSize;
+      },
+      { message: "Profile picture must be under 5MB" }
+    ),
+  coverPicture: z
+    .instanceof(File)
+    .optional()
+    .refine(
+      (file) => {
+        if (!file) return true;
+        const allowedTypes = ["image/jpeg", "image/png"];
+        return allowedTypes.includes(file.type);
+      },
+      { message: "Cover picture must be a JPEG or PNG file" }
+    )
+    .refine(
+      (file) => {
+        if (!file) return true;
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        return file.size <= maxSize;
+      },
+      { message: "Cover picture must be under 10MB" }
+    ),
+})
+.refine(
+  (data) => {
+    if (data.firstName || data.lastName) {
+      return (data.firstName && data.lastName) || (!data.firstName && !data.lastName);
+    }
+    return true;
+  },
+  {
+    message: "Both first name and last name must be provided together or neither",
+    path: ["firstName", "lastName"],
+  }
+);
+
+// Change password validation schema
+export const changePasswordSchema = z
+  .object({
+    oldPassword: z
+      .string()
+      .nonempty("Current password is required")
+      .min(8, "Old password must be at least 8 characters")
+      .regex(
+        passwordRegex,
+        "Old password must include one uppercase, one lowercase, one number, and one special character"
+      ),
+    newPassword: z
+      .string()
+      .nonempty("New password is required")
+      .min(8, "New password must be at least 8 characters")
+      .regex(
+        passwordRegex,
+        "New password must include one uppercase, one lowercase, one number, and one special character"
+      ),
+    confirmPassword: z.string().nonempty("Confirm new password is required"),
+  })
+  .superRefine(({ confirmPassword, newPassword }, ctx) => {
+    if (confirmPassword !== newPassword) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Passwords do not match",
+        path: ["confirmPassword"],
+      });
+    }
+  });
+
+
+
 // TypeScript types inferred from schemas
 export type SignupFormData = z.infer<typeof signupSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
@@ -230,3 +376,5 @@ export type AddCommentFormData = z.infer<typeof addCommentSchema>;
 export type ReplyCommentFormData = z.infer<typeof replyCommentSchema>;
 export type ReportPostFormData = z.infer<typeof reportPostSchema>;
 export type SharePostFormData = z.infer<typeof sharePostSchema>;
+export type UpdateProfileFormData = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;

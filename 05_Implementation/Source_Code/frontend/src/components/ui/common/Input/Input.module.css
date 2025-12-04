@@ -1,0 +1,64 @@
+/*
+ * Styles for the Input component
+ * - Defines styles for input fields and error states
+ * - Uses Tailwind classes and CSS variables for consistency with globals.css, profile.module.css, and feed.module.css
+ * - Supports dark mode, accessibility, and RTL
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* Main container */
+.input-block {
+  @apply mb-md;
+}
+
+/* Header with label and toggle */
+.input-block__header {
+  @apply flex justify-between items-center mb-xs;
+}
+
+/* Input label */
+.input-block__label {
+  @apply block text-sm font-semibold text-[var(--text-primary)] md-down:text-sm sm-down:text-sm;
+}
+
+/* Required indicator */
+.input-block__required {
+  @apply text-[var(--error)] ml-xs;
+}
+
+/* Password toggle button */
+.input-block__toggle--password {
+  @apply flex items-center text-sm text-[var(--text-secondary)] hover:text-[var(--linkup-purple)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] transition-colors duration-fast;
+}
+
+/* Toggle text (hidden for screen readers) */
+.input-block__toggle-text {
+  @apply ml-xs;
+}
+
+/* Input field */
+.input-block__input {
+  @apply w-full p-md rounded-xl border border-[var(--border-color)] bg-[var(--section-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] text-base leading-relaxed placeholder:text-[var(--text-muted)] transition-shadow duration-fast md-down:text-base sm-down:text-sm;
+}
+
+/* Textarea-specific styles */
+.input-block__input--textarea {
+  @apply resize-none min-h-[120px];
+}
+
+/* Invalid input state */
+.input-block__input--invalid {
+  @apply border-[var(--error)];
+}
+
+/* Error message */
+.input-block__error {
+  @apply text-[var(--error)] text-sm mt-xs md-down:text-sm sm-down:text-xs;
+}
+
+/* Character count */
+.input-block__char-count {
+  @apply text-sm text-[var(--text-muted)] mt-xs md-down:text-sm sm-down:text-xs;
+}

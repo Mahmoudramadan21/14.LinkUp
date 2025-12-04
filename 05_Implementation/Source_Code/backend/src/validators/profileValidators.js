@@ -34,7 +34,7 @@ const updateProfileValidationRules = [
     .withMessage("Invalid profile picture URL"),
   body("address").optional().isString(),
   body("jobTitle").optional().isString(),
-  body("dateOfBirth").optional().isDate({ format: "YYYY-MM-DD" }),
+  // body("dateOfBirth").optional().isDate({ format: "YYYY-MM-DD" }),
 ];
 
 /**

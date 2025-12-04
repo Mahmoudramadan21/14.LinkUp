@@ -1,93 +1,155 @@
+/**
+ * @file messagesController.js
+ * @description Handles all chat & messaging logic with E2EE, rate limiting, infinite scroll, and REAL-TIME updates via WebSocket.
+ */
+
 const prisma = require("../utils/prisma");
-const { setWithTracking, del } = require("../utils/redisUtils");
+const { del } = require("../utils/redisUtils");
 const { handleServerError } = require("../utils/errorHandler");
 const { uploadToCloud } = require("../services/cloudService");
+const { encryptMessage, decryptMessage } = require("../utils/encryption");
+const { generateLinkPreview } = require("../services/linkPreviewService");
+const rateLimit = require("express-rate-limit");
+
+// Rate limiting: 30 messages per 15 seconds per user
+const messageRateLimiter = rateLimit({
+  windowMs: 15 * 1000,
+  max: 30,
+  keyGenerator: (req) => `msg:${req.user.UserID}`,
+  handler: (req, res) =>
+    res.status(429).json({ error: "Too many messages. Please slow down." }),
+});
 
 /**
- * Fetches user conversations with pagination
- * Returns conversation IDs, last message, unread count, and other participant's profile picture
+ * Helper: Emit message to all participants
+ */
+const emitMessageToParticipants = (io, conversationId, message, senderId, status = "SENT") => {
+  prisma.conversation
+    .findUnique({
+      where: { Id: conversationId },
+      select: { Participants: { select: { UserID: true } } },
+    })
+    .then((conv) => {
+      if (!conv) return;
+
+      const payload = {
+        ...message,
+        Content: message.Content,
+        status: status === "SENT" && message.SenderId === senderId ? "SENT" : "DELIVERED",
+      };
+
+      conv.Participants.forEach((p) => {
+        io.to(`user:${p.UserID}`).emit("message:new", payload);
+      });
+    })
+    .catch(console.error);
+};
+
+/**
+ * Get user conversations with optimized N+1 avoidance
  */
 const getConversations = async (req, res) => {
   const { UserID } = req.user;
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 15 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
 
   try {
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Fetch conversations with participants and last message
     const conversations = await prisma.conversation.findMany({
-      where: {
-        participants: {
-          some: { UserID },
-        },
-      },
+      where: { Participants: { some: { UserID } } },
       skip,
       take: parseInt(limit),
-      orderBy: { updatedAt: "desc" },
-      include: {
-        participants: {
+      orderBy: { UpdatedAt: "desc" },
+      select: {
+        Id: true,
+        UpdatedAt: true,
+        LastMessage: {
+          select: {
+            Id: true,
+            Content: true,
+            CreatedAt: true,
+            SenderId: true,
+            IsDeleted: true,
+            Attachments: {
+              select: { Type: true },
+            },
+          },
+        },
+        Participants: {
+          where: { UserID: { not: UserID } },
           select: {
             UserID: true,
             Username: true,
             ProfilePicture: true,
+            LastActive: true,
           },
-        },
-        messages: {
-          orderBy: { createdAt: "desc" },
           take: 1,
+        },
+        _count: {
           select: {
-            id: true,
-            content: true,
-            createdAt: true,
-            senderId: true,
+            Messages: {
+              where: {
+                SenderId: { not: UserID },
+                Status: { not: "READ" },
+                IsDeleted: false,
+              },
+            },
           },
         },
       },
     });
 
-    // Count total conversations for pagination
     const total = await prisma.conversation.count({
-      where: {
-        participants: {
-          some: { UserID },
-        },
-      },
+      where: { Participants: { some: { UserID } } },
     });
 
-    // Format response with unread count and other participant's profile picture
-    const formattedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        // Get other participant's profile picture
-        const otherParticipant = conv.participants.find(
-          (p) => p.UserID !== UserID
-        );
+    const formatted = conversations.map((c) => {
+      let content = null;
 
-        // Count unread messages (not sent by user, not read)
-        const unreadCount = await prisma.message.count({
-          where: {
-            conversationId: conv.id,
-            senderId: { not: UserID },
-            readAt: null,
-          },
-        });
+      if (c.LastMessage) {
+        if (c.LastMessage.IsDeleted) {
+          content = "Message deleted";
+        } else if (
+          c.LastMessage.Attachments &&
+          c.LastMessage.Attachments.length > 0
+        ) {
+          const type = c.LastMessage.Attachments[0].Type;
+          // content = type === "IMAGE" ? "Image" : type === "VIDEO" ? "Video" : "Attachment";
+          content = type === "IMAGE"
+            ? "Image"
+            : type === "VIDEO"
+            ? "Video"
+            : type === "VOICE"
+            ? "Voice message"
+            : "Attachment";
+        } else {
+          content = decryptMessage(c.LastMessage.Content, c.Id);
+        }
+      }
 
-        return {
-          conversationId: conv.id,
-          lastMessage: conv.messages[0] || null,
-          unreadCount,
-          otherParticipant: otherParticipant
-            ? {
-                UserID: otherParticipant.UserID,
-                Username: otherParticipant.Username,
-                ProfilePicture: otherParticipant.ProfilePicture,
-              }
-            : null,
-        };
-      })
-    );
+      return {
+        conversationId: c.Id,
+        lastMessage: c.LastMessage
+          ? {
+              id: c.LastMessage.Id,
+              content,
+              createdAt: c.LastMessage.CreatedAt,
+              senderId: c.LastMessage.SenderId,
+            }
+          : null,
+        unreadCount: c._count.Messages,
+        otherParticipant: c.Participants[0] || null,
+        updatedAt: c.UpdatedAt,
+      };
+    });
+
+    // Emit conversation list update (optional)
+    req.app.get("io").to(`user:${UserID}`).emit("conversations:updated", {
+      conversations: formatted,
+      total,
+    });
 
     res.json({
-      conversations: formattedConversations,
+      conversations: formatted,
       total,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -98,570 +160,751 @@ const getConversations = async (req, res) => {
 };
 
 /**
- * Creates a new one-on-one conversation with one participant
- * Invalidates conversation cache and emits Socket.IO event
+ * Start or get existing conversation
  */
-const createConversation = async (req, res) => {
+const startConversation = async (req, res) => {
   const { UserID } = req.user;
   const { participantId } = req.body;
+  const io = req.app.get("io");
 
   try {
-    // Validate single participant
-    if (!participantId || Array.isArray(participantId)) {
-      return res
-        .status(400)
-        .json({ error: "Exactly one participant ID is required" });
-    }
-
-    // Verify participant exists
-    const user = await prisma.user.findUnique({
+    const participant = await prisma.user.findUnique({
       where: { UserID: participantId },
-      select: { UserID: true, Username: true },
+      select: { UserID: true, Username: true, ProfilePicture: true, IsBanned: true },
     });
 
-    if (!user) {
-      return res.status(400).json({ error: "Invalid participant ID" });
+    if (!participant || participant.IsBanned) {
+      return res.status(400).json({ error: "Invalid or banned user" });
     }
 
-    // Check if conversation already exists
-    const existingConversation = await prisma.conversation.findFirst({
+    if (participantId === UserID) {
+      return res.status(400).json({ error: "Cannot message yourself" });
+    }
+
+    let conversation = await prisma.conversation.findFirst({
       where: {
         AND: [
-          { participants: { some: { UserID } } },
-          { participants: { some: { UserID: participantId } } },
+          { Participants: { some: { UserID } } },
+          { Participants: { some: { UserID: participantId } } },
         ],
       },
-      include: { participants: { select: { UserID: true } } },
+      include: {
+        Participants: {
+          select: { UserID: true, Username: true, ProfilePicture: true },
+        },
+      },
     });
 
-    if (existingConversation) {
-      return res
-        .status(400)
-        .json({ error: "Conversation with this user already exists" });
-    }
+    
+    /**
+     * Helper to format conversation data
+     */
+    const formatConversation = (conversation) => ({
+      conversationId: conversation.Id,
+      participants: conversation.Participants
+    });
 
-    // Create conversation and notify participant
-    const conversation = await prisma.$transaction(async (tx) => {
-      const newConversation = await tx.conversation.create({
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
         data: {
-          participants: {
+          Participants: {
             connect: [{ UserID }, { UserID: participantId }],
           },
         },
         include: {
-          participants: {
-            select: {
-              UserID: true,
-              Username: true,
-              ProfilePicture: true,
-            },
+          Participants: {
+            select: { UserID: true, Username: true, ProfilePicture: true },
           },
         },
       });
 
-      await tx.notification.create({
-        data: {
-          UserID: participantId,
-          Type: "MESSAGE",
-          Content: `${req.user.Username} started a conversation with you`,
-          Metadata: {
-            conversationId: newConversation.id,
-            initiatorId: UserID,
-          },
-        },
-      });
+      await del(`conversations:${UserID}`);
+      await del(`conversations:${participantId}`);
 
-      return newConversation;
-    });
+      // ---- Format conversation once ----
+      const formatted = formatConversation(conversation);
 
-    // Invalidate conversation cache for participants using redisUtils
-    await del(`conversations:${UserID}`, UserID);
-    await del(`conversations:${participantId}`, participantId);
-
-    // Emit Socket.IO event to participants
-    if (req.io) {
-      req.io.to(conversation.id).emit("newConversation", {
-        conversationId: conversation.id,
-        participants: conversation.participants,
-        createdAt: conversation.createdAt,
-      });
+      // Notify both users
+      io.to(`user:${UserID}`).emit("conversation:created", formatted);
+      io.to(`user:${participantId}`).emit("conversation:created", formatted);
     }
 
-    res.status(201).json(conversation);
+    // ---- If conversation already exists ----
+    const formatted = formatConversation(conversation);
+    res.json(formatted);
   } catch (error) {
-    handleServerError(res, error, "Failed to create conversation");
+    handleServerError(res, error, "Failed to start conversation");
   }
 };
 
 /**
- * Fetches conversation messages with details
- * Marks unread messages as read
- * Returns 404 for unauthorized access
+ * Get messages with infinite scroll
  */
 const getMessages = async (req, res) => {
+  const { conversationId } = req.params;
+  const { limit = 20, before } = req.query;
+  const userId = req.user.UserID;
+  const io = req.app.get("io");
+
   try {
-    const { conversationId } = req.params;
-    const { limit = 20 } = req.query;
-    const userId = req.user.UserID;
-
-    // Validate conversation ID
-    if (!conversationId) {
-      return res.status(400).json({ error: "Conversation ID is required" });
-    }
-
-    // Start a transaction to fetch and update atomically
-    const conversation = await prisma.$transaction(async (tx) => {
-      const conv = await tx.conversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          participants: {
-            select: {
-              UserID: true,
-              Username: true,
-              ProfilePicture: true,
-            },
-          },
-          messages: {
-            take: parseInt(limit),
-            orderBy: { createdAt: "desc" },
-            include: {
-              sender: {
-                select: {
-                  UserID: true,
-                  Username: true,
-                  ProfilePicture: true,
-                },
-              },
-              attachments: {
-                select: {
-                  id: true,
-                  url: true,
-                  type: true,
-                  fileName: true,
-                  fileSize: true,
-                },
-              },
-              reactions: {
-                select: {
-                  id: true,
-                  emoji: true,
-                  userId: true,
-                },
-              },
-              readBy: {
-                select: { UserID: true },
-              },
-              replyTo: {
-                select: {
-                  id: true,
-                  content: true,
-                  senderId: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      // Mark unread messages as read
-      if (conv) {
-        await tx.message.updateMany({
-          where: {
-            conversationId,
-            senderId: { not: userId },
-            readAt: null,
-          },
-          data: {
-            readAt: new Date(),
-          },
-        });
-      }
-
-      return conv;
+    const conversation = await prisma.conversation.findUnique({
+      where: { Id: conversationId },
+      select: { Participants: { select: { UserID: true } } },
     });
 
-    if (!conversation) {
-      return res.status(404).json({ error: "Conversation not found" });
+    if (!conversation || !conversation.Participants.some((p) => p.UserID === userId)) {
+      return res.status(403).json({ error: "Access denied" });
     }
 
-    // Verify user is a participant
-    const isParticipant = conversation.participants.some(
-      (p) => p.UserID === userId
+    const where = {
+      ConversationId: conversationId,
+      CreatedAt: before ? { lt: new Date(before) } : undefined,
+    };
+
+    const messages = await prisma.message.findMany({
+      where,
+      take: parseInt(limit),
+      orderBy: { CreatedAt: "desc" },
+      include: {
+        Sender: { select: { UserID: true, Username: true, ProfilePicture: true } },
+        Attachments: true,
+        Reactions: { include: { User: { select: { UserID: true, Username: true } } } },
+        ReadBy: { select: { UserID: true } },
+        ReplyTo: { select: { Id: true, Content: true, SenderId: true, IsDeleted: true } },
+      },
+    });
+
+    const decrypted = await Promise.all(
+      messages.map(async (msg) => {
+        const decryptedContent = msg.Content
+          ? !msg.IsDeleted
+            ? decryptMessage(msg.Content, conversationId)
+            : "Message deleted"
+          : null;
+
+        let decryptedReplyContent = null;
+        if (msg.ReplyTo && msg.ReplyTo.Content && !msg.ReplyTo.IsDeleted) {
+          decryptedReplyContent = decryptMessage(msg.ReplyTo.Content, conversationId);
+        } else if (msg.ReplyTo?.IsDeleted) {
+          decryptedReplyContent = "Message deleted";
+        }
+
+        let storyReference = null;
+        if (msg.Metadata?.storyReference) {
+          const { storyId, mediaUrl, expiresAt } = msg.Metadata.storyReference;
+          const story = await prisma.story.findUnique({
+            where: { StoryID: storyId },
+            select: { User: true, ExpiresAt: true },
+          });
+          const isExpired = story ? new Date(story.ExpiresAt) < new Date() : true;
+          storyReference = {
+            storyId,
+            userId: story?.User?.UserID,
+            username: story?.User?.Username,
+            mediaUrl: isExpired ? null : mediaUrl,
+            expiresAt: isExpired ? null : expiresAt,
+            isExpired,
+          };
+        }
+
+        const { Metadata, ...rest } = msg;
+        return {
+          ...rest,
+          Content: decryptedContent,
+          ReplyTo: msg.ReplyTo
+            ? { ...msg.ReplyTo, Content: decryptedReplyContent, }
+            : null,
+          storyReference,
+        };
+      })
     );
-    if (!isParticipant) {
-      return res
-        .status(403)
-        .json({ error: "User is not a participant in this conversation" });
-    }
+
+    // Mark as read
+    await prisma.message.updateMany({
+      where: {
+        ConversationId: conversationId,
+        SenderId: { not: userId },
+        Status: { not: "READ" },
+      },
+      data: { Status: "READ", ReadAt: new Date() },
+    });
+
+    // Emit read status
+    io.to(`conversation:${conversationId}`).emit("messages:read", { userId, conversationId });
 
     res.json({
-      success: true,
-      data: conversation.messages,
-      participants: conversation.participants,
+      messages: decrypted.reverse(),
+      hasMore: messages.length === parseInt(limit),
     });
   } catch (error) {
-    handleServerError(res, error, "Failed to fetch conversation messages");
+    handleServerError(res, error, "Failed to fetch messages");
   }
 };
 
 /**
- * Sends a message in a conversation
- * Supports attachments and replies
- * Emits Socket.IO event
+ * Send message (with real-time broadcast)
  */
 const sendMessage = async (req, res) => {
+  const { conversationId } = req.params;
+  const { content, replyToId } = req.body;
+  const userId = req.user.UserID;
+  const io = req.app.get("io");
   try {
-    const { conversationId } = req.params;
-    const { content, replyToId } = req.body;
-    const userId = req.user.UserID;
-    let attachmentData = null;
-
-    // Verify conversation exists and user is a participant
     const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: {
-        id: true,
-        participants: { select: { UserID: true } },
-      },
+      where: { Id: conversationId },
+      select: { Participants: { select: { UserID: true } } },
     });
-
-    if (!conversation) {
-      return res.status(404).json({ error: "Conversation not found" });
+    if (!conversation || !conversation.Participants.some((p) => p.UserID === userId)) {
+      return res.status(403).json({ error: "Access denied" });
     }
-
-    const isParticipant = conversation.participants.some(
-      (p) => p.UserID === userId
-    );
-    if (!isParticipant) {
-      return res
-        .status(403)
-        .json({ error: "User is not a participant in this conversation" });
-    }
-
-    // Create message data object
-    const messageData = {
-      content: content || null,
-      senderId: userId,
-      conversationId,
-    };
-
-    // Add replyToId if provided
-    if (replyToId) {
-      messageData.replyToId = replyToId;
-    }
-
-    // Handle attachment upload if provided
+    let attachment = null;
     if (req.file) {
-      const result = await uploadToCloud(req.file.buffer, {
+      const mime = req.file.mimetype;
+      let resourceType = "auto";
+      let type = "FILE";
+      if (mime.startsWith("image/")) {
+        resourceType = "image";
+        type = "IMAGE";
+      } else if (mime.startsWith("video/") || mime.startsWith("audio/")) {
+        resourceType = "video";
+        type = mime.startsWith("audio/") ? "VOICE" : "VIDEO";
+      } else if (mime === "application/pdf") {
+        resourceType = "raw";
+        type = "FILE";
+      } else {
+        resourceType = "raw";
+        type = "FILE";
+      }
+      const uploadResult = await uploadToCloud(req.file.buffer, {
         folder: `messages/${userId}`,
-        resource_type: "auto",
+        resource_type: resourceType,
       });
-
-      // Add attachment relation
-      messageData.attachments = {
-        create: {
-          url: result.secure_url,
-          type: req.file.mimetype,
-          fileName: req.file.originalname,
-          fileSize: req.file.size,
-        },
+      attachment = {
+        Url: uploadResult.secure_url,
+        Type: type,
+        FileName: req.file.originalname,
+        FileSize: req.file.size,
       };
     }
-
-    // Create message in database
-    const message = await prisma.message.create({
-      data: messageData,
-      include: {
-        sender: { select: { UserID: true, Username: true } },
-        attachments: true,
+    const encryptedContent = content ? encryptMessage(content, conversationId) : null;
+    const message = await prisma.$transaction(
+      async (tx) => {
+        const msg = await tx.message.create({
+          data: {
+            ConversationId: conversationId,
+            SenderId: userId,
+            Content: encryptedContent,
+            ReplyToId: replyToId,
+            Attachments: attachment ? { create: attachment } : undefined,
+          },
+          include: {
+            Attachments: true,
+            Sender: { select: { UserID: true, Username: true, ProfilePicture: true } },
+          },
+        });
+        await tx.conversation.update({
+          where: { Id: conversationId },
+          data: { LastMessageId: msg.Id, UpdatedAt: new Date() },
+        });
+        return msg;
       },
-    });
+      { timeout: 15000 }
+    );
 
-    // Update conversation's updatedAt
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
-    });
-
-    // Invalidate conversation cache for participants using redisUtils
-    for (const participant of conversation.participants) {
-      await del(`conversations:${participant.UserID}`, participant.UserID);
-    }
-
-    // Emit message via Socket.IO if the instance is available
-    const io = req.app.get("io");
-    if (io) {
-      io.to(conversationId).emit("newMessage", {
-        ...message,
-        conversationId,
-        timestamp: new Date(),
+    // Format the message similarly to getMessages
+    let replyTo = null;
+    if (replyToId) {
+      const replyMsg = await prisma.message.findUnique({
+        where: { Id: replyToId },
+        select: { Id: true, Content: true, SenderId: true, IsDeleted: true },
       });
-    } else {
-      console.warn(
-        "Socket.IO instance not found. Real-time message emission skipped."
-      );
+      if (replyMsg) {
+        let decryptedReplyContent = null;
+        if (replyMsg.Content && !replyMsg.IsDeleted) {
+          decryptedReplyContent = decryptMessage(replyMsg.Content, conversationId);
+        } else if (replyMsg.IsDeleted) {
+          decryptedReplyContent = "Message deleted";
+        }
+        replyTo = {
+          Id: replyMsg.Id,
+          Content: decryptedReplyContent,
+          SenderId: replyMsg.SenderId,
+          IsDeleted: replyMsg.IsDeleted,
+        };
+      }
     }
+    
 
-    res.status(201).json(message);
+    const formattedMessage = {
+      Id: message.Id,
+      ConversationId: message.ConversationId,
+      SenderId: message.SenderId,
+      Content: content ? (!message.IsDeleted ? content : "Message deleted") : null,
+      Status: message.Status || "SENT",
+      ReadAt: message.ReadAt,
+      ReplyToId: message.ReplyToId,
+      CreatedAt: message.CreatedAt,
+      UpdatedAt: message.UpdatedAt,
+      IsEdited: message.IsEdited,
+      IsDeleted: message.IsDeleted,
+      DeletedAt: message.DeletedAt,
+      Sender: message.Sender,
+      Attachments: message.Attachments,
+      Reactions: [],
+      ReadBy: [],
+      ReplyTo: replyTo,
+      storyReference: null,
+    };
+
+    // Emit real-time to all participants (using formatted message for consistency)
+    // emitMessageToParticipants(io, conversationId, formattedMessage, userId);
+    emitMessageToParticipants(io, conversationId, formattedMessage, userId);
+
+    res.status(201).json(formattedMessage);
   } catch (error) {
     handleServerError(res, error, "Failed to send message");
   }
 };
 
 /**
- * Adds a reaction to a message
- * Prevents duplicate reactions
- * Emits Socket.IO event
+ * Reply to story (with real-time)
  */
-const addReaction = async (req, res) => {
-  const { UserID } = req.user;
-  const { messageId } = req.params;
-  const { emoji } = req.body;
+const replyToStory = async (req, res) => {
+  const { UserID: senderId } = req.user;
+  const { storyId, content } = req.body;
+  const io = req.app.get("io");
 
   try {
-    // Verify message and conversation access
-    const message = await prisma.message.findUnique({
-      where: { id: messageId },
+    const story = await prisma.story.findUnique({
+      where: { StoryID: parseInt(storyId) },
       select: {
-        id: true,
-        conversationId: true,
-        conversation: {
-          select: {
-            id: true,
-            participants: { select: { UserID: true } },
+        StoryID: true,
+        UserID: true,
+        MediaURL: true,
+        ExpiresAt: true,
+        User: { select: { Username: true, IsBanned: true } },
+      },
+    });
+
+    if (!story || new Date(story.ExpiresAt) < new Date()) {
+      return res.status(400).json({ error: "Story not found or expired" });
+    }
+
+    if (story.User.IsBanned || story.UserID === senderId) {
+      return res.status(403).json({ error: "Cannot reply" });
+    }
+
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        AND: [
+          { Participants: { some: { UserID: senderId } } },
+          { Participants: { some: { UserID: story.UserID } } },
+        ],
+      },
+    });
+
+    let isNewConversation = false;
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          Participants: {
+            connect: [{ UserID: senderId }, { UserID: story.UserID }],
           },
         },
-      },
-    });
-
-    if (
-      !message ||
-      !message.conversation.participants.some((p) => p.UserID === UserID)
-    ) {
-      return res
-        .status(404)
-        .json({ error: "Message not found or access denied" });
-    }
-
-    // Check for existing reaction
-    const existingReaction = await prisma.reaction.findUnique({
-      where: {
-        messageId_userId: {
-          messageId,
-          userId: UserID,
-        },
-      },
-    });
-
-    if (existingReaction) {
-      return res.status(400).json({ error: "Reaction already exists" });
-    }
-
-    // Create reaction
-    const reaction = await prisma.reaction.create({
-      data: {
-        emoji,
-        userId: UserID,
-        messageId,
-      },
-      select: {
-        id: true,
-        emoji: true,
-        userId: true,
-        messageId: true,
-      },
-    });
-
-    // Invalidate cache for participants using redisUtils
-    const participantIds = message.conversation.participants.map(
-      (p) => p.UserID
-    );
-    for (const id of participantIds) {
-      await del(`conversations:${id}`, id);
-    }
-
-    // Emit Socket.IO event to conversation room
-    if (req.io) {
-      req.io.to(message.conversationId).emit("reactionAdded", {
-        messageId,
-        reaction: {
-          id: reaction.id,
-          emoji: reaction.emoji,
-          userId: reaction.userId,
-        },
       });
+      isNewConversation = true;
+      await del(`conversations:${senderId}`);
+      await del(`conversations:${story.UserID}`);
     }
 
-    res.status(201).json({ messageId, emoji: reaction.emoji });
+    const encryptedContent = content ? encryptMessage(content, conversation.Id) : null;
+
+    const message = await prisma.$transaction(async (tx) => {
+      const msg = await tx.message.create({
+        data: {
+          ConversationId: conversation.Id,
+          SenderId: senderId,
+          Content: encryptedContent,
+          Metadata: {
+            storyReference: {
+              storyId: story.StoryID,
+              mediaUrl: story.MediaURL,
+              expiresAt: story.ExpiresAt.toISOString(),
+            },
+          },
+        },
+        include: { Sender: { select: { UserID: true, Username: true } } },
+      });
+
+      await tx.conversation.update({
+        where: { Id: conversation.Id },
+        data: { LastMessageId: msg.Id, UpdatedAt: new Date() },
+      });
+
+      return msg;
+    });
+
+    // Notification
+    await prisma.notification.create({
+      data: {
+        UserID: story.UserID,
+        SenderID: senderId,
+        Type: "MESSAGE",
+        Content: `${req.user.Username} replied to your story`,
+        Metadata: { conversationId: conversation.Id, isStoryReply: true, storyId: story.StoryID },
+      },
+    });
+
+    io.to(`user:${story.UserID}`).emit("notification:new", {
+      type: "STORY_REPLY",
+      message: `${req.user.Username} replied to your story`,
+      data: { conversationId: conversation.Id, storyId: story.StoryID },
+    });
+
+    const formattedMessage = {
+      message: { ...message, Content: content },
+      conversationId: conversation.Id,
+      isNewConversation,
+      storyPreview: { StoryID: story.StoryID, MediaURL: story.MediaURL, ExpiresAt: story.ExpiresAt },
+    }
+
+    const formattedMessagePayload = {
+      Id: message.Id,
+      ConversationId: message.ConversationId,
+      SenderId: message.SenderId,
+      Content: content,
+      Status: message.Status || "SENT",
+      ReadAt: message.ReadAt,
+      ReplyToId: message.ReplyToId,
+      CreatedAt: message.CreatedAt,
+      UpdatedAt: message.UpdatedAt,
+      IsEdited: message.IsEdited,
+      IsDeleted: message.IsDeleted,
+      DeletedAt: message.DeletedAt,
+      Sender: message.Sender,
+      Attachments: message.Attachments,
+      Reactions: [],
+      ReadBy: [],
+      ReplyTo: null,
+      storyReference: {
+        storyId: story.StoryID,
+        userId: story.UserID,
+        username: story.User.Username,
+        mediaUrl: story.MediaURL,
+        expiresAt: story.ExpiresAt,
+        isExpired: false,
+      },
+    };
+
+    // Emit real-time
+    emitMessageToParticipants(io, conversation.Id, formattedMessagePayload, senderId);
+
+    res.status(201).json(formattedMessage);
   } catch (error) {
-    handleServerError(res, error, "Failed to add reaction");
+    handleServerError(res, error, "Failed to reply to story");
   }
 };
 
 /**
- * Updates typing status in Redis
- * Stores status with 10-second expiry
- * Emits Socket.IO event
+ * Edit message (real-time)
  */
-const handleTyping = async (req, res) => {
-  const { UserID } = req.user;
-  const { conversationId, isTyping = true } = req.body;
+const editMessage = async (req, res) => {
+  const { messageId } = req.params;
+  const { content } = req.body;
+  const userId = req.user.UserID;
+  const io = req.app.get("io");
 
   try {
-    // Verify conversation access
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: {
-        id: true,
-        participants: { select: { UserID: true } },
-      },
+    const message = await prisma.message.findUnique({
+      where: { Id: messageId },
+      select: { SenderId: true, ConversationId: true, Content: true, IsDeleted: true },
     });
 
-    if (
-      !conversation ||
-      !conversation.participants.some((p) => p.UserID === UserID)
-    ) {
-      return res
-        .status(404)
-        .json({ error: "Conversation not found or access denied" });
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
     }
 
-    // Update typing status in Redis using redisUtils
-    const cacheKey = `typing:${conversationId}:${UserID}`;
-    if (isTyping) {
-      await setWithTracking(cacheKey, "true", 10, UserID);
-    } else {
-      await del(cacheKey, UserID);
+    if (message.SenderId !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Emit Socket.IO event to conversation room
-    if (req.io) {
-      req.io.to(conversationId).emit("typing", {
-        conversationId,
-        userId: UserID,
-        isTyping,
+    if (message.IsDeleted) {
+      return res.status(400).json({ error: "Cannot edit a deleted message" });
+    }
+
+    const encrypted = encryptMessage(content, message.ConversationId);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.messageEdit.create({
+        data: { MessageId: messageId, OldContent: message.Content, EditorId: userId },
       });
-    }
+      await tx.message.update({
+        where: { Id: messageId },
+        data: { Content: encrypted, IsEdited: true, UpdatedAt: new Date() },
+      });
+    });
+
+    io.to(`conversation:${message.ConversationId}`).emit("message:edited", {
+      messageId,
+      conversationId: message.ConversationId,
+      content,
+      editedAt: new Date(),
+    });
 
     res.json({ success: true });
   } catch (error) {
-    handleServerError(res, error, "Failed to handle typing status");
+    handleServerError(res, error);
   }
 };
 
 /**
- * Fetches active users the current user follows
- * Active users have lastActive within the last 5 minutes
+ * Delete message (real-time)
  */
-const getActiveFollowing = async (req, res) => {
-  const { UserID } = req.user;
+const deleteMessage = async (req, res) => {
+  const { messageId } = req.params;
+  const userId = req.user.UserID;
+  const io = req.app.get("io");
 
   try {
-    // Define active as last 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const message = await prisma.message.findUnique({
+      where: { Id: messageId },
+      select: { SenderId: true, ConversationId: true },
+    });
 
-    // Fetch users followed by the current user who are active
-    const activeFollowing = await prisma.user.findMany({
+    if (!message || message.SenderId !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.message.update({
+        where: { Id: messageId },
+        data: { IsDeleted: true, DeletedAt: new Date() },
+      });
+      await tx.messageDelete.create({
+        data: { MessageId: messageId, DeletedBy: userId },
+      });
+    });
+
+    io.to(`conversation:${message.ConversationId}`).emit("message:deleted", {
+      messageId, 
+      conversationId: message.ConversationId,
+     });
+
+    res.json({ success: true });
+  } catch (error) {
+    handleServerError(res, error);
+  }
+};
+
+/**
+ * Search messages
+ */
+const searchMessages = async (req, res) => {
+  const { conversationId } = req.params;
+  const { q, limit = 20 } = req.query;
+  const userId = req.user.UserID;
+
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { Id: conversationId },
+      select: { Participants: { select: { UserID: true } } },
+    });
+
+    if (!conversation || !conversation.Participants.some((p) => p.UserID === userId)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const messages = await prisma.message.findMany({
       where: {
-        Following: {
-          some: {
-            FollowerUserID: UserID,
-            Status: "ACCEPTED",
+        ConversationId: conversationId,
+        Content: { contains: q, mode: "insensitive" },
+        IsDeleted: false,
+      },
+      take: parseInt(limit),
+      orderBy: { CreatedAt: "desc" },
+      select: { Id: true, Content: true, CreatedAt: true, SenderId: true },
+    });
+
+    const decrypted = messages.map((m) => ({
+      ...m,
+      Content: decryptMessage(m.Content, conversationId),
+    }));
+
+    res.json({ results: decrypted });
+  } catch (error) {
+    handleServerError(res, error);
+  }
+};
+
+// controllers/messageController.js
+
+/**
+ * Search conversations by participant name/username
+ */
+const searchConversations = async (req, res) => {
+  const { UserID } = req.user;
+  const { q, page = 1, limit = 15 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const searchTerm = q.trim();
+
+  if (!searchTerm) {
+    return res.status(400).json({ error: "Search query is required" });
+  }
+
+  try {
+    // First: Get all conversation IDs where user is a participant
+    const userConversations = await prisma.conversation.findMany({
+      where: { Participants: { some: { UserID } } },
+      select: { Id: true },
+    });
+
+    const conversationIds = userConversations.map((c) => c.Id);
+
+    if (conversationIds.length === 0) {
+      return res.json({
+        conversations: [],
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        query: searchTerm,
+      });
+    }
+
+    // Search participants (exclude current user) using ILIKE for case-insensitive
+    const participants = await prisma.user.findMany({
+      where: {
+        AND: [
+          { UserID: { not: UserID } },
+          {
+            OR: [
+              { Username: { contains: searchTerm, mode: "insensitive" } },
+              { ProfileName: { contains: searchTerm, mode: "insensitive" } },
+            ],
           },
-        },
-        lastActive: {
-          gte: fiveMinutesAgo,
-        },
-        IsBanned: false,
+          {
+            Conversations: {
+              some: {
+                Id: { in: conversationIds },
+              },
+            },
+          },
+        ],
       },
       select: {
         UserID: true,
         Username: true,
         ProfilePicture: true,
-        lastActive: true,
-      },
-      orderBy: { lastActive: "desc" },
-    });
-
-    res.json({
-      activeFollowing,
-      count: activeFollowing.length,
-    });
-  } catch (error) {
-    handleServerError(res, error, "Failed to fetch active following");
-  }
-};
-
-/**
- * Fetches users the current user follows but has no conversations with
- * For suggesting users to start a chat
- */
-const getSuggestedChatUsers = async (req, res) => {
-  const { UserID } = req.user;
-
-  try {
-    // Fetch followed users with accepted status
-    const followedUsers = await prisma.follower.findMany({
-      where: {
-        FollowerUserID: UserID,
-        Status: "ACCEPTED",
-      },
-      select: {
-        User: {
+        LastActive: true,
+        Conversations: {
+          where: { Id: { in: conversationIds } },
           select: {
-            UserID: true,
-            Username: true,
-            ProfilePicture: true,
-            IsBanned: true,
+            Id: true,
+            UpdatedAt: true,
+            LastMessage: {
+              select: {
+                Id: true,
+                Content: true,
+                CreatedAt: true,
+                SenderId: true,
+                IsDeleted: true,
+                Attachments: { select: { Type: true } },
+              },
+            },
+            _count: {
+              select: {
+                Messages: {
+                  where: {
+                    SenderId: { not: UserID },
+                    Status: { not: "READ" },
+                    IsDeleted: false,
+                  },
+                },
+              },
+            },
           },
         },
       },
+      orderBy: { Conversations: { _count: "desc" } }, // prioritize active chats
     });
 
-    // Filter users who are not banned and have no conversations with the current user
-    const suggestedUsers = await Promise.all(
-      followedUsers.map(async ({ User }) => {
-        if (User.IsBanned) return null;
+    // Flatten: one conversation per participant
+    const formatted = [];
+    const seenConvIds = new Set();
 
-        // Check for existing conversation
-        const conversationExists = await prisma.conversation.findFirst({
-          where: {
-            AND: [
-              { participants: { some: { UserID } } },
-              { participants: { some: { UserID: User.UserID } } },
-            ],
+    for (const participant of participants) {
+      for (const conv of participant.Conversations) {
+        if (seenConvIds.has(conv.Id)) continue;
+        seenConvIds.add(conv.Id);
+
+        let content = null;
+        if (conv.LastMessage) {
+          if (conv.LastMessage.IsDeleted) {
+            content = "Message deleted";
+          } else if (conv.LastMessage.Attachments?.length > 0) {
+            const type = conv.LastMessage.Attachments[0].Type;
+            content = type === "IMAGE" ? "Image" : type === "VIDEO" ? "Video" : "Attachment";
+          } else {
+            content = decryptMessage(conv.LastMessage.Content, conv.Id);
+          }
+        }
+
+        formatted.push({
+          conversationId: conv.Id,
+          lastMessage: conv.LastMessage
+            ? {
+                id: conv.LastMessage.Id,
+                content,
+                createdAt: conv.LastMessage.CreatedAt,
+                senderId: conv.LastMessage.SenderId,
+              }
+            : null,
+          unreadCount: conv._count.Messages,
+          otherParticipant: {
+            UserID: participant.UserID,
+            Username: participant.Username,
+            ProfilePicture: participant.ProfilePicture,
+            LastActive: participant.LastActive,
           },
+          updatedAt: conv.UpdatedAt,
         });
+      }
+    }
 
-        if (conversationExists) return null;
+    // Apply pagination on formatted results
+    const paginated = formatted.slice(skip, skip + parseInt(limit));
+    const total = formatted.length;
 
-        return {
-          UserID: User.UserID,
-          Username: User.Username,
-          ProfilePicture: User.ProfilePicture,
-        };
-      })
-    );
-
-    // Remove null entries
-    const filteredUsers = suggestedUsers.filter((user) => user !== null);
+    // Optional: Emit search results update (for real-time search-as-you-type)
+    const io = req.app.get("io");
+    io.to(`user:${UserID}`).emit("conversations:search", {
+      query: searchTerm,
+      results: paginated,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
 
     res.json({
-      suggestedUsers: filteredUsers,
-      count: filteredUsers.length,
+      conversations: paginated,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      query: searchTerm,
     });
   } catch (error) {
-    handleServerError(res, error, "Failed to fetch suggested chat users");
+    handleServerError(res, error, "Failed to search conversations");
   }
 };
 
 module.exports = {
   getConversations,
-  createConversation,
+  startConversation,
   getMessages,
   sendMessage,
-  addReaction,
-  handleTyping,
-  getActiveFollowing,
-  getSuggestedChatUsers,
+  replyToStory,
+  editMessage,
+  deleteMessage,
+  searchMessages,
+  searchConversations,
+  messageRateLimiter,
 };

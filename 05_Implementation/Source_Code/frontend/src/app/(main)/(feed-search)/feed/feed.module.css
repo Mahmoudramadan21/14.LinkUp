@@ -1,0 +1,304 @@
+/*
+ * =============================================================================
+ *  feed.module.css
+ * =============================================================================
+ *
+ * Comprehensive styles for the main social feed, posts, comments, replies,
+ * all modals (create/edit/delete/report/share/likes/post view), skeleton states,
+ * and interactive animations.
+ *
+ * Features:
+ *   • Full dark mode support with high contrast
+ *   • WCAG 2.1 AA compliant (focus rings, proper contrast, ARIA-ready)
+ *   • Respects prefers-reduced-motion for accessibility
+ *   • Mobile-first responsive across all breakpoints
+ *   • Consistent theming using CSS custom properties
+ *   • Performance-optimized Tailwind-based animations
+ *   • Aligned with global design system (globals.css and other modules)
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Accessibility – Disable animations for users who prefer reduced motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .feed__post_action__comment_animate,
+  .feed__comment_action__comment_animate,
+  .feed__post_action__save_animate,
+  .feed__post_action__report_animate,
+  .feed__post_action__share_animate,
+  .feed__share_modal,
+  .feed__create_modal,
+  .feed__edit_modal,
+  .feed__delete_modal,
+  .feed__report_modal,
+  .feed__likes_modal,
+  .feed__post_modal,
+  .feed__post_menu,
+  .feed__comment_form,
+  .feed__reply_form {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   Skeleton Loaders – Placeholder UI while content is loading
+   ========================================================================== */
+.feed__skeleton { @apply rounded-lg animate-pulse; }
+
+.feed__comment_skeleton_container { @apply card flex flex-col gap-sm p-md md-down:p-md; }
+.feed__comment_skeleton_header { @apply flex items-center gap-sm; }
+.feed__comment_skeleton_avatar { @apply avatar--md bg-[rgba(var(--text-primary-rgb),0.2)] animate-pulse; }
+.feed__comment_skeleton_username { @apply w-24 h-4 bg-[rgba(var(--text-primary-rgb),0.2)] rounded animate-pulse; }
+.feed__comment_skeleton_content { @apply w-3/4 h-6 bg-[rgba(var(--text-primary-rgb),0.2)] rounded-lg animate-pulse mt-xs sm-down:w-full; }
+.feed__comment_skeleton_actions { @apply flex gap-sm mt-xs; }
+.feed__comment_skeleton_action { @apply w-10 h-4 bg-[rgba(var(--text-primary-rgb),0.2)] rounded animate-pulse; }
+
+/* ==========================================================================
+   Like Animation – Heart pulse effect
+   ========================================================================== */
+.feed__like_wrapper { @apply relative flex items-center justify-center w-6 h-6; }
+.feed__heart { @apply transition-colors duration-fast; }
+.feed__heart_pulse { @apply animate-heartPulse; }
+
+/* ==========================================================================
+   Animations – Applied only when reduced motion is NOT preferred
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  .feed__post_action__comment_animate,
+  .feed__comment_action__comment_animate { @apply animate-bounceAndRotate; }
+
+  .feed__post_action__save_animate { @apply animate-slideBookmark; }
+  .feed__post_action__report_animate { @apply animate-waveFlag; }
+  .feed__post_action__share_animate { @apply animate-shareArrow; }
+
+  .feed__share_modal,
+  .feed__create_modal,
+  .feed__edit_modal,
+  .feed__delete_modal,
+  .feed__report_modal,
+  .feed__likes_modal,
+  .feed__post_modal,
+  .feed__post_menu,
+  .feed__comment_form,
+  .feed__reply_form { @apply animate-fadeInModal; }
+}
+
+/* ==========================================================================
+   Post Modal (Full-screen single post view)
+   ========================================================================== */
+.feed__post_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__post_modal { @apply card modal sm-down:p-0; }
+.feed__post_modal_header { @apply flex items-center justify-between mb-md pt-lg pb-md px-md sm-down:mb-0; }
+.feed__post_modal_content { @apply relative overflow-hidden; }
+.feed__post_modal_title { @apply text-primary-bold; }
+.feed__post_modal_close { @apply text-secondary hover:text-[var(--linkup-purple)] focus-ring rounded-full p-sm transition-all duration-fast; }
+.feed__post_modal_commenters { @apply mt-md border-t border-[var(--border-color)] pt-md; }
+.feed__post_modal_commenters_title { @apply text-primary-bold mb-sm; }
+
+/* ==========================================================================
+   Main Feed Layout
+   ========================================================================== */
+.feed { @apply flex flex-col items-center py-lg transition-colors duration-medium; }
+.feed__container { @apply w-full; }
+.feed__title { @apply text-center text-2xl font-bold text-[var(--text-primary)] mb-lg tracking-tight; }
+
+/* ==========================================================================
+   Create Post Card (Top of feed)
+   ========================================================================== */
+.feed__create_post { @apply card--hover flex flex-col p-md mb-lg; }
+.feed__create_post_trigger_container { @apply card flex flex-col p-md mb-md gap-sm; }
+.feed__create_post_trigger_actions { @apply flex justify-end gap-sm; }
+.feed__create_post_image_label { @apply btn-rounded--success; }
+.feed__create_post_video_label { @apply btn-rounded bg-[var(--linkup-purple)] hover:bg-[var(--linkup-purple-light)]; }
+.feed__create_post_input { @apply resize-none w-full p-md rounded-xl border border-[var(--border-color)] bg-[var(--section-bg)] text-[var(--text-primary)] text-base leading-relaxed placeholder:text-[var(--text-muted)] transition-shadow duration-fast; }
+.feed__create_post_trigger { @apply rounded-3xl cursor-pointer h-[48px] overflow-hidden text-ellipsis whitespace-nowrap; outline: none; }
+.feed__create_post_actions { @apply mt-sm flex items-center justify-between gap-sm; }
+.feed__create_post_media_label { @apply flex items-center gap-xs text-secondary focus-ring py-xs px-sm rounded-full bg-[var(--section-bg)] hover:bg-[var(--border-color)]; }
+.feed__create_post_media { @apply hidden; }
+.feed__create_post_preview_wrapper { @apply relative mt-sm w-full bg-[var(--card-bg)]; }
+.feed__create_post_preview,
+.feed__create_post_video_preview { @apply rounded-xl w-full object-contain max-h-[320px] border border-[var(--border-color)]; }
+.feed__create_post_remove_preview { @apply absolute top-sm right-sm btn-rounded p-2 bg-[var(--error)] text-white hover:bg-[rgba(var(--error-rgb),0.9)] focus-ring; }
+.feed__create_post_button { @apply btn-rounded--purple disabled:btn-rounded--disabled hover:shadow-lg; }
+
+/* ==========================================================================
+   Modals – Create / Edit / Delete / Report / Likes / Share
+   ========================================================================== */
+
+/* Create Modal */
+.feed__create_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__create_modal { @apply card modal; }
+.feed__create_modal_title { @apply text-primary-bold mb-sm; }
+.feed__create_post_form { @apply flex flex-col gap-sm; }
+
+/* Edit Modal */
+.feed__edit_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__edit_modal { @apply card modal; }
+.feed__edit_modal_title { @apply text-primary-bold mb-sm; }
+
+/* Delete Confirmation Modal */
+.feed__delete_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__delete_modal { @apply card modal modal--sm; }
+.feed__delete_modal_title { @apply text-primary-bold mb-md; }
+.feed__delete_modal_message { @apply text-secondary mb-md; }
+.feed__delete_modal_buttons { @apply flex justify-center gap-sm mt-md; }
+.feed__delete_confirm_button { @apply btn-rounded bg-[var(--error)] hover:bg-[rgba(var(--error-rgb),0.9)] focus-ring; }
+.feed__delete_cancel_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring; }
+
+/* Report Modal */
+.feed__report_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__report_modal { @apply card modal--sm; }
+.feed__report_modal_title { @apply text-primary-bold mb-sm; }
+.feed__report_form { @apply flex flex-col gap-sm; }
+.feed__report_options { @apply flex flex-col gap-xs; }
+.feed__report_title { @apply text-secondary font-semibold mb-xs; }
+.feed__report_label { @apply flex items-center gap-xs text-secondary cursor-pointer hover:text-[var(--linkup-purple)] transition-colors duration-fast; }
+.feed__report_input { @apply accent-[var(--linkup-purple)]; }
+.feed__report_modal_buttons { @apply flex justify-center gap-sm mt-md; }
+.feed__report_button { @apply btn-rounded bg-[var(--error)] hover:bg-[rgba(var(--error-rgb),0.9)] focus-ring; }
+.feed__report_cancel_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring; }
+
+/* Likes Modal */
+.feed__likes_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__likes_modal { @apply card modal; }
+.feed__likes_modal_header { @apply flex items-center justify-between mb-md; }
+.feed__likes_modal_title { @apply text-primary-bold; }
+.feed__likes_modal_close { @apply text-secondary hover:text-[var(--linkup-purple)] focus-ring rounded-full p-sm transition-all duration-fast; }
+.feed__likes_timestamp { @apply text-secondary text-[12px]; }
+.feed__likes_pagination { @apply flex justify-center items-center gap-xs mt-md; }
+.feed__likes_pagination_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] text-sm cursor-pointer hover:bg-[var(--border-color)] focus-ring disabled:btn-rounded--disabled; }
+.feed__likes_list { @apply flex flex-col gap-sm; }
+.feed__likes_item { @apply flex items-center gap-sm; }
+.feed__likes_avatar { @apply avatar--md; }
+.feed__likes_username { @apply text-secondary font-medium; }
+
+/* Share Modal */
+.feed__share_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__share_modal { @apply card modal; }
+.feed__share_modal_title { @apply text-primary-bold mb-sm; }
+.feed__share_form { @apply flex flex-col gap-sm; }
+.feed__share_input { @apply w-full p-sm rounded-lg border border-[var(--border-color)] bg-[var(--section-bg)] text-[var(--text-primary)] focus-ring text-secondary; }
+.feed__share_button { @apply btn-rounded--purple; }
+.feed__share_options { @apply flex flex-col sm:flex-row gap-sm mt-md sm-down:flex-col; }
+.feed__share_native_button { @apply btn-rounded--success; }
+.feed__share_copy_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring; }
+.feed__share_close_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring w-full text-center; }
+
+/* ==========================================================================
+   Post Menu (three-dot menu)
+   ========================================================================== */
+.feed__post_menu_button { @apply ml-auto text-secondary hover:text-[var(--linkup-purple)] focus-ring rounded-full p-xs transition-all duration-fast; }
+.feed__post_menu { @apply absolute top-12 right-0 card bg-[var(--card-bg)] p-2 z-10 min-w-[140px]; }
+.feed__post_menu_item { @apply flex items-center gap-xs px-sm py-sm text-secondary hover:bg-[var(--section-bg)] focus-ring cursor-pointer w-full rounded-md; }
+
+/* ==========================================================================
+   Posts List & Individual Post
+   ========================================================================== */
+.feed__posts { @apply flex flex-col gap-lg; }
+.feed__post { @apply card flex flex-col p-md; }
+.feed__post_in_modal { @apply shadow-none; }
+.feed__post_header { @apply flex items-center gap-sm relative; }
+.feed__post_avatar { @apply avatar--md; }
+.feed__post_username { @apply text-base font-semibold text-[var(--text-primary)]; }
+.feed__post_timestamp,
+.feed__suggested_badge { @apply text-secondary text-[12px]; }
+.feed__post_content_wrapper { @apply relative; }
+.feed__post_content { @apply text-base text-[var(--text-primary)] mt-sm leading-relaxed overflow-hidden; }
+.feed__post_media { @apply mt-md rounded-lg w-full object-contain max-h-[400px] bg-[var(--card-bg)]; }
+
+.feed__post_video_wrapper { @apply relative mt-md rounded-lg w-full bg-[var(--card-bg)] overflow-hidden; }
+.feed__post_video { @apply w-full h-full object-contain max-h-[400px] rounded-lg; }
+.feed__post_video_controls { @apply absolute w-full h-full bottom-0 left-0 right-0; }
+.feed__post_video_play { @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl text-[var(--linkup-purple)] focus-ring-teal p-md rounded-full transition-all duration-medium hidden; }
+.feed__post_video_wrapper:hover .feed__post_video_play { @apply block; }
+.feed__post_video_play__playing { @apply text-[var(--linkup-purple)]; }
+.feed__post_video_progress { @apply absolute w-full h-1 bottom-0 bg-[var(--border-color)] rounded-full overflow-hidden; }
+.feed__post_video_progress_bar { @apply h-full bg-[var(--linkup-purple)] transition-[width] duration-300 ease-linear; }
+.feed__post_video_mute { @apply absolute bottom-4 right-2 text-[var(--linkup-purple)] focus-ring-teal p-2 bg-gray-300 backdrop-blur-md rounded-full; }
+
+.feed__post_actions { @apply flex justify-between mt-md; }
+.feed__post_actions_interactions { @apply flex items-center gap-md sm-down:gap-sm; }
+.feed__post_actions_save { @apply flex justify-end items-center; }
+.feed__post_action { @apply flex items-center gap-xs text-secondary hover:text-[var(--linkup-purple)] focus-ring-teal transition-all duration-fast; }
+.feed__post_action__saved { @apply text-[var(--linkup-purple)]; }
+.feed__post_action__comment_animate,
+.feed__post_action__save_animate,
+.feed__post_action__report_animate,
+.feed__post_action__share_animate,
+.feed__post_action__like_animate { @apply transform transition-transform duration-fast; }
+
+.feed__post_likes { @apply flex items-center gap-xs mt-sm text-secondary cursor-pointer hover:text-[var(--linkup-purple)] transition-colors duration-fast; }
+.feed__post_likes_avatars { @apply flex -space-x-2; }
+.feed__post_likes_avatar { @apply avatar--sm; }
+.feed__post_likes_text { @apply ml-xs text-secondary; }
+
+.feed__shared_post_container { @apply card mt-md p-md border border-[var(--border-color)]; }
+.feed__shared_post { @apply cursor-default; }
+.feed__shared_post_header { @apply flex items-center gap-sm mb-sm; }
+.feed__shared_post_avatar { @apply avatar--md; }
+.feed__shared_post_username { @apply text-secondary font-semibold; }
+.feed__shared_post_timestamp { @apply text-secondary text-[12px]; }
+
+.feed__creating_post { @apply card mb-lg p-md flex items-center justify-center gap-md animate-fadeInModal; }
+.feed__creating_post_spinner { @apply w-10 h-10 rounded-full border-4 border-[var(--border-color)] border-t-[var(--linkup-purple)] animate-spin; }
+.feed__creating_post_text { @apply text-secondary font-medium; }
+
+/* ==========================================================================
+   Comments & Replies
+   ========================================================================== */
+.feed__comments { @apply mt-md flex flex-col gap-sm; }
+.feed__comment { @apply card p-sm bg-[var(--card-bg)]; }
+.feed__comment_header { @apply flex items-center gap-sm relative; }
+.feed__comment_avatar { @apply avatar--md min-w-9 h-9; }
+.feed__comment_username { @apply text-secondary font-semibold; }
+.feed__comment_timestamp { @apply text-secondary text-[12px]; }
+.feed__comment_content { @apply text-secondary mt-xs; }
+.feed__comment_actions { @apply flex gap-sm mt-xs; }
+.feed__comment_action { @apply flex items-center gap-xs text-secondary hover:text-[var(--linkup-purple)] focus-ring-teal transition-all duration-fast; }
+.feed__comment_action__liked { @apply text-[var(--error)]; }
+.feed__comment_action__comment_animate { @apply transform transition-transform duration-fast; }
+
+.feed__replies { @apply mt-sm flex flex-col gap-sm pl-md border-l-2 border-[var(--border-color)]; }
+.feed__reply { @apply flex flex-col; }
+.feed__reply_header { @apply flex items-center gap-xs relative; }
+.feed__reply_avatar { @apply avatar--md min-w-9 h-9; }
+.feed__reply_username { @apply text-secondary font-semibold; }
+.feed__reply_timestamp { @apply text-secondary text-[12px]; }
+.feed__reply_content { @apply text-secondary mt-xs; }
+.feed__reply_action { @apply flex items-center gap-xs text-secondary hover:text-[var(--linkup-purple)] focus-ring-teal transition-all duration-fast; }
+.feed__reply_action__liked { @apply text-[var(--error)]; }
+
+.feed__comment_form,
+.feed__reply_form { @apply flex items-center gap-sm mt-sm pt-sm border-t border-[var(--border-color)]; }
+.feed__comment_input_wrapper,
+.feed__comment_reply_wrapper { @apply flex flex-col flex-1; }
+.feed__comment_input_group,
+.feed__reply_input_group { @apply flex flex-1 bg-[var(--section-bg)] rounded-full relative; }
+.feed__comment_input,
+.feed__reply_input { @apply bg-[var(--card-bg)] flex-1 text-secondary py-3 pl-md pr-20 rounded-full placeholder:text-[var(--text-muted)] border border-[var(--border-color)] focus-ring; }
+.feed__reply_input { @apply pr-24; }
+.feed__comment_button,
+.feed__reply_button { @apply btn-rounded--purple py-1 md-down:text-base sm-down:text-sm absolute right-2 top-1/2 transform -translate-y-1/2; }
+.feed__comment_error,
+.feed__reply_error { @apply text-red-500 text-[0.65rem] md:text-xs mt-2 ml-3; }
+
+/* ==========================================================================
+   Feedback, Empty & Loading States
+   ========================================================================== */
+.feed__error { @apply text-[var(--error)] text-secondary mt-xs; }
+.feed__success { @apply text-[var(--linkup-purple)] text-secondary mt-xs; }
+.feed__loading,
+.feed__empty { @apply text-center loading--lg mt-lg; }
+.feed__load_more_container { @apply flex mt-md; }
+.feed__load_more_button { @apply mx-auto text-secondary cursor-pointer font-medium focus-ring hover:underline; }
+
+/* ==========================================================================
+   Miscellaneous
+   ========================================================================== */
+.feed__post_comment_menu { @apply absolute top-12 right-4 card p-2 z-10 min-w-[140px]; }
+.feed__post_comment_menu_item { @apply flex items-center gap-xs px-sm py-sm text-secondary hover:bg-[var(--card-bg)] focus-ring cursor-pointer w-full rounded-md; }
+
+.feed__modal_nav_button { @apply absolute top-1/2 transform -translate-y-1/2 btn-rounded px-2 bg-[rgba(var(--app-bg-rgb),0.6)] hover:bg-[rgba(var(--app-bg-rgb),0.8)] focus-ring disabled:btn-rounded--disabled z-50; }

@@ -820,11 +820,6 @@ router.post(
  *           Set-Cookie:
  *             schema:
  *               type: string
- *               example: _csrf=abc123; HttpOnly; Secure; SameSite=Strict
- *             description: Sets the CSRF token in a secure cookie
- *           Set-Cookie:
- *             schema:
- *               type: string
  *               example: csrf-token=abc123; Secure; SameSite=Strict
  *             description: Sets a non-HttpOnly CSRF token cookie for frontend access
  *       500:

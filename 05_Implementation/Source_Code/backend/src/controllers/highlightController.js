@@ -318,9 +318,14 @@ const getUserHighlights = async (req, res) => {
 
     // Check access for private accounts
     if (user.IsPrivate && !isOwner && user.Followers.length === 0) {
-      return res.status(403).json({
-        error: "Private account",
-        message: `You must follow @${user.Username} to view their highlights`,
+      return res.status(200).json({
+        message: `@${user.Username} has a private account. You must follow them to view their highlights.`,
+        isPrivate: true,
+        highlights: [],
+        totalCount: 0,
+        page,
+        limit: parsedLimit,
+        totalPages: 0,
       });
     }
 
@@ -449,48 +454,47 @@ const getUserHighlights = async (req, res) => {
     };
 
     // Map response highlights
-// Map response highlights
-const highlightsMapped = highlights.map((highlight) => {
-  const isMine = highlight.UserID === currentUserId; 
-
-  return {
-    highlightId: highlight.HighlightID,
-    title: highlight.Title,
-    coverImage: highlight.CoverImage,
-    storyCount: highlight.StoryHighlights.length,
-    isMine,
-    stories: highlight.StoryHighlights.map((sh) => {
-      const story = sh.Story;
-      const isMineStory = story.User.UserID === currentUserId;
-      const isViewed = viewedSet.has(story.StoryID);
-      const isLiked = story.StoryLikes.length > 0;
-      const totalViews = story._count.StoryViews;
-      const totalLikes = story._count.StoryLikes;
-
-      const adjustedViewCount =
-        isMineStory && isViewed ? totalViews - 1 : totalViews;
-      const adjustedLikeCount =
-        isMineStory && isLiked ? totalLikes - 1 : totalLikes;
-
-      const latestViewers = isMineStory
-        ? prioritizeViewers(story.StoryViews, followingIds, story.StoryID)
-        : undefined;
+    const highlightsMapped = highlights.map((highlight) => {
+      const isMine = highlight.UserID === currentUserId; 
 
       return {
-        storyId: story.StoryID,
-        mediaUrl: story.MediaURL,
-        createdAt: story.CreatedAt,
-        expiresAt: story.ExpiresAt,
-        assignedAt: sh.AssignedAt,
-        isMine: isMineStory,
-        isViewed,
-        viewCount: isMineStory ? adjustedViewCount : undefined,
-        likeCount: isMineStory ? adjustedLikeCount : undefined,
-        latestViewers,
+        highlightId: highlight.HighlightID,
+        title: highlight.Title,
+        coverImage: highlight.CoverImage,
+        storyCount: highlight.StoryHighlights.length,
+        isMine,
+        stories: highlight.StoryHighlights.map((sh) => {
+          const story = sh.Story;
+          const isMineStory = story.User.UserID === currentUserId;
+          const isViewed = viewedSet.has(story.StoryID);
+          const isLiked = story.StoryLikes.length > 0;
+          const totalViews = story._count.StoryViews;
+          const totalLikes = story._count.StoryLikes;
+
+          const adjustedViewCount =
+            isMineStory && isViewed ? totalViews - 1 : totalViews;
+          const adjustedLikeCount =
+            isMineStory && isLiked ? totalLikes - 1 : totalLikes;
+
+          const latestViewers = isMineStory
+            ? prioritizeViewers(story.StoryViews, followingIds, story.StoryID)
+            : undefined;
+
+          return {
+            storyId: story.StoryID,
+            mediaUrl: story.MediaURL,
+            createdAt: story.CreatedAt,
+            expiresAt: story.ExpiresAt,
+            assignedAt: sh.AssignedAt,
+            isMine: isMineStory,
+            isViewed,
+            viewCount: isMineStory ? adjustedViewCount : undefined,
+            likeCount: isMineStory ? adjustedLikeCount : undefined,
+            latestViewers,
+          };
+        }),
       };
-    }),
-  };
-});
+    });
 
 
     // Final response with pagination

@@ -89,17 +89,17 @@ export const getPosts = async (params: {
 
 /**
  * Fetches posts by a specific user.
- * @param userId - ID of the user whose posts to retrieve
+ * @param username - Username of the user whose posts to retrieve
  * @param params - Pagination parameters
  * @returns Array of user posts
  */
 export const getUserPosts = async (
-  userId: number,
+  username: string,
   params: { page?: number; limit?: number }
 ): Promise<PostsResponse> => {
   return makeApiRequest<PostsResponse>(
     "get",
-    `/profile/posts/${userId}`,
+    `/profile/posts/${username}`,
     params
   );
 };

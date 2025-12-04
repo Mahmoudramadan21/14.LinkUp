@@ -1,0 +1,145 @@
+/*
+ * =============================================================================
+ *  app/feed/sidebar.module.css
+ * =============================================================================
+ *
+ * Styles for the right-hand sidebar in the main feed view.
+ * Includes:
+ *   • "Suggested for you" section
+ *   • "Friend requests" section
+ *   • "Who to follow" / "People you may know"
+ *
+ * Features:
+ *   • Fully responsive & mobile-friendly
+ *   • Complete dark mode support
+ *   • WCAG 2.1 AA compliant focus states
+ *   • Respects prefers-reduced-motion
+ *   • Consistent with global design tokens and Tailwind system
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Accessibility – Disable animations for users who prefer reduced motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__item,
+  .sidebar__follow-button,
+  .sidebar__confirm-button,
+  .sidebar__reject-button,
+  .sidebar__see-all {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   Sidebar Container – Main wrapper (usually sticky on desktop)
+   ========================================================================== */
+.sidebar {
+  @apply rounded-xl shadow-md;
+}
+
+/* ==========================================================================
+   Section – Each block (Suggested, Friend Requests, etc.)
+   ========================================================================== */
+.sidebar__section {
+  @apply mb-4 p-4 rounded-md bg-[var(--section-bg)];
+}
+
+/* ==========================================================================
+   Section Header – Title + "See All" link
+   ========================================================================== */
+.sidebar__header {
+  @apply flex justify-between items-center mb-2;
+}
+
+.sidebar__title {
+  @apply text-base font-semibold text-[var(--text-primary)];
+}
+
+.sidebar__see-all {
+  @apply text-xs text-[var(--text-primary)] hover:underline;
+}
+
+/* ==========================================================================
+   List – Container for user items
+   ========================================================================== */
+.sidebar__list {
+  @apply space-y-1;
+}
+
+/* ==========================================================================
+   User Item – Individual suggestion / friend request row
+   ========================================================================== */
+.sidebar__item {
+  @apply flex items-center p-2 bg-[var(--section-bg)] rounded-md transition-all duration-200;
+}
+
+.sidebar__item:hover {
+  /* Optional hover background – currently disabled but kept for future use */
+  /* @apply bg-[var(--border-color)]; */
+}
+
+/* Avatar */
+.sidebar__avatar {
+  @apply avatar--md;
+}
+
+/* User Info (name + bio) */
+.sidebar__info {
+  @apply flex-1 overflow-hidden mx-3;
+}
+
+.sidebar__username {
+  @apply text-sm font-medium text-[var(--text-primary)] overflow-hidden text-ellipsis whitespace-nowrap;
+}
+
+.sidebar__bio {
+  @apply text-xs text-[var(--text-muted)] overflow-hidden text-ellipsis 
+         [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical];
+}
+
+/* ==========================================================================
+   Action Buttons
+   ========================================================================== */
+
+/* Primary action – Follow / Confirm */
+.sidebar__follow-button,
+.sidebar__confirm-button {
+  @apply btn-rounded--purple text-white text-xs px-2 py-1 
+         disabled:bg-gray-400 disabled:cursor-not-allowed;
+}
+
+/* Secondary action – Reject friend request */
+.sidebar__reject-button {
+  @apply btn-rounded bg-[var(--neutral-gray-light)] text-[var(--neutral-gray-dark)] 
+         text-xs px-2 py-1 disabled:bg-gray-400 disabled:cursor-not-allowed;
+}
+
+/* Container for dual buttons (Confirm + Reject) */
+.sidebar__actions {
+  @apply flex gap-2;
+}
+
+/* ==========================================================================
+   Loading & Empty States
+   ========================================================================== */
+.sidebar__loading {
+  @apply text-center text-[var(--text-muted)] animate-pulse;
+}
+
+.sidebar__empty {
+  @apply text-center text-[var(--text-muted)] text-sm mt-2;
+}
+
+/* ==========================================================================
+   Accessibility – Consistent focus rings for all interactive elements
+   ========================================================================== */
+.sidebar__item:focus-visible,
+.sidebar__follow-button:focus-visible,
+.sidebar__confirm-button:focus-visible,
+.sidebar__reject-button:focus-visible,
+.sidebar__see-all:focus-visible {
+  @apply focus-ring;
+}

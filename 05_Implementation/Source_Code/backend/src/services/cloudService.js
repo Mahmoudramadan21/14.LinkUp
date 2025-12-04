@@ -17,6 +17,7 @@ const uploadToCloud = async (buffer, options) => {
       unique_filename: true, // Ensure unique file names
       overwrite: false, // Prevent overwriting existing files
       resource_type: options.resource_type || "auto", // Default to auto
+      timeout: 1000000,
     };
 
     // Log upload options for debugging

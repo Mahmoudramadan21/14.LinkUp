@@ -110,14 +110,14 @@ const getUserStories = async (req, res) => {
 
     // Check privacy
     if (user.IsPrivate && user.UserID !== currentUserId) {
-      const isFollowing = await prisma.follower.count({
+      const isFollowed = await prisma.follower.count({
         where: {
           UserID: user.UserID,
           FollowerUserID: currentUserId,
           Status: "ACCEPTED",
         },
       });
-      if (!isFollowing) {
+      if (!isFollowed) {
         return res.status(403).json({ error: "Private account" });
       }
     }
@@ -245,22 +245,29 @@ const getUserStories = async (req, res) => {
             ? story._count.StoryLikes - 1
             : story._count.StoryLikes;
 
-        return {
-          storyId: story.StoryID,
-          createdAt: story.CreatedAt,
-          mediaUrl: story.MediaURL,
-          expiresAt: story.ExpiresAt,
-          isViewed,
-          isLiked,
-          isMine: story.UserID === currentUserId,
-          likeCount:
-            story.UserID === currentUserId ? adjustedLikeCount : undefined,
-          viewCount:
-            story.UserID === currentUserId ? adjustedViewCount : undefined,
-          latestViewers: prioritizeViewers(story.StoryViews, story.StoryID),
+        const isMine = story.UserID === currentUserId;
+
+        const storyResponse = {
+            storyId: story.StoryID,
+            createdAt: story.CreatedAt,
+            mediaUrl: story.MediaURL,
+            expiresAt: story.ExpiresAt,
+            isViewed,
+            isLiked,
+            isMine: isMine,
+          };
+
+          if (isMine) {
+            storyResponse.likeCount = adjustedLikeCount;
+            storyResponse.viewCount = adjustedViewCount;
+            storyResponse.latestViewers = prioritizeViewers(story.StoryViews, story.StoryID);
+          }
+
+        return storyResponse;
+
+          }),
         };
-      }),
-    };
+        
 
     await setWithTracking(cacheKey, formattedUser, 60, user.UserID.toString());
     res.json(formattedUser);
@@ -497,18 +504,29 @@ const getStoryFeed = async (req, res) => {
         story.StoryID
       );
 
-      acc[story.UserID].stories.push({
+      const isMine = story.UserID === UserID;
+
+      const storyData = {
         storyId: story.StoryID,
         createdAt: story.CreatedAt,
         mediaUrl: story.MediaURL,
         expiresAt: story.ExpiresAt,
         isViewed,
         isLiked,
-        isMine: story.UserID === UserID,
-        likeCount: story.UserID === UserID ? adjustedLikeCount : undefined,
-        viewCount: story.UserID === UserID ? adjustedViewCount : undefined,
-        latestViewers: prioritizedViewers,
-      });
+        isMine: isMine,
+      };
+
+      if (isMine) {
+        storyData.likeCount = adjustedLikeCount;
+        storyData.viewCount = adjustedViewCount;
+        storyData.latestViewers = prioritizeViewers(
+          story.StoryViews,
+          followingIds,
+          story.StoryID
+        );
+      }
+
+      acc[story.UserID].stories.push(storyData);
 
       return acc;
     }, {});
@@ -608,14 +626,14 @@ const getStoryById = async (req, res) => {
 
     // Check privacy for non-owner
     if (story.User.IsPrivate && story.User.UserID !== UserID) {
-      const isFollowing = await prisma.follower.count({
+      const isFollowed = await prisma.follower.count({
         where: {
           UserID: story.User.UserID,
           FollowerUserID: UserID,
           Status: "ACCEPTED",
         },
       });
-      if (!isFollowing) {
+      if (!isFollowed) {
         return res.status(403).json({ error: "Private account" });
       }
     }
@@ -719,7 +737,11 @@ const getStoryById = async (req, res) => {
       isMine,
       likeCount: isMine ? adjustedLikeCount : undefined,
       viewCount: isMine ? adjustedViewCount : undefined,
-      latestViewers: prioritizeViewers(story.StoryViews, followingIds, story.StoryID),
+      latestViewers: prioritizeViewers(
+        story.StoryViews,
+        followingIds,
+        story.StoryID
+      ),
     };
 
     res.json({ story: storyResponse });
@@ -760,7 +782,7 @@ const recordStoryView = async (req, res) => {
     }
 
     if (story.User.IsPrivate) {
-      const isFollowing = await prisma.follower.count({
+      const isFollowed = await prisma.follower.count({
         where: {
           UserID: story.UserID,
           FollowerUserID: UserID,
@@ -768,7 +790,7 @@ const recordStoryView = async (req, res) => {
         },
       });
 
-      if (!isFollowing) {
+      if (!isFollowed) {
         return res.status(403).json({ error: "Private account" });
       }
     }
@@ -865,17 +887,13 @@ const toggleStoryLike = async (req, res) => {
     }
 
     if (story.UserID !== UserID) {
-      const isFollowing = await prisma.follower.count({
+      const isFollowed = await prisma.follower.count({
         where: {
           UserID: story.UserID,
           FollowerUserID: UserID,
           Status: "ACCEPTED",
         },
       });
-
-      if (!isFollowing) {
-        return res.status(403).json({ error: "You cannot like this story" });
-      }
     }
 
     const existingLike = await prisma.storyLike.findUnique({
@@ -1231,7 +1249,7 @@ const reportStory = async (req, res) => {
         },
       });
       if (!story) throw new Error("Story not found");
-      if (story.ExpiresAt < new Date()) throw new Error("Story has expired");
+      // if (story.ExpiresAt < new Date()) throw new Error("Story has expired");
 
       // Access check
       const isOwner = UserID === story.UserID;

@@ -7,6 +7,7 @@ import { memo } from 'react';
 import Image from 'next/image';
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
+import styles from "./auth-layout.module.css"
 
 /**
  * Metadata for authentication pages.
@@ -46,35 +47,35 @@ interface AuthLayoutProps {
  */
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   return (
-    <div className="auth-layout__wrapper" itemScope itemType="http://schema.org/WebPage">
-      <a href="#main-content" className="auth-layout__skip-link">
+    <div className={`${styles["auth-layout__wrapper"]}`} itemScope itemType="http://schema.org/WebPage">
+      <a href="#main-content" className={styles["auth-layout__skip-link"]}>
         Skip to main content
       </a>
-      <div className="auth-layout__liquid" role="banner" aria-hidden="true">
+      <div className={styles["auth-layout__liquid"]} role="banner" aria-hidden="true">
         <Image
           src="/svgs/liquid.svg"
           alt=""
           width={600}
           height={636}
-          className="auth-layout__image--liquid"
+          className={styles["auth-layout__image--liquid"]}
           aria-hidden="true"
           loading="lazy"
           sizes="(max-width: 768px) 50vw, 600px"
         />
       </div>
-      <div className="auth-layout__footer" role="banner" aria-hidden="true">
+      <div className={styles["auth-layout__footer"]} role="banner" aria-hidden="true">
         <Image
           src="/svgs/footer.svg"
           alt=""
           width={1439}
           height={214}
-          className="auth-layout__image--footer"
+          className={styles["auth-layout__image--footer"]}
           aria-hidden="true"
           loading="lazy"
           sizes="100vw"
         />
       </div>
-      <main className="auth-layout__main" id="main-content" role="main" aria-labelledby="auth-layout-title">
+      <main className={styles["auth-layout__main"]} id="main-content" role="main" aria-labelledby="auth-layout-title">
         <h1 id="auth-layout-title" className="sr-only">
           Authentication
         </h1>

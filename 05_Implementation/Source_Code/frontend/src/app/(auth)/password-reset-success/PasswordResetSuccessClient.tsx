@@ -9,9 +9,9 @@ import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import Image from 'next/image';
 import Button from '@/components/ui/common/Button';
-  import { clearResetState } from "@/store/authSlice";
-// import { usePasswordResetSuccess } from '@/hooks/auth/usePasswordResetSuccess';
+import { clearResetState } from "@/store/authSlice";
 import type { JSX } from 'react';
+import styles from "../auth-layout.module.css"
 
 /**
  * Renders the password reset success UI with message and illustration.
@@ -33,30 +33,30 @@ const PasswordResetSuccessClient = (): JSX.Element => {
   }, [dispatch])
   
   return (
-    <div className="auth-page">
-      <div className="auth-page__container">
-        <div className="auth-page__form">
+    <div className={styles["auth-page"]}>
+      <div className={styles["auth-page__container"]}>
+        <div className={styles["auth-page__form"]}>
           <section
-            className="auth-form auth-form--password-reset-success"
+            className={`${styles["auth-form"]} ${styles["auth-form--password-reset-success"]}`}
             role="region"
             aria-labelledby="password-reset-success-title"
             aria-describedby="password-reset-success-subtitle"
           >
-            <div className="auth-form__container">
+            <div className={styles["auth-form__container"]}>
               <Image
                 src="/svgs/success-checkmark.svg"
                 alt="Success checkmark"
                 width={64}
                 height={64}
-                className="auth-form__image--success"
+                className={styles["auth-form__image--success"]}
                 loading="lazy"
                 sizes="64px"
                 aria-hidden="true"
               />
-              <h1 id="password-reset-success-title" className="auth-form__title">
+              <h1 id="password-reset-success-title" className={styles["auth-form__title"]}>
                 Password Reset Successful
               </h1>
-              <p id="password-reset-success-subtitle" className="auth-form__subtitle">
+              <p id="password-reset-success-subtitle" className={styles["auth-form__subtitle"]}>
                 Your password has been reset successfully. You can now log in with your new password.
               </p>
               <Button
@@ -70,13 +70,13 @@ const PasswordResetSuccessClient = (): JSX.Element => {
             </div>
           </section>
         </div>
-        <div className="auth-page__illustration" aria-hidden="true">
+        <div className={styles["auth-page__illustration"]} aria-hidden="true">
           <Image
             src="/illustrations/auth-security-illustration.svg"
             alt="Illustration of a person resetting their password securely"
             width={500}
             height={500}
-            className="auth-page__image--illustration"
+            className={styles["auth-page__image--illustration"]}
             loading="lazy"
             sizes="(max-width: 1024px) 50vw, 500px"
           />

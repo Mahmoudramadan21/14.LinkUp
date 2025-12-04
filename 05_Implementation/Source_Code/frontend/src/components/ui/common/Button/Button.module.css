@@ -1,0 +1,50 @@
+/*
+ * Styles for the Button component
+ * - Defines styles for different variants and sizes
+ * - Uses Tailwind classes and CSS variables for consistency with globals.css, profile.module.css, and feed.module.css
+ * - Supports dark mode, accessibility, and micro-interactions
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* Base button styles */
+.button-block {
+  @apply w-full max-w-lg mx-auto flex justify-center items-center rounded-full font-semibold transition-all duration-fast focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)] focus:ring-offset-2 hover:shadow-md;
+}
+
+/* Variant styles */
+.button-block--primary {
+  @apply bg-[var(--linkup-purple)] text-white hover:bg-[var(--linkup-purple-light)];
+}
+
+.button-block--secondary {
+  @apply bg-[var(--section-bg)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--border-color)];
+}
+
+.button-block--tertiary {
+  @apply bg-transparent border border-[var(--linkup-purple)] text-[var(--linkup-purple)] hover:bg-[var(--linkup-purple)] hover:text-[var(--card-bg)];
+}
+
+/* Create variant for consistency with highlights__button--create */
+.button-block--create {
+  @apply bg-[var(--linkup-purple)] text-white hover:bg-[var(--linkup-purple-light)] shadow-md hover:shadow-lg;
+}
+
+/* Size styles */
+.button-block--small {
+  @apply px-md py-sm text-sm md-down:text-sm sm-down:text-xs;
+}
+
+.button-block--medium {
+  @apply px-lg py-sm text-base md-down:text-base sm-down:text-sm;
+}
+
+.button-block--large {
+  @apply px-xl py-md text-lg md-down:text-base sm-down:text-sm;
+}
+
+/* Disabled state */
+.button-block--is-disabled {
+  @apply opacity-50 cursor-not-allowed pointer-events-none;
+}

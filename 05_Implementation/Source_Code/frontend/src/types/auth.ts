@@ -20,6 +20,7 @@ export interface User {
   profileName: string;
   profilePicture: string | null;
   email: string;
+  isPrivate: boolean;
 }
 
 /**

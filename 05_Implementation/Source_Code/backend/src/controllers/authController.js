@@ -410,6 +410,7 @@ const isAuthenticated = async (req, res) => {
         ProfileName: true,
         ProfilePicture: true,
         Email: true,
+        IsPrivate: true,
         IsBanned: true,
       },
     });
@@ -437,6 +438,7 @@ const isAuthenticated = async (req, res) => {
         profileName: user.ProfileName,
         profilePicture: user.ProfilePicture,
         email: user.Email,
+        isPrivate: user.IsPrivate,
       },
     });
   } catch (error) {

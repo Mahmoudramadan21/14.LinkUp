@@ -564,7 +564,7 @@ router.delete("/", authMiddleware, deleteProfile);
 
 /**
  * @swagger
- * /profile/posts/{userId}:
+ * /profile/posts/{username}:
  *   get:
  *     summary: Get all posts by a specific user
  *     tags: [Profile]
@@ -572,11 +572,11 @@ router.delete("/", authMiddleware, deleteProfile);
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: userId
+ *         name: username
  *         required: true
  *         schema:
- *           type: integer
- *         description: ID of the user whose posts to retrieve
+ *           type: string
+ *         description: Username of the user whose posts to retrieve
  *       - in: query
  *         name: page
  *         schema:
@@ -599,7 +599,7 @@ router.delete("/", authMiddleware, deleteProfile);
  *               items:
  *                 $ref: '#/components/schemas/Post'
  *       400:
- *         description: Invalid user ID format
+ *         description: Invalid username format
  *       403:
  *         description: Private account - must follow to view posts
  *       404:
@@ -607,7 +607,13 @@ router.delete("/", authMiddleware, deleteProfile);
  *       500:
  *         description: Server error
  */
-router.get("/posts/:userId", authMiddleware, getUserPosts);
+router.get(
+  "/posts/:username",
+  authMiddleware,
+  usernameParamValidator,
+  validate,
+  getUserPosts
+);
 
 /**
  * @swagger
@@ -670,7 +676,6 @@ router.get("/posts/:userId", authMiddleware, getUserPosts);
  *         description: Server error
  */
 router.get("/stories", authMiddleware, getUserStories);
-
 
 /**
  * @swagger
@@ -1364,7 +1369,7 @@ router.get(
  *                     likeCount:
  *                       type: integer
  *                       description: Number of likes on the user's posts
- *                     isFollowing:
+ *                     isFollowed:
  *                       type: boolean
  *                       description: Whether the current user is following this profile
  *                     profileName:
