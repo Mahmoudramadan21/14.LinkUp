@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Core static & high-priority pages -->
+  <sitemap>
+    <loc>https://linkup-app-frontend.vercel.app/sitemaps/static.xml</loc>
+    <lastmod>2025-12-12</lastmod>
+  </sitemap>
+
+  <!-- User profiles – split into chunks of 25,000 URLs max (Google limit = 50,000) -->
+  <sitemap>
+    <loc>https://linkup-app-frontend.vercel.app/sitemaps/profiles.xml</loc>
+    <lastmod>2025-12-12</lastmod>
+  </sitemap>
+  <!-- Add more chunks automatically when you exceed 25k profiles -->
+  <!-- <sitemap><loc>.../profiles-2.xml</loc></sitemap> -->
+
+  <!-- Posts (optional – only if you want individual post URLs indexed) -->
+  <sitemap>
+    <loc>https://linkup-app-frontend.vercel.app/sitemaps/posts.xml</loc>
+    <lastmod>2025-12-12</lastmod>
+  </sitemap>
+</sitemapindex>

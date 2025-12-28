@@ -1,0 +1,83 @@
+@tailwind components;
+@tailwind utilities;
+
+/* ====================== ROOT ====================== */
+.terms {
+  @apply container py-16 md:py-20;
+}
+
+/* ====================== HERO ====================== */
+.terms__hero {
+  @apply text-center mb-12;
+}
+
+.terms__title {
+  @apply text-3xl md:text-4xl font-extrabold tracking-tight mb-3;
+  background: var(--gradient-purple-teal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.terms__subtitle {
+  @apply text-base md:text-lg text-[var(--text-secondary)]
+         max-w-2xl mx-auto leading-relaxed;
+}
+
+.terms__updated {
+  @apply text-sm md:text-base mt-4 text-[var(--text-muted)];
+}
+
+/* ====================== CONTENT ====================== */
+.terms__content {
+  @apply max-w-4xl mx-auto space-y-14 md:space-y-20;
+}
+
+/* ====================== SECTION ====================== */
+.terms__section {
+  @apply p-6 md:p-8 rounded-xl border border-[var(--border-color)]
+         bg-[var(--card-bg)] shadow-sm hover:shadow-md transition-shadow;
+}
+
+.terms__sectionTitle {
+  @apply text-lg md:text-xl font-bold mb-4 text-[var(--text-primary)];
+}
+
+/* ====================== BULLETS ====================== */
+.terms__bullets {
+  @apply space-y-2 text-sm md:text-base text-[var(--text-secondary)];
+}
+
+.terms__bullets li {
+  @apply relative pl-4;
+}
+
+.terms__bullets li::before {
+  content: "";
+  @apply absolute left-0 top-2 w-2 h-2 bg-[var(--linkup-purple)] rounded-full;
+}
+
+/* ====================== TEXT ====================== */
+.terms__text {
+  @apply text-sm md:text-base leading-relaxed text-[var(--text-secondary)];
+}
+
+.terms__link {
+  @apply text-[var(--linkup-purple)] hover:underline font-medium focus-ring;
+}
+
+/* ====================== FOOTER ====================== */
+.terms__footer {
+  @apply text-center mt-16 md:mt-24 pt-10
+         border-t border-[var(--border-color)];
+}
+
+.terms__footerText {
+  @apply text-sm md:text-base text-[var(--text-secondary)]
+         max-w-2xl mx-auto leading-relaxed;
+}
+
+/* ====================== RESPONSIVE ====================== */
+@media (max-width: 640px) {
+  .terms__section { @apply p-5; }
+}

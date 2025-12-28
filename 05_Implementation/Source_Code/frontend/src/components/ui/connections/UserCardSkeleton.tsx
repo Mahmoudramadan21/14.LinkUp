@@ -5,7 +5,7 @@ import styles from "@/app/(main)/connections/connections.module.css";
 const UserCardSkeleton = memo(() => (
   <div className={`${styles["connections__user-card"]}`}>
     {/* Avatar */}
-    <div className="w-14 h-14 rounded-full bg-neutral-gray animate-pulse"></div>
+    <div className="min-w-14 h-14 rounded-full bg-neutral-gray animate-pulse"></div>
 
     {/* Info */}
     <div className={styles["connections__user-card-info"]}>

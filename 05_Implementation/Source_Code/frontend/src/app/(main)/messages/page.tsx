@@ -21,7 +21,7 @@ export default function MessagesPage() {
           name: 'LinkUp Messages',
           description:
             'A private messaging interface that lets users chat and connect instantly.',
-          url: 'https://linkup.com/messages',
+          url: 'https://linkup-app-frontend.vercel.app/messages',
           applicationCategory: 'SocialNetworking',
           operatingSystem: 'All',
         }}

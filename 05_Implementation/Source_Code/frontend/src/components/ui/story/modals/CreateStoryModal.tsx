@@ -245,9 +245,6 @@ const CreateStoryModal: React.FC<CreateStoryModalProps> = ({ isOpen, onClose }) 
         const results = await Promise.allSettled(fontPromises);
         const failed = results.filter((r) => r.status === 'rejected');
         if (failed.length > 0) {
-          console.log(`${failed.length} fonts failed to load, using fallbacks`);
-        } else {
-          console.log('All fonts loaded successfully');
         }
         setIsFontsLoaded(true);
         if (isOpen && canvasRef.current) {

@@ -7,7 +7,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: "Chat privately with friends and stay connected on LinkUp.",
 
     alternates: {
-      canonical: "/messages",
+      canonical: "https://linkup-app-frontend.vercel.app/messages",
     },
 
     robots: {
@@ -22,13 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: "Messages | LinkUp",
       description: "Chat privately and stay connected with your friends on LinkUp.",
-      url: "/messages",
+      url: "https://linkup-app-frontend.vercel.app/messages",
       siteName: "LinkUp",
       type: "website",
       locale: "en_US",
       images: [
         {
-          url: "/og-messages.png",
+          url: "og/og-messages.png",
           width: 1200,
           height: 630,
           alt: "LinkUp Messages – Private Chat Interface",
@@ -40,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title: "Messages | LinkUp",
       description: "Chat privately with friends on LinkUp.",
-      images: ["/og-messages.png"],
+      images: ["og/og-messages.png"],
       site: "@LinkUp",
     },
   };

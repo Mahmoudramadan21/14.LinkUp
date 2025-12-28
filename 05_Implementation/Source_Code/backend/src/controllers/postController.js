@@ -9,6 +9,8 @@ const {
   handleForbiddenError,
 } = require("../utils/errorHandler");
 
+const NotificationService = require("../services/notificationService");
+
 // Constants for configuration
 const POST_CACHE_TTL = 3600; // 1 hour cache duration for debugging
 const ALLOWED_IMAGE_TYPES = ["jpg", "jpeg", "png", "gif", "webp"];
@@ -80,40 +82,42 @@ function groupBy(arr, keyFn) {
  * Creates notification for post like
  */
 async function createLikeNotification(postId, likerId, likerUsername) {
-  const post = await prisma.post.findUnique({
-    where: { PostID: parseInt(postId) },
-    select: { UserID: true },
-  });
+  try {
+    const post = await prisma.post.findUnique({
+      where: { PostID: parseInt(postId) },
+      select: { UserID: true },
+    });
 
-  if (!post || post.UserID === likerId) return;
+    if (!post || post.UserID === likerId) return;
 
-  const recipient = await prisma.user.findUnique({
-    where: { UserID: post.UserID },
-    select: { NotificationPreferences: true },
-  });
+    const recipient = await prisma.user.findUnique({
+      where: { UserID: post.UserID },
+      select: { NotificationPreferences: true },
+    });
 
-  const shouldNotify =
-    !recipient.NotificationPreferences ||
-    !recipient.NotificationPreferences.NotificationTypes ||
-    recipient.NotificationPreferences.NotificationTypes.includes("LIKE");
+    const shouldNotify =
+      !recipient?.NotificationPreferences?.NotificationTypes ||
+      recipient.NotificationPreferences.NotificationTypes.includes("LIKE");
 
-  if (shouldNotify) {
-    await prisma.notification.create({
-      data: {
-        UserID: post.UserID,
-        SenderID: likerId,
-        Type: "LIKE",
-        Content: `${likerUsername} liked your post`,
-        Metadata: {
+    if (shouldNotify) {
+      await NotificationService.createNotification({
+        userId: post.UserID,
+        senderId: likerId,
+        type: "LIKE",
+        content: `${likerUsername} liked your post`,
+        metadata: {
           postId: parseInt(postId),
           likerId,
           likerUsername,
         },
-      },
-    });
-    logger.info(
-      `Like notification created for post ${postId} by user ${likerId}`
-    );
+      });
+
+      logger.info(
+        `Like notification sent to user ${post.UserID} from ${likerId}`
+      );
+    }
+  } catch (error) {
+    logger.error(`Failed to send like notification: ${error.message}`);
   }
 }
 
@@ -126,33 +130,33 @@ async function createCommentNotification(
   postOwnerId,
   commenterUsername
 ) {
-  const recipient = await prisma.user.findUnique({
-    where: { UserID: postOwnerId },
-    select: { NotificationPreferences: true },
-  });
+  try {
+    if (postOwnerId === commenterId) return;
 
-  const shouldNotify =
-    !recipient.NotificationPreferences ||
-    !recipient.NotificationPreferences.NotificationTypes ||
-    recipient.NotificationPreferences.NotificationTypes.includes("COMMENT");
+    const recipient = await prisma.user.findUnique({
+      where: { UserID: postOwnerId },
+      select: { NotificationPreferences: true },
+    });
 
-  if (shouldNotify) {
-    await prisma.notification.create({
-      data: {
-        UserID: postOwnerId,
-        SenderID: commenterId,
-        Type: "COMMENT",
-        Content: `${commenterUsername} commented on your post`,
-        Metadata: {
+    const shouldNotify =
+      !recipient?.NotificationPreferences?.NotificationTypes ||
+      recipient.NotificationPreferences.NotificationTypes.includes("COMMENT");
+
+    if (shouldNotify) {
+      await NotificationService.createNotification({
+        userId: postOwnerId,
+        senderId: commenterId,
+        type: "COMMENT",
+        content: `${commenterUsername} commented on your post`,
+        metadata: {
           postId: parseInt(postId),
           commenterId,
           commenterUsername,
         },
-      },
-    });
-    logger.info(
-      `Comment notification created for post ${postId} by user ${commenterId}`
-    );
+      });
+    }
+  } catch (error) {
+    logger.error(`Failed to send comment notification: ${error.message}`);
   }
 }
 
@@ -164,43 +168,41 @@ async function createCommentLikeNotification(
   likerId,
   likerUsername
 ) {
-  const comment = await prisma.comment.findUnique({
-    where: { CommentID: parseInt(commentId) },
-    select: { UserID: true, PostID: true },
-  });
+  try {
+    const comment = await prisma.comment.findUnique({
+      where: { CommentID: parseInt(commentId) },
+      select: { UserID: true, PostID: true },
+    });
 
-  if (!comment || comment.UserID === likerId) return;
+    if (!comment || comment.UserID === likerId) return;
 
-  const recipient = await prisma.user.findUnique({
-    where: { UserID: comment.UserID },
-    select: { NotificationPreferences: true },
-  });
+    const recipient = await prisma.user.findUnique({
+      where: { UserID: comment.UserID },
+      select: { NotificationPreferences: true },
+    });
 
-  const shouldNotify =
-    !recipient.NotificationPreferences ||
-    !recipient.NotificationPreferences.NotificationTypes ||
-    recipient.NotificationPreferences.NotificationTypes.includes(
-      "COMMENT_LIKE"
-    );
+    const shouldNotify =
+      !recipient?.NotificationPreferences?.NotificationTypes ||
+      recipient.NotificationPreferences.NotificationTypes.includes(
+        "COMMENT_LIKE"
+      );
 
-  if (shouldNotify) {
-    await prisma.notification.create({
-      data: {
-        UserID: comment.UserID,
-        SenderID: likerId,
-        Type: "COMMENT_LIKE",
-        Content: `${likerUsername} liked your comment`,
-        Metadata: {
+    if (shouldNotify) {
+      await NotificationService.createNotification({
+        userId: comment.UserID,
+        senderId: likerId,
+        type: "COMMENT_LIKE",
+        content: `${likerUsername} liked your comment`,
+        metadata: {
           commentId: parseInt(commentId),
           postId: comment.PostID,
           likerId,
           likerUsername,
         },
-      },
-    });
-    logger.info(
-      `Comment like notification created for comment ${commentId} by user ${likerId}`
-    );
+      });
+    }
+  } catch (error) {
+    logger.error(`Failed to send comment like notification: ${error.message}`);
   }
 }
 
@@ -213,43 +215,41 @@ async function createCommentReplyNotification(
   commentOwnerId,
   replierUsername
 ) {
-  const comment = await prisma.comment.findUnique({
-    where: { CommentID: parseInt(commentId) },
-    select: { PostID: true },
-  });
+  try {
+    if (commentOwnerId === replierId) return;
 
-  if (!comment || commentOwnerId === replierId) return;
+    const comment = await prisma.comment.findUnique({
+      where: { CommentID: parseInt(commentId) },
+      select: { PostID: true },
+    });
 
-  const recipient = await prisma.user.findUnique({
-    where: { UserID: commentOwnerId },
-    select: { NotificationPreferences: true },
-  });
+    const recipient = await prisma.user.findUnique({
+      where: { UserID: commentOwnerId },
+      select: { NotificationPreferences: true },
+    });
 
-  const shouldNotify =
-    !recipient.NotificationPreferences ||
-    !recipient.NotificationPreferences.NotificationTypes ||
-    recipient.NotificationPreferences.NotificationTypes.includes(
-      "COMMENT_REPLY"
-    );
+    const shouldNotify =
+      !recipient?.NotificationPreferences?.NotificationTypes ||
+      recipient.NotificationPreferences.NotificationTypes.includes(
+        "COMMENT_REPLY"
+      );
 
-  if (shouldNotify) {
-    await prisma.notification.create({
-      data: {
-        UserID: commentOwnerId,
-        SenderID: replierId,
-        Type: "COMMENT_REPLY",
-        Content: `${replierUsername} replied to your comment`,
-        Metadata: {
+    if (shouldNotify) {
+      await NotificationService.createNotification({
+        userId: commentOwnerId,
+        senderId: replierId,
+        type: "COMMENT_REPLY",
+        content: `${replierUsername} replied to your comment`,
+        metadata: {
           commentId: parseInt(commentId),
           postId: comment.PostID,
           replierId,
           replierUsername,
         },
-      },
-    });
-    logger.info(
-      `Comment reply notification created for comment ${commentId} by user ${replierId}`
-    );
+      });
+    }
+  } catch (error) {
+    logger.error(`Failed to send reply notification: ${error.message}`);
   }
 }
 
@@ -262,33 +262,33 @@ async function createShareNotification(
   originalOwnerId,
   sharerUsername
 ) {
-  const recipient = await prisma.user.findUnique({
-    where: { UserID: originalOwnerId },
-    select: { NotificationPreferences: true },
-  });
+  try {
+    if (originalOwnerId === sharerId) return;
 
-  const shouldNotify =
-    !recipient.NotificationPreferences ||
-    !recipient.NotificationPreferences.NotificationTypes ||
-    recipient.NotificationPreferences.NotificationTypes.includes("SHARE");
+    const recipient = await prisma.user.findUnique({
+      where: { UserID: originalOwnerId },
+      select: { NotificationPreferences: true },
+    });
 
-  if (shouldNotify) {
-    await prisma.notification.create({
-      data: {
-        UserID: originalOwnerId,
-        SenderID: sharerId,
-        Type: "SHARE",
-        Content: `${sharerUsername} shared your post`,
-        Metadata: {
+    const shouldNotify =
+      !recipient?.NotificationPreferences?.NotificationTypes ||
+      recipient.NotificationPreferences.NotificationTypes.includes("SHARE");
+
+    if (shouldNotify) {
+      await NotificationService.createNotification({
+        userId: originalOwnerId,
+        senderId: sharerId,
+        type: "SHARE",
+        content: `${sharerUsername} shared your post`,
+        metadata: {
           originalPostId: parseInt(originalPostId),
           sharerId,
           sharerUsername,
         },
-      },
-    });
-    logger.info(
-      `Share notification created for post ${originalPostId} by user ${sharerId}`
-    );
+      });
+    }
+  } catch (error) {
+    logger.error(`Failed to send share notification: ${error.message}`);
   }
 }
 
@@ -301,39 +301,36 @@ async function notifyAdminsAboutReport(
   reason,
   reporterUsername
 ) {
-  const admins = await prisma.user.findMany({
-    where: { Role: "ADMIN" },
-    select: { UserID: true, NotificationPreferences: true },
-  });
+  try {
+    const admins = await prisma.user.findMany({
+      where: { Role: "ADMIN" },
+      select: { UserID: true },
+    });
 
-  await Promise.all(
-    admins.map((admin) => {
-      const shouldNotify =
-        !admin.NotificationPreferences ||
-        !admin.NotificationPreferences.NotificationTypes ||
-        admin.NotificationPreferences.NotificationTypes.includes("REPORT");
-
-      if (shouldNotify) {
-        return prisma.notification.create({
-          data: {
-            UserID: admin.UserID,
-            SenderID: reporterId,
-            Type: "REPORT",
-            Content: `${reporterUsername} reported a post: ${reason}`,
-            Metadata: {
-              postId,
-              reporterId,
-              reason,
-              reporterUsername,
-            },
+    await Promise.all(
+      admins.map((admin) =>
+        NotificationService.createNotification({
+          userId: admin.UserID,
+          senderId: reporterId,
+          type: "REPORT",
+          content: `${reporterUsername} reported a post: ${reason.substring(
+            0,
+            50
+          )}${reason.length > 50 ? "..." : ""}`,
+          metadata: {
+            postId,
+            reporterId,
+            reason,
+            reporterUsername,
           },
-        });
-      }
-    })
-  );
-  logger.info(
-    `Admins notified about report on post ${postId} by user ${reporterId}`
-  );
+        })
+      )
+    );
+
+    logger.info(`All admins notified about report on post ${postId}`);
+  } catch (error) {
+    logger.error(`Failed to notify admins about report: ${error.message}`);
+  }
 }
 
 /**
@@ -441,7 +438,6 @@ const createPost = async (req, res) => {
     });
   }
 };
-
 
 /**
  * Optimized getPosts function
@@ -624,7 +620,13 @@ const getPosts = async (req, res) => {
               orderBy: { CreatedAt: "desc" },
               take: 3,
               include: {
-                User: { select: { Username: true, ProfilePicture: true, UserID: true } }, // Added UserID for filtering
+                User: {
+                  select: {
+                    Username: true,
+                    ProfilePicture: true,
+                    UserID: true,
+                  },
+                }, // Added UserID for filtering
               },
             },
             Replies: {
@@ -642,7 +644,13 @@ const getPosts = async (req, res) => {
                   orderBy: { CreatedAt: "asc" },
                   take: 3,
                   include: {
-                    User: { select: { Username: true, ProfilePicture: true, UserID: true } }, // Added UserID for filtering
+                    User: {
+                      select: {
+                        Username: true,
+                        ProfilePicture: true,
+                        UserID: true,
+                      },
+                    }, // Added UserID for filtering
                   },
                 },
                 _count: { select: { CommentLikes: true } },
@@ -710,12 +718,12 @@ const getPosts = async (req, res) => {
         isLiked: comment.CommentLikes.some((l) => l.UserID === userId),
         likeCount: comment._count.CommentLikes,
         replyCount: comment._count.Replies,
-        likedBy: comment.CommentLikes
-          .filter((l) => l.UserID === userId || followingIds.includes(l.UserID))
-          .map((l) => ({
-            username: l.User.Username,
-            profilePicture: l.User.ProfilePicture,
-          })),
+        likedBy: comment.CommentLikes.filter(
+          (l) => l.UserID === userId || followingIds.includes(l.UserID)
+        ).map((l) => ({
+          username: l.User.Username,
+          profilePicture: l.User.ProfilePicture,
+        })),
         Replies: comment.Replies.map((reply) => ({
           CommentID: reply.CommentID,
           Content: reply.Content,
@@ -724,12 +732,12 @@ const getPosts = async (req, res) => {
           isMine: reply.UserID === userId,
           isLiked: reply.CommentLikes.some((l) => l.UserID === userId),
           likeCount: reply._count.CommentLikes,
-          likedBy: reply.CommentLikes
-            .filter((l) => l.UserID === userId || followingIds.includes(l.UserID))
-            .map((l) => ({
-              username: l.User.Username,
-              profilePicture: l.User.ProfilePicture,
-            })),
+          likedBy: reply.CommentLikes.filter(
+            (l) => l.UserID === userId || followingIds.includes(l.UserID)
+          ).map((l) => ({
+            username: l.User.Username,
+            profilePicture: l.User.ProfilePicture,
+          })),
         })),
       }));
 
@@ -785,9 +793,10 @@ const getPosts = async (req, res) => {
       })
       .slice(0, parseInt(limit));
 
+
+
     await redis.set(cacheKey, JSON.stringify(shuffled), "EX", POST_CACHE_TTL);
     await addToPostsCacheSet(userId, cacheKey);
-
     res.json(shuffled);
   } catch (err) {
     logger.error(`Error fetching posts: ${err.message}`);
@@ -797,11 +806,9 @@ const getPosts = async (req, res) => {
 
 /**
  * Get Explore posts (posts with images or videos from non-followed users, similar to Instagram Explore)
- * - Fetches public posts with images or videos that are unseen by the user
- * - Uses batch queries to avoid N+1 problem
- * - Caches results with Redis
- * - Supports pagination
- * - Only includes public posts from non-followed users
+ * - First: Unseen public posts from non-followed users
+ * - If none: Falls back to seen public posts from non-followed users (loop behavior)
+ * - Uses batch queries, Redis cache, pagination, and respects privacy
  */
 const getExplorePosts = async (req, res) => {
   try {
@@ -809,15 +816,15 @@ const getExplorePosts = async (req, res) => {
     const offset = (page - 1) * limit;
     const userId = req.user.UserID;
 
-    // Fetch the last view timestamp for cache key
+    // Cache key depends on last view time
     const lastView = await prisma.postView.findFirst({
       where: { UserID: userId },
       orderBy: { ViewedAt: "desc" },
       select: { ViewedAt: true },
     });
     const viewTimestamp = lastView?.ViewedAt?.getTime() || "0";
-
     const cacheKey = `explore:${userId}:${page}:${limit}:${viewTimestamp}`;
+
     const cached = await redis.get(cacheKey);
     if (cached) {
       try {
@@ -827,33 +834,36 @@ const getExplorePosts = async (req, res) => {
       }
     }
 
-    // === Fetch non-followed users ===
+    // === Followed users (to exclude them) ===
     const following = await prisma.follower.findMany({
       where: { FollowerUserID: userId, Status: "ACCEPTED" },
       select: { UserID: true },
     });
     const followingIds = following.map((f) => f.UserID);
 
-    // === Fetch unseen posts ===
+    // === Viewed posts by user ===
     const viewedPostIds = await prisma.postView.findMany({
       where: { UserID: userId },
       select: { PostID: true },
     });
-    const viewedIds = viewedPostIds.map((v) => v.PostID);
+    const viewedIds = new Set(viewedPostIds.map((v) => v.PostID)); // Use Set for faster lookup
 
-    // === Posts ===
-    const posts = await prisma.post.findMany({
+    let posts = [];
+    let isUnseen = true;
+
+    // === First Attempt: Unseen public posts from non-followed users ===
+    posts = await prisma.post.findMany({
       skip: offset,
-      take: parseInt(limit) * 2, // Fetch extra for filtering
+      take: parseInt(limit) * 3, // Take more to ensure we have enough after filtering
       where: {
         OR: [
-          { ImageURL: { not: null } }, // Posts with images
-          { VideoURL: { not: null } }, // Posts with videos
+          { ImageURL: { not: null } },
+          { VideoURL: { not: null } },
         ],
-        privacy: "PUBLIC", // Only public posts
-        UserID: { notIn: followingIds }, // Exclude followed users
-        PostID: { notIn: viewedIds }, // Exclude viewed posts
-        CreatedAt: { gte: new Date(Date.now() - 700 * 24 * 60 * 60 * 1000) }, // Last 120 days
+        privacy: "PUBLIC",
+        UserID: { notIn: [...followingIds, userId], },
+        PostID: { notIn: Array.from(viewedIds) }, // Unseen
+        CreatedAt: { gte: new Date(Date.now() - 700 * 24 * 60 * 60 * 1000) }, // Last ~2 years
       },
       orderBy: { CreatedAt: "desc" },
       include: {
@@ -876,15 +886,54 @@ const getExplorePosts = async (req, res) => {
       },
     });
 
-    const postIds = posts.map((p) => p.PostID);
+    // === If no unseen posts → fallback to seen ones (loop mode) ===
+    if (posts.length === 0) {
+      isUnseen = false;
 
-    if (!postIds.length) {
+      posts = await prisma.post.findMany({
+        skip: offset,
+        take: parseInt(limit) * 3,
+        where: {
+          OR: [
+            { ImageURL: { not: null } },
+            { VideoURL: { not: null } },
+          ],
+          privacy: "PUBLIC",
+          UserID: { notIn: [...followingIds, userId], },
+          // Remove notIn: viewedIds → allow seen posts
+          CreatedAt: { gte: new Date(Date.now() - 700 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { CreatedAt: "desc" },
+        include: {
+          User: {
+            select: {
+              UserID: true,
+              Username: true,
+              ProfilePicture: true,
+              IsPrivate: true,
+            },
+          },
+          SharedPost: {
+            include: {
+              User: {
+                select: { UserID: true, Username: true, ProfilePicture: true },
+              },
+            },
+          },
+          _count: { select: { Likes: true, Comments: true, Shares: true } },
+        },
+      });
+    }
+
+    if (posts.length === 0) {
       await redis.set(cacheKey, JSON.stringify([]), "EX", POST_CACHE_TTL);
       await addToPostsCacheSet(userId, cacheKey);
       return res.json([]);
     }
 
-    // === Batch Queries ===
+    const postIds = posts.map((p) => p.PostID);
+
+    // === Batch Queries (Likes, Saves, Comments) ===
     const [userLikes, userSaves, allLikes, allComments] = await Promise.all([
       prisma.like.findMany({
         where: { PostID: { in: postIds }, UserID: userId },
@@ -912,33 +961,21 @@ const getExplorePosts = async (req, res) => {
         where: { PostID: { in: postIds }, ParentCommentID: null },
         orderBy: { CreatedAt: "desc" },
         include: {
-          User: {
-            select: { UserID: true, Username: true, ProfilePicture: true },
-          },
+          User: { select: { UserID: true, Username: true, ProfilePicture: true } },
           CommentLikes: {
             orderBy: { CreatedAt: "desc" },
             take: 3,
-            include: {
-              User: { select: { Username: true, ProfilePicture: true } },
-            },
+            include: { User: { select: { Username: true, ProfilePicture: true } } },
           },
           Replies: {
             orderBy: { CreatedAt: "asc" },
             take: 3,
             include: {
-              User: {
-                select: {
-                  UserID: true,
-                  Username: true,
-                  ProfilePicture: true,
-                },
-              },
+              User: { select: { UserID: true, Username: true, ProfilePicture: true } },
               CommentLikes: {
                 orderBy: { CreatedAt: "asc" },
                 take: 3,
-                include: {
-                  User: { select: { Username: true, ProfilePicture: true } },
-                },
+                include: { User: { select: { Username: true, ProfilePicture: true } } },
               },
               _count: { select: { CommentLikes: true } },
             },
@@ -948,19 +985,17 @@ const getExplorePosts = async (req, res) => {
       }),
     ]);
 
-    // === Group Data In Memory ===
+    // Group likes & comments
     const likesByPost = groupBy(allLikes, (l) => l.PostID);
     const commentsByPost = groupBy(allComments, (c) => c.PostID);
 
     const formatted = posts.map((post) => {
       const isLiked = userLikes.some((l) => l.PostID === post.PostID);
       const isSaved = userSaves.some((s) => s.PostID === post.PostID);
-      const isUnseen = !viewedIds.includes(post.PostID);; // All posts are unseen due to where clause
       const isFollowed = followingIds.includes(post.User.UserID);
 
-      // === Likes ===
+      // Likes preview logic
       const likes = likesByPost[post.PostID] || [];
-      
       const myLike = likes.find((l) => l.User.UserID === userId);
       const followingLikes = likes.filter(
         (l) => followingIds.includes(l.User.UserID) && l.User.UserID !== userId
@@ -978,11 +1013,10 @@ const getExplorePosts = async (req, res) => {
         likedAt: like.CreatedAt.toISOString(),
       }));
 
-      // === Comments ===
+      // Comments with priority sorting
       const comments = (commentsByPost[post.PostID] || []).map((c) => ({
         ...c,
-        priority:
-          c.UserID === userId ? 0 : followingIds.includes(c.UserID) ? 1 : 2,
+        priority: c.UserID === userId ? 0 : followingIds.includes(c.UserID) ? 1 : 2,
       }));
 
       const sortedComments = comments
@@ -1025,7 +1059,7 @@ const getExplorePosts = async (req, res) => {
         isMine: post.User.UserID === userId,
         isLiked,
         isSaved,
-        isUnseen,
+        isUnseen, // true if from first query, false if fallback
         isFollowed,
         shareCount: post._count.Shares,
         likeCount: post._count.Likes,
@@ -1033,24 +1067,20 @@ const getExplorePosts = async (req, res) => {
         Likes,
         Comments,
         SharedPost: post.SharedPost
-          ? {
-              ...post.SharedPost,
-              User: post.SharedPost.User,
-            }
+          ? { ...post.SharedPost, User: post.SharedPost.User }
           : null,
       };
     });
 
-    // Sort by creation date (newest first) with randomization
+    // Shuffle with time-based + random for better exploration feel
     const shuffled = formatted
       .map((post) => ({ ...post, random: Math.random() }))
       .sort((a, b) => {
-        return (
-          b.CreatedAt.getTime() - a.CreatedAt.getTime() || a.random - b.random
-        );
+        return b.CreatedAt.getTime() - a.CreatedAt.getTime() || a.random - b.random;
       })
       .slice(0, parseInt(limit));
 
+    // Cache result
     await redis.set(cacheKey, JSON.stringify(shuffled), "EX", POST_CACHE_TTL);
     await addToPostsCacheSet(userId, cacheKey);
 
@@ -1100,21 +1130,22 @@ const getFlicks = async (req, res) => {
     });
     const followingIds = following.map((f) => f.UserID);
 
-    // === Fetch unseen posts ===
+    // === Fetch viewed posts ===
     const viewedPostIds = await prisma.postView.findMany({
       where: { UserID: userId },
       select: { PostID: true },
     });
     const viewedIds = viewedPostIds.map((v) => v.PostID);
 
-    // === Posts ===
-    const posts = await prisma.post.findMany({
+    // === Fetch unseen posts ===
+    let posts = await prisma.post.findMany({
       skip: offset,
       take: parseInt(limit) * 2, // Fetch extra for filtering
       where: {
+        UserID: { not: userId }, 
         VideoURL: { not: null }, // Only posts with videos
         privacy: { in: ["PUBLIC", "FOLLOWERS_ONLY"] }, // Respect privacy
-        // PostID: { notIn: viewedIds }, // Exclude viewed posts
+        PostID: { notIn: viewedIds }, // Exclude viewed posts
         CreatedAt: { gte: new Date(Date.now() - 730 * 24 * 60 * 60 * 1000) }, // Last 730 days
       },
       orderBy: { CreatedAt: "desc" },
@@ -1139,7 +1170,7 @@ const getFlicks = async (req, res) => {
     });
 
     // Filter posts based on privacy
-    const filteredPosts = posts.filter(p => {
+    let filteredPosts = posts.filter((p) => {
       if (p.privacy === "PUBLIC") return true;
 
       if (p.privacy === "FOLLOWERS_ONLY") {
@@ -1148,6 +1179,54 @@ const getFlicks = async (req, res) => {
 
       return false;
     });
+
+    let isUnseen = true; // Flag for whether these are unseen posts
+
+    // If no unseen posts, fetch seen posts instead
+    if (!filteredPosts.length) {
+      posts = await prisma.post.findMany({
+        skip: offset,
+        take: parseInt(limit) * 2, // Fetch extra for filtering
+        where: {
+          UserID: { not: userId }, 
+          VideoURL: { not: null }, // Only posts with videos
+          privacy: { in: ["PUBLIC", "FOLLOWERS_ONLY"] }, // Respect privacy
+          PostID: { in: viewedIds }, // Only viewed posts
+          CreatedAt: { gte: new Date(Date.now() - 730 * 24 * 60 * 60 * 1000) }, // Last 730 days
+        },
+        orderBy: { CreatedAt: "desc" },
+        include: {
+          User: {
+            select: {
+              UserID: true,
+              Username: true,
+              ProfilePicture: true,
+              IsPrivate: true,
+            },
+          },
+          SharedPost: {
+            include: {
+              User: {
+                select: { UserID: true, Username: true, ProfilePicture: true },
+              },
+            },
+          },
+          _count: { select: { Likes: true, Comments: true, Shares: true } },
+        },
+      });
+
+      filteredPosts = posts.filter((p) => {
+        if (p.privacy === "PUBLIC") return true;
+
+        if (p.privacy === "FOLLOWERS_ONLY") {
+          return followingIds.includes(p.User.UserID);
+        }
+
+        return false;
+      });
+
+      isUnseen = false; // These are seen posts
+    }
 
     const postIds = filteredPosts.map((p) => p.PostID);
 
@@ -1228,7 +1307,6 @@ const getFlicks = async (req, res) => {
     const formatted = filteredPosts.map((post) => {
       const isLiked = userLikes.some((l) => l.PostID === post.PostID);
       const isSaved = userSaves.some((s) => s.PostID === post.PostID);
-      const isUnseen = true; // All posts are unseen due to where clause
       const isFollowed = followingIds.includes(post.User.UserID); // Add isFollowed for post's user
 
       // === Likes ===
@@ -1298,7 +1376,7 @@ const getFlicks = async (req, res) => {
         isMine: post.User.UserID === userId,
         isLiked,
         isSaved,
-        isUnseen,
+        isUnseen, // Use the flag: true for unseen, false for seen
         isFollowed, // Include isFollowed for the post's user
         shareCount: post._count.Shares,
         likeCount: post._count.Likes,
@@ -1516,8 +1594,8 @@ const getPostById = async (req, res) => {
     );
 
     const sortedLikes = [
-      ...(myLike ? [myLike] : []),
-      ...followingLikes.slice(0, myLike ? 9 : 10),
+      ...(myLike && myLike.User ? [myLike] : []),
+      ...followingLikes.filter((l) => l.User).slice(0, myLike ? 9 : 10),
     ].map((like) => ({
       userId: like.User.UserID,
       username: like.User.Username,
@@ -1526,7 +1604,6 @@ const getPostById = async (req, res) => {
       isFollowed: followingIds.has(like.User.UserID),
       likedAt: like.CreatedAt.toISOString(),
     }));
-
 
     // Sort comments by priority: viewer → following → others
     const sortedComments = comments
@@ -1573,7 +1650,6 @@ const getPostById = async (req, res) => {
         })),
       })),
     }));
-    
 
     const response = {
       post: {
@@ -1584,14 +1660,7 @@ const getPostById = async (req, res) => {
         likeCount: post._count.Likes,
         commentCount: post._count.Comments,
         shareCount: post._count.Shares,
-        Likes: sortedLikes.map((like) => ({
-          userId: like.User.UserID,
-          username: like.User.Username,
-          profileName: like.User.ProfileName,
-          profilePicture: like.User.ProfilePicture,
-          isFollowed: followingIds.has(like.User.UserID),
-          likedAt: like.CreatedAt,
-        })),
+        Likes: sortedLikes,
         Comments: formattedComments,
         SharedPost: post.SharedPost
           ? {

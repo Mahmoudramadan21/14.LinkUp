@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `View ${displayName}'s profile on LinkUp – photos, videos, bio, and updates from ${username}.`,
 
     alternates: {
-      canonical: `/${username}`,
+      canonical: `https://linkup-app-frontend.vercel.app/${username}`,
     },
 
     robots: {
@@ -42,13 +42,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${displayName} Profile | LinkUp`,
       description: `Connect with ${displayName} – see their posts, stories, and latest updates.`,
-      url: `https://linkup.com/${username}`,
+      url: `https://linkup-app-frontend.vercel.app/${username}`,
       siteName: 'LinkUp',
       type: 'profile',
       locale: 'en_US',
       images: [
         {
-          url: `/og-profile.png`, // أو dynamic: `/api/og/profile/${username}`
+          url: `og/og-profile.png`,
           width: 1200,
           height: 630,
           alt: `${displayName}'s profile on LinkUp`,
@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: `${displayName} Profile | LinkUp`,
       description: `Check out ${displayName}'s profile`,
-      images: ['/og-profile.png'],
+      images: ['og/og-profile.png'],
       site: '@LinkUp',
       creator: `@${username}`,
     },
@@ -89,12 +89,12 @@ export default async function StoryViewerPage({ params }: Props) {
           '@type': 'Person',
           name: cleanUsername,
           alternateName: `@${username}`,
-          url: `https://linkup.com/${username}`,
-          sameAs: [`https://linkup.com/${username}`],
+          url: `https://linkup-app-frontend.vercel.app/${username}`,
+          sameAs: [`https://linkup-app-frontend.vercel.app/${username}`],
           memberOf: {
             '@type': 'Organization',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
         }}
       />
@@ -106,11 +106,11 @@ export default async function StoryViewerPage({ params }: Props) {
           '@type': 'ProfilePage',
           name: `${cleanUsername}'s Profile on LinkUp`,
           description: `View @${username}'s photos, videos, stories, and updates on LinkUp social network.`,
-          url: `https://linkup.com/${username}`,
+          url: `https://linkup-app-frontend.vercel.app/${username}`,
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
           breadcrumb: {
             '@type': 'BreadcrumbList',
@@ -119,13 +119,13 @@ export default async function StoryViewerPage({ params }: Props) {
                 '@type': 'ListItem',
                 position: 1,
                 name: 'Home',
-                item: 'https://linkup.com',
+                item: 'https://linkup-app-frontend.vercel.app',
               },
               {
                 '@type': 'ListItem',
                 position: 2,
                 name: username,
-                item: `https://linkup.com/${username}`,
+                item: `https://linkup-app-frontend.vercel.app/${username}`,
               },
             ],
           },

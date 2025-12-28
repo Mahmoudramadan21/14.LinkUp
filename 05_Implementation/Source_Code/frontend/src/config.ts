@@ -1,4 +1,0 @@
-export const PAGINATION = {
-  STORY_FEED_LIMIT: 360,
-  VIEWERS_LIMIT: 20,
-};

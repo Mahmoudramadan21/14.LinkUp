@@ -30,7 +30,7 @@ interface User {
  */
 interface UserCardProps {
   user: User;
-  requestId?: number;
+  requestId: number;
   isFollowed?: boolean | "pending";
   isPending?: boolean;
   onFollowToggle?: () => void;
@@ -131,14 +131,14 @@ const UserCard = memo(({ user, requestId, isFollowed = false, isPending = false,
               className={styles["connections__user-card-button--accept"]}
               aria-label={`Accept follow request from ${user.username}`}
             >
-              {loading.acceptRequest ? <FaSpinner className="animate-spin" /> : "Accept"}
+              {loading.acceptRequest[requestId] ? <FaSpinner className="animate-spin" /> : "Accept"}
             </button>
             <button
               onClick={handleReject}
               className={styles["connections__user-card-button--reject"]}
               aria-label={`Reject follow request from ${user.username}`}
             >
-              {loading.rejectRequest ? <FaSpinner className="animate-spin" /> : "Reject"}
+              {loading.rejectRequest[requestId] ? <FaSpinner className="animate-spin" /> : "Reject"}
             </button>
           </>
         ) : (

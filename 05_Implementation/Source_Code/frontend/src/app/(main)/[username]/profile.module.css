@@ -51,11 +51,11 @@
 .profile-header__edit-btn        { @apply absolute top-md right-md btn-rounded--purple disabled:btn-rounded--disabled; }
 
 .profile-header__info {
-  @apply absolute -bottom-20 left-md 
-         sm-down:-bottom-16 sm-down:left-1/2 sm-down:-translate-x-1/2;
+  @apply absolute lg:-bottom-20 lg:left-[90px]
+         -bottom-16 left-1/2 -translate-x-1/2;
 }
 .profile-header__profile-pic {
-  @apply relative sm-down:w-[100px] sm-down:h-[100px];
+  @apply relative;
   width: 10rem !important;
   height: 10rem !important;
 }
@@ -74,11 +74,10 @@
 .profile-header__profile-placeholder { @apply w-full h-full rounded-full border-4 border-[var(--card-bg)] shadow-lg; }
 
 .profile-header__content {
-  @apply px-md py-lg mt-14 flex flex-col md:flex-row justify-between gap-md md:gap-lg;
+  @apply px-md py-lg mt-14 flex flex-col justify-center items-center lg:flex-row lg:justify-between text-center lg:text-left gap-md md:gap-lg;
 }
 .profile-header__details {
-  @apply mt-lg sm-down:mt-0 sm-down:mx-auto sm-down:flex sm-down:flex-col 
-         sm-down:items-center md:my-auto w-fit;
+  @apply mt-lg md:my-auto w-fit;
 }
 .profile-header__name            { @apply text-primary-bold capitalize max-w-[240px] mb-sm; }
 .profile-header__username        { @apply text-secondary mb-xs; }
@@ -128,7 +127,7 @@
 .profile_bio__description      { @apply text-base text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap pb-4 border-b border-[var(--border-color)]; }
 .profile_bio__details          { @apply list-none p-0 pt-5 m-0; }
 .profile_bio__detail_item      { @apply flex items-center gap-3 mb-3; }
-.profile_bio__detail_icon      { @apply text-[var(--text-secondary)] w-6 h-6; }
+.profile_bio__detail_icon      { @apply text-[var(--text-secondary)] w-6 h-6 flex-shrink-0; }
 .profile_bio__detail_text      { @apply text-secondary; }
 
 /* Content Layout */
@@ -226,7 +225,7 @@
 .highlights__modal__button { @apply text-secondary hover:text-[var(--linkup-purple)] focus-ring rounded-full p-xs transition-all duration-fast; }
 
 .highlights__modal__main   { @apply relative; }
-.highlights__step          { @apply p-md; }
+.highlights__step          { @apply p-xs; }
 .highlights__label         { @apply block mb-xs font-semibold text-secondary; }
 .highlights__input         { @apply w-full p-sm rounded-lg border border-[var(--border-color)] bg-[var(--section-bg)] text-[var(--text-primary)] focus-ring transition-shadow duration-fast; }
 
@@ -235,7 +234,7 @@
 .highlights__button         { @apply btn-rounded mt-2; }
 .highlights__button:disabled { @apply btn-rounded--disabled; }
 
-.highlights__stories_grid   { @apply grid grid-cols-3 gap-sm overflow-y-auto max-h-[400px] scrollbar-thin-purple; }
+.highlights__stories_grid   { @apply grid grid-cols-2 sm:grid-cols-3 gap-sm overflow-y-auto max-h-[400px] scrollbar-thin-purple; }
 .highlights__story          { @apply relative cursor-pointer transition duration-medium hover:brightness-75 focus-ring; }
 .highlights__story--selected { @apply brightness-75; }
 .highlights__story__date    { @apply absolute top-xs left-xs text-secondary bg-[rgba(var(--app-bg-rgb),0.7)] px-xs py-1 rounded-md z-10; }

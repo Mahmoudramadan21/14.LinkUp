@@ -3,7 +3,6 @@
 import React, {
   Suspense,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -64,6 +63,7 @@ import BookmarkIcon from "/public/icons/BookmarkIcon.svg"
 import MapMarkerAlt from "/public/icons/MapMarkerAlt.svg"
 import CalendarAlt from "/public/icons/CalendarAlt.svg"
 import Briefcase from "/public/icons/Briefcase.svg"
+import TruncatedText from '@/components/ui/common/TruncatedText';
 
 /**
  * ProfileLayout component serves as the main layout for user profiles.
@@ -117,7 +117,7 @@ export default function ProfileLayout({
 
   // Refs for infinite scroll observer
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const highlightSentinelRef = useRef<HTMLDivElement>(null);
 
   // State for preselected media in create post modal
   const [preselectedMedia, setPreselectedMedia] = useState<{
@@ -189,14 +189,14 @@ export default function ProfileLayout({
       { threshold: 0.1 }
     );
 
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
+    if (highlightSentinelRef.current) {
+      observerRef.current.observe(highlightSentinelRef.current);
     }
 
     // Cleanup observer on unmount
     return () => {
-      if (observerRef.current && sentinelRef.current) {
-        observerRef.current.unobserve(sentinelRef.current);
+      if (observerRef.current && highlightSentinelRef.current) {
+        observerRef.current.unobserve(highlightSentinelRef.current);
       }
     };
   }, [dispatch, username, hasMoreHighlights, highlightLoading.getUserHighlights, highlightsData.pagination]);
@@ -261,7 +261,7 @@ export default function ProfileLayout({
    * @param {number} highlightId - The ID of the highlight to view.
    */
   const handleViewHighlight = (highlightId: number) => {
-    router.push(`/${username}/highlights/${highlightId}`);
+    router.push(`/${username}/highlights/${highlightId}`, { scroll: false });
   };
 
   /**
@@ -303,23 +303,7 @@ export default function ProfileLayout({
       }
     }
   };
-
-  // Memoized skeleton component for story avatars
-  const StoryAvatarSkeleton = useMemo(() => {
-    const Skeleton = () => (
-      <div className={storiesStyles["stories__avatar_wrapper"]}>
-        <div className={`${storiesStyles["stories__avatar"]} ${storiesStyles["stories__skeleton"]}`} />
-      </div>
-    );
-    Skeleton.displayName = 'StoryAvatarSkeleton';
-    return Skeleton;
-  }, []);
-
-  // Memoized array of skeletons for loading more highlights
-  const loadMoreSkeletons = useMemo(
-    () => Array.from({ length: 3 }).map((_, index) => <StoryAvatarSkeleton key={`more-skeleton-${index}`} />),
-    [StoryAvatarSkeleton]
-  );
+  
 
   // Determine if current path is for saved posts or regular posts
   const isSavedPath = pathname.endsWith('/saved');
@@ -349,7 +333,7 @@ export default function ProfileLayout({
                 <div className={styles["profile-header__cover"]}>
                   {profile.coverPicture ? (
                     <Image
-                      src={profile.coverPicture || '/images/default-cover.jpg'}
+                      src={profile.coverPicture}
                       alt="Cover"
                       fill
                       priority
@@ -378,6 +362,7 @@ export default function ProfileLayout({
                       data-unviewed={profile.hasUnViewedStories && profile.hasActiveStories ? 'true' : 'false'}
                       aria-label={`View ${profile.username}'s stories`}
                       prefetch={false}
+                      scroll={false}
                     >
                       <Image
                         src={profile.profilePicture || '/avatars/default-avatar.svg'}
@@ -490,13 +475,13 @@ export default function ProfileLayout({
                         profileLoading.followUser[profile.userId] ||
                         profileLoading.unfollowUser[profile.userId]
                       }
-                     className={
+                     className={`${
                         profile.isFollowed === true
                           ? "btn-unfollow"
                           : profile.followStatus === "PENDING"
                           ? "btn-pending"
                           : "btn-follow"
-                      }
+                     } ml-0`}
                       aria-label={
                         profile.isFollowed
                           ? "Unfollow"
@@ -583,23 +568,20 @@ export default function ProfileLayout({
                         </span>
                       </button>
                     ))}
+                    {highlightLoading.getUserHighlights && highlights.length > 0 && (
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className={`${styles['profile-header__highlight-item']} animate-pulse`}>
+                          <div className={`h-[60px] w-[60px] bg-neutral-gray rounded-full`}/>
+                          <div className={`mt-2 h-4 w-full bg-neutral-gray rounded`}/>
+                        </div>
+                      ))
+                    )}
                     {hasMoreHighlights && (
                       <div
-                        ref={sentinelRef}
+                        ref={highlightSentinelRef}
                         className={styles["h-10 w-full"]}
                         aria-hidden="true"
                       />
-                    )}
-                    {highlightLoading.getUserHighlights && highlights.length > 0 && (
-                      <div className={storiesStyles["stories__feed"]} aria-live="polite" aria-busy="true">
-                        <div
-                          className={storiesStyles["stories__bar"]}
-                          role="region"
-                          aria-label="Loading more highlights"
-                        >
-                          {loadMoreSkeletons}
-                        </div>
-                      </div>
                     )}
                   </>
                 )}
@@ -661,24 +643,30 @@ export default function ProfileLayout({
                       </Link>
                     )}
                   </div>
-                  <p className={styles["profile_bio__description"]}>
-                    {profile?.bio || 'No bio available.'}
-                  </p>
+                  <TruncatedText
+                    text={profile?.bio || "No bio available."}
+                    maxChars={150}
+                    className={styles["profile_bio__description"]}
+                  />
                   <ul className={styles["profile_bio__details"]}>
                     {profile?.address && (
                       <li className={styles["profile_bio__detail_item"]}>
                        <MapMarkerAlt className={styles["profile_bio__detail_icon"]} aria-hidden="true" />
-                        <span className={styles["profile_bio__detail_text"]}>
-                          {profile.address}
-                        </span>
+                       <TruncatedText
+                         text={profile.address}
+                         maxChars={40}
+                         className={styles["profile_bio__detail_text"]}
+                       />
                       </li>
                     )}
                     {profile?.jobTitle && (
                       <li className={styles["profile_bio__detail_item"]}>
                         <Briefcase className={styles["profile_bio__detail_icon"]} aria-hidden="true" />
-                        <span className={styles["profile_bio__detail_text"]}>
-                          {profile.jobTitle}
-                        </span>
+                        <TruncatedText
+                          text={profile.jobTitle}
+                          maxChars={40}
+                          className={styles["profile_bio__detail_text"]}
+                        />
                       </li>
                     )}
                     {profile?.dateOfBirth && (
@@ -761,6 +749,7 @@ export default function ProfileLayout({
           postId={showEditModal}
           onClose={() => setShowEditModal(null)}
           user={user}
+          postSource={isSavedPath ? 'savedPosts' : 'usersPosts'}
         />
       )}
       {showDeleteModal !== null && (

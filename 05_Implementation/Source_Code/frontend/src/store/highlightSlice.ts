@@ -285,10 +285,7 @@ const highlightSlice = createSlice({
       })
       .addCase(
         createHighlightThunk.fulfilled,
-        (
-          state,
-          action: PayloadAction<Highlight & { username: string }>
-        ) => {
+        (state, action: PayloadAction<Highlight & { username: string }>) => {
           state.loading.createHighlight = false;
           const { highlightId, ...highlight } = action.payload; // Assuming response is Highlight
           const username = action.payload.username;
@@ -303,10 +300,11 @@ const highlightSlice = createSlice({
             ...highlight,
           });
           state.highlightsByUsername[username].pagination.totalCount += 1;
-          state.highlightsByUsername[username].pagination.totalPages = Math.ceil(
-            state.highlightsByUsername[username].pagination.totalCount /
-              state.highlightsByUsername[username].pagination.limit
-          );
+          state.highlightsByUsername[username].pagination.totalPages =
+            Math.ceil(
+              state.highlightsByUsername[username].pagination.totalCount /
+                state.highlightsByUsername[username].pagination.limit
+            );
         }
       )
       .addCase(
@@ -324,10 +322,7 @@ const highlightSlice = createSlice({
       })
       .addCase(
         getUserHighlightByIdThunk.fulfilled,
-        (
-          state,
-          action: PayloadAction<Highlight & { username: string }>
-        ) => {
+        (state, action: PayloadAction<Highlight & { username: string }>) => {
           state.loading.getUserHighlightById = false;
           const { highlightId, ...highlight } = action.payload; // Assuming response is Highlight
           const username = action.payload.username;
@@ -337,9 +332,9 @@ const highlightSlice = createSlice({
               pagination: { page: 1, limit: 20, totalPages: 1, totalCount: 0 },
             };
           }
-          const index = state.highlightsByUsername[username].highlights.findIndex(
-            (h) => h.highlightId === highlightId
-          );
+          const index = state.highlightsByUsername[
+            username
+          ].highlights.findIndex((h) => h.highlightId === highlightId);
           if (index !== -1) {
             state.highlightsByUsername[username].highlights[index] = {
               highlightId,
@@ -351,10 +346,11 @@ const highlightSlice = createSlice({
               ...highlight,
             });
             state.highlightsByUsername[username].pagination.totalCount += 1;
-            state.highlightsByUsername[username].pagination.totalPages = Math.ceil(
-              state.highlightsByUsername[username].pagination.totalCount /
-                state.highlightsByUsername[username].pagination.limit
-            );
+            state.highlightsByUsername[username].pagination.totalPages =
+              Math.ceil(
+                state.highlightsByUsername[username].pagination.totalCount /
+                  state.highlightsByUsername[username].pagination.limit
+              );
           }
         }
       )
@@ -420,7 +416,10 @@ const highlightSlice = createSlice({
 
           state.highlightsByUsername[username].highlights =
             params.offset && params.offset > 0
-              ? [...state.highlightsByUsername[username].highlights, ...newHighlights]
+              ? [
+                  ...state.highlightsByUsername[username].highlights,
+                  ...newHighlights,
+                ]
               : highlights;
 
           // Update pagination
@@ -447,17 +446,14 @@ const highlightSlice = createSlice({
       })
       .addCase(
         updateHighlightThunk.fulfilled,
-        (
-          state,
-          action: PayloadAction<Highlight & { username: string }>
-        ) => {
+        (state, action: PayloadAction<Highlight & { username: string }>) => {
           state.loading.updateHighlight = false;
           const { highlightId, ...highlight } = action.payload; // Assuming response is Highlight
           const username = action.payload.username;
           if (state.highlightsByUsername[username]) {
-            const index = state.highlightsByUsername[username].highlights.findIndex(
-              (h) => h.highlightId === highlightId
-            );
+            const index = state.highlightsByUsername[
+              username
+            ].highlights.findIndex((h) => h.highlightId === highlightId);
             if (index !== -1) {
               state.highlightsByUsername[username].highlights[index] = {
                 highlightId,
@@ -480,45 +476,35 @@ const highlightSlice = createSlice({
         state.loading.deleteHighlight = true;
         state.error.deleteHighlight = null;
       })
-.addCase(
-  deleteHighlightThunk.fulfilled,
-  (
-    state,
-    action: PayloadAction<
-      SimpleSuccessResponse & { username: string },
-      string,
-      { arg: { highlightId: number; username: string } }
-    >
-  ) => {
-    state.loading.deleteHighlight = false;
-    const { highlightId, username } = action.meta.arg;
-    console.log('Before deletion:', {
-      username,
-      highlightId,
-      highlights: state.highlightsByUsername[username]?.highlights,
-    });
-    if (state.highlightsByUsername[username]) {
-      state.highlightsByUsername[username].highlights = state.highlightsByUsername[
-        username
-      ].highlights.filter((h) => h.highlightId !== highlightId);
-      state.highlightsByUsername[username].pagination.totalCount -= 1;
-      state.highlightsByUsername[username].pagination.totalPages = Math.ceil(
-        state.highlightsByUsername[username].pagination.totalCount /
-          state.highlightsByUsername[username].pagination.limit
-      );
-      console.log('After deletion:', {
-        highlights: state.highlightsByUsername[username]?.highlights,
-        totalCount: state.highlightsByUsername[username]?.pagination.totalCount,
-      });
-      if (state.highlightsByUsername[username].highlights.length === 0) {
-        delete state.highlightsByUsername[username];
-        console.log('Deleted username from highlightsByUsername:', username);
-      }
-    } else {
-      console.warn('Username not found in highlightsByUsername:', username);
-    }
-  }
-)
+      .addCase(
+        deleteHighlightThunk.fulfilled,
+        (
+          state,
+          action: PayloadAction<
+            SimpleSuccessResponse & { username: string },
+            string,
+            { arg: { highlightId: number; username: string } }
+          >
+        ) => {
+          state.loading.deleteHighlight = false;
+          const { highlightId, username } = action.meta.arg;
+          if (state.highlightsByUsername[username]) {
+            state.highlightsByUsername[username].highlights =
+              state.highlightsByUsername[username].highlights.filter(
+                (h) => h.highlightId !== highlightId
+              );
+            state.highlightsByUsername[username].pagination.totalCount -= 1;
+            state.highlightsByUsername[username].pagination.totalPages =
+              Math.ceil(
+                state.highlightsByUsername[username].pagination.totalCount /
+                  state.highlightsByUsername[username].pagination.limit
+              );
+            if (state.highlightsByUsername[username].highlights.length === 0) {
+              delete state.highlightsByUsername[username];
+            }
+          }
+        }
+      )
       .addCase(
         deleteHighlightThunk.rejected,
         (state, action: PayloadAction<string | undefined>) => {

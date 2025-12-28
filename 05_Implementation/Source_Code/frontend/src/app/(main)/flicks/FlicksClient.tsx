@@ -23,6 +23,7 @@ import {
   FaPaperPlane,
   FaBookmark,
   FaSpinner,
+  FaTimes,
 } from 'react-icons/fa';
 
 import { RootState, AppDispatch } from '@/store';
@@ -46,7 +47,7 @@ import Comment from '@/components/ui/post/Comment';
 import ReportModal from '@/components/ui/modal/ReportModal';
 import ShareModal from '@/components/ui/post/modals/ShareModal';
 import UserListModal from '@/components/ui/modal/UserListModal';
-import TruncatedText from '@/components/ui/post/TruncatedText';
+import TruncatedText from '@/components/ui/common/TruncatedText';
 import Link from 'next/link';
 
 import styles from './flicks.module.css';
@@ -407,10 +408,8 @@ const FlicksPageClient: React.FC = () => {
                             className={styles['flicks__user-avatar']}
                           />
                         </Link>
-                        <Link href={`/${flick.User.Username}`}>
-                          <p className={`${styles['flicks__user-username']} hover:underline`}>
-                            {flick.User.Username}
-                          </p>
+                        <Link href={`/${flick.User.Username}`} className={`${styles['flicks__user-username']} hover:underline`}>
+                          {flick.User.Username}
                         </Link>
 
                         {user?.userId !== flick.User.UserID && (
@@ -547,7 +546,7 @@ const FlicksPageClient: React.FC = () => {
                         <div className={styles['flicks__comment-modal-header']}>
                           <h2 className={styles['flicks__comment-modal-title']}>Comments</h2>
                           <button onClick={() => setShowCommentModal(null)} aria-label="Close">
-                            ×
+                            <FaTimes size={20} />
                           </button>
                         </div>
 

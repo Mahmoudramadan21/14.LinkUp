@@ -1,0 +1,99 @@
+/*
+ * =============================================================================
+ *  Aside Navigation (Desktop Sidebar – Profile / Settings / etc.)
+ * =============================================================================
+ *
+ * Reusable left-hand aside navigation used in:
+ *   • Profile page
+ *   • Settings page
+ *   • Messages (desktop layout)
+ *   • Any page needing clean vertical navigation
+ *
+ * Features:
+ *   • Sticky positioning with smooth top offset
+ *   • Current user preview at the top
+ *   • Clean icon + label navigation items
+ *   • Active state highlighting
+ *   • Perfect dark mode support (with explicit .dark override)
+ *   • Hidden on mobile (≤767px) – bottom nav takes over
+ *   • Full focus management & hover states
+ *   • Built entirely with design tokens for perfect consistency
+ */
+
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Main Aside Container – Sticky sidebar
+   ========================================================================== */
+.aside__container {
+  @apply bg-[var(--section-bg)] p-4 rounded-xl 
+         xl:flex flex-col gap-md sticky top-[96px] 
+         transition-colors duration-300;
+}
+
+/* Dark mode override – ensures proper contrast on very dark backgrounds */
+.dark .aside__container {
+  @apply bg-[var(--app-bg)];
+}
+
+/* ==========================================================================
+   Current User Info (Top section)
+   ========================================================================== */
+.aside__user {
+  @apply flex items-center gap-sm py-md 
+         border-b border-[var(--border-color)];
+}
+
+.aside__avatar {
+  @apply avatar--lg;
+}
+
+.aside__user-info {
+  @apply flex flex-col;
+}
+
+.aside__name {
+  @apply text-primary-bold text-base;
+}
+
+.aside__username {
+  @apply text-secondary truncate max-w-[20ch];
+}
+
+/* ==========================================================================
+   Navigation Links
+   ========================================================================== */
+.aside__nav {
+  @apply flex flex-col gap-sm;
+}
+
+.aside__nav-link {
+  @apply flex items-center text-lg text-[var(--text-secondary)] 
+         p-sm rounded-lg
+         hover:bg-[var(--card-bg)]
+         hover:text-[var(--linkup-purple)]
+         focus-ring
+         transition-all duration-fast;
+}
+
+.aside__nav-link--logout {
+  @apply hover:text-[#FA8EB2];
+}
+
+.aside__nav-link--active {
+  @apply bg-[var(--card-bg)] text-[var(--linkup-purple)];
+}
+
+.aside__nav-label {
+  @apply ml-3 text-base font-medium;
+}
+
+/* ==========================================================================
+   Responsive – Hide entire aside on mobile
+   ========================================================================== */
+@media (max-width: 767px) {
+  .aside__container {
+    @apply hidden;
+  }
+}

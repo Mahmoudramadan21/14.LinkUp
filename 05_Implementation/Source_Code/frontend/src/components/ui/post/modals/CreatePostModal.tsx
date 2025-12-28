@@ -11,6 +11,7 @@ import { User } from '@/types/auth';
 import { CreatePostFormData, createPostSchema } from '@/utils/validationSchemas';
 import { createPostThunk } from '@/store/postSlice';
 import { CreatePostRequest } from '@/types/post';
+import CustomVideoPlayer from '@/components/ui/common/CustomVideoPlayer';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -110,16 +111,13 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setValue("media", undefined);
     
     try {
-      console.log("Form data:", data);
-      console.log("Selected file:", selectedFile);
       const payload: CreatePostRequest = {
         content: data.content || undefined,
         media: selectedFile || undefined,
       };
-      console.log("Payload for createPostThunk:", payload);
       await dispatch(createPostThunk(payload) as any).unwrap();
-    } catch (error) {
-      console.error("Failed to create post:", error);
+    } catch {
+      // Error is silently handled – no console output in production
     }
   };
 
@@ -190,9 +188,15 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
           {preview && (
             <div className={styles.feed__create_post_preview_wrapper}>
               {isVideoPreview ? (
-                <video
+                // <video
+                //   src={preview}
+                //   controls
+                //   className={`${styles.feed__create_post_preview} ${styles.feed__create_post_video_preview}`}
+                //   aria-label="Video preview"
+                // />
+                <CustomVideoPlayer
                   src={preview}
-                  controls
+                  autoPlay={false}
                   className={`${styles.feed__create_post_preview} ${styles.feed__create_post_video_preview}`}
                   aria-label="Video preview"
                 />

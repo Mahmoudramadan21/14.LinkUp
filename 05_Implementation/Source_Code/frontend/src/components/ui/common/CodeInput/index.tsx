@@ -132,7 +132,7 @@ const CodeInput: React.FC<CodeInputProps> = ({ length, onChange, error }) => {
       role="group"
       aria-label="Verification code input"
     >
-        <div className="code-input__container">
+        <div className={styles["code-input__container"]}>
         {digits.map((digit, index) => (
           <input
             key={index}

@@ -63,7 +63,7 @@ const initialState: AuthState = {
   isAuthenticated: null,
   resetEmail: null,
   loading: {
-    initialize: false,
+    initialize: true,
     signup: false,
     login: false,
     refresh: false,
@@ -120,8 +120,8 @@ export const signupThunk = createAsyncThunk<
   try {
     const response = await signup(data);
     return response.data;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Signup failed";
+  } catch (error: any) {
+    const message = error ? error.message : "Signup failed";
     return rejectWithValue(message);
   }
 });
@@ -134,8 +134,8 @@ export const loginThunk = createAsyncThunk<
   try {
     const response = await login(data);
     return response.data;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Login failed";
+  } catch (error: any) {
+    const message = error ? error.message : "Login failed";
     return rejectWithValue(message);
   }
 });

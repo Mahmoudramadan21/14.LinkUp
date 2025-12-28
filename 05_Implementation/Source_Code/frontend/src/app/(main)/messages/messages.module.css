@@ -216,14 +216,14 @@
          flex-col-reverse lg:flex-row-reverse
          bg-[var(--card-bg)] rounded-full shadow-lg p-1 border border-[var(--border-color)];
 }
-.message__actions           { @apply opacity-0 pointer-events-none transition-opacity duration-fast; }
+.message__actions           { @apply ml-8 opacity-0 pointer-events-none transition-opacity duration-fast; }
 .message__group:hover .message__actions { @apply opacity-100 pointer-events-auto; }
 .message__action            { @apply p-2 rounded-full hover:bg-[var(--section-bg)] transition-colors focus-ring; }
 .message__action--reply     { @apply text-[var(--linkup-purple)]; }
 
 .message__menu {
-  @apply absolute top-8 right-0 bg-[var(--section-bg)] rounded-lg
-         shadow-lg border border-[var(--border-color)] p-2 min-w-[140px] z-50;
+  @apply absolute -top-4 md-down:left-1 md:right-12 bg-[var(--section-bg)] rounded-lg
+         shadow-lg border border-[var(--border-color)] p-2 min-w-[140px] z-[9999999999999];
 }
 .message__menu__item        { @apply flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-[var(--card-bg)] transition-colors focus-ring; }
 .message__menu__item--danger { @apply text-red-500 hover:bg-red-500/10; }
@@ -231,7 +231,7 @@
 .message__meta              { @apply flex items-center gap-1 mt-1 text-xs opacity-70; }
 .message__meta--sent        { @apply justify-end ml-auto; }
 .message__meta--received    { @apply justify-start mr-auto; }
-.message__deleted           { @apply italic text-sm text-[var(--text-secondary)]; }
+.message__deleted           { @apply italic text-sm; }
 .highlight                  { @apply ring-2 ring-[var(--linkup-purple)] ring-offset-2 ring-offset-[var(--section-bg)] transition-all duration-300; }
 
 /* ==========================================================================

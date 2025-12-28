@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     'Watch the best short videos, viral clips, and trending moments on LinkUp. Enjoy an immersive vertical video experience built for speed and engagement.',
 
   alternates: {
-    canonical: '/flicks',
+    canonical: 'https://linkup-app-frontend.vercel.app/flicks',
   },
 
   robots: {
@@ -32,13 +32,13 @@ export const metadata: Metadata = {
     title: 'Flicks - Short Videos on LinkUp',
     description:
       'Discover trending short videos, viral clips, and creative moments shared by the LinkUp community.',
-    url: '/flicks',
+    url: 'https://linkup-app-frontend.vercel.app/flicks',
     siteName: 'LinkUp',
     type: 'video.other',
     locale: 'en_US',
     images: [
       {
-        url: '/og-flicks.png',
+        url: 'og/og-flicks.png',
         width: 1200,
         height: 630,
         alt: 'Viral short videos on LinkUp Flicks',
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Flicks • LinkUp',
     description: 'A fast and engaging feed of short videos from creators everywhere.',
-    images: ['https://linkup.com/og-flicks.png'],
+    images: ['og/og-flicks.png'],
     site: '@LinkUp',
   },
 };
@@ -69,8 +69,8 @@ export default function FlicksPage() {
           name: 'Flicks - Short Videos on LinkUp',
           description:
             'A curated gallery of trending short-form videos, viral clips, and creative moments from the LinkUp community.',
-          url: 'https://linkup.com/flicks',
-          thumbnailUrl: '/og-flicks.png',
+          url: 'https://linkup-app-frontend.vercel.app/flicks',
+          thumbnailUrl: 'og/og-flicks.png',
           genre: 'short-form video',
           inLanguage: 'ar-EG',
           isFamilyFriendly: true,
@@ -84,7 +84,7 @@ export default function FlicksPage() {
           '@type': 'CollectionPage',
           name: 'Flicks Feed',
           description: 'A continuous stream of engaging and trending short videos.',
-          url: 'https://linkup.com/flicks',
+          url: 'https://linkup-app-frontend.vercel.app/flicks',
           mainEntity: {
             '@type': 'ItemList',
             name: 'Trending Flicks',
@@ -100,11 +100,11 @@ export default function FlicksPage() {
           '@type': 'VideoObject',
           name: 'Viral Flick on LinkUp',
           description: 'Watch one of the latest trending short videos on LinkUp.',
-          thumbnailUrl: '/og-flicks.png',
+          thumbnailUrl: 'og/og-flicks.png',
           uploadDate: new Date().toISOString(),
           duration: 'PT15S',
-          contentUrl: 'https://linkup.com/flicks',
-          embedUrl: 'https://linkup.com/flicks',
+          contentUrl: 'https://linkup-app-frontend.vercel.app/flicks',
+          embedUrl: 'https://linkup-app-frontend.vercel.app/flicks',
           interactionStatistic: {
             '@type': 'InteractionCounter',
             interactionType: { '@type': 'WatchAction' },

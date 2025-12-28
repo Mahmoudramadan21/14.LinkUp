@@ -43,7 +43,7 @@ import {
 import { setIsVideoMuted } from "@/store/uiSlice";
 import { debounce } from "lodash";
 import Link from "next/link";
-import TruncatedText from "./TruncatedText";
+import TruncatedText from "../common/TruncatedText";
 import { followUserThunk, unfollowUserThunk } from "@/store/profileSlice";
 
 /**
@@ -606,16 +606,17 @@ const Post = forwardRef<HTMLDivElement, PostProps>((props, ref) => {
             <div className={styles.feed__like_wrapper}>
               <HeartIcon className={`${post.isLiked ? "text-[var(--error)] fill-[var(--error)]" : ""} w-5 h-5`} aria-hidden="true"/>
             </div>
-            <span 
-              className="ml-2" 
-              onClick={(e) => {
-                e.stopPropagation();
-                if (post.likeCount > 0) setShowUserListModal(post.PostID);
-                else handleLikePost();
-              }}
-            >
-              {String(post.likeCount ?? 0)}
-            </span>
+              {!!post.likeCount && (
+                <span 
+                  className="ml-2" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowUserListModal(post.PostID);
+                  }}
+                >
+                  {post.likeCount}
+                </span>
+              )}
           </button>
 
           <button
@@ -624,12 +625,12 @@ const Post = forwardRef<HTMLDivElement, PostProps>((props, ref) => {
             aria-label="Comment on post"
           >
             <EnvelopeIcon className="w-5 h-5" aria-hidden="true"/>
-            <span className="ml-2">{String(post.commentCount ?? 0)}</span>
+            {!!post.commentCount && <span className="ml-2">{post.commentCount}</span>}
           </button>
 
           <button onClick={() => setShowShareModal(post.PostID)} className={styles.feed__post_action} aria-label="Share post">
             <ShareIcon className="w-5 h-5" aria-hidden="true"/>
-            <span className="ml-2">{String(post.shareCount ?? 0)}</span>
+            {!!post.shareCount && <span className="ml-2">{post.shareCount}</span>}
           </button>
         </div>
 

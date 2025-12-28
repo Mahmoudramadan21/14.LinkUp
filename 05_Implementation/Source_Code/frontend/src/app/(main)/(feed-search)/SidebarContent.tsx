@@ -60,7 +60,7 @@ const SidebarContent = () => {
         title: 'SUGGESTED FOR YOU',
         data: suggestions as FollowUser[],
         loading: loading.getSuggestions,
-        emptyMessage: 'No suggestions yet. Follow more people!',
+        emptyMessage: 'No suggestions yet. Your feed will improve as you follow more accounts.',
         seeAllUrl: '/connections?tab=suggestions',
       },
       ...(user?.isPrivate
@@ -161,7 +161,8 @@ const SidebarContent = () => {
                         <p className={styles['sidebar__bio']}>{item.bio || 'No bio available'}</p>
                       </div>
                       <button
-                        className={styles['sidebar__follow-button']}
+                        className={`${item.isFollowed ? styles["btn-unfollow"] : styles["btn-follow"]} text-xs px-2`}
+                        style={{paddingTop: "0.25rem", paddingBottom: "0.25rem"}}
                         onClick={() => handleFollowOrUnfollow(item.userId, item.isFollowed || false)}
                         aria-label={`${item.isFollowed ? 'Unfollow' : 'Follow'} ${item.username}`}
                         disabled={loading.followUser[item.userId] || loading.unfollowUser[item.userId]}

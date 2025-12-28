@@ -20,7 +20,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AddCommentFormData, addCommentSchema } from "@/utils/validationSchemas";
 import { editCommentThunk, deleteCommentThunk } from "@/store/postSlice";
 import Link from "next/link";
-import TruncatedText from "./TruncatedText";
+import TruncatedText from "../common/TruncatedText";
 
 /**
  * Props for the Reply component

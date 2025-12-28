@@ -1,0 +1,148 @@
+/* components/ui/notification/notification-dropdown.module.css */
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Dropdown Container
+   ========================================================================== */
+.notif-dropdown {
+  @apply relative;
+}
+
+/* Bell Button */
+.notif-bell {
+  @apply relative p-2 rounded-full transition-all duration-200 
+         hover:bg-[var(--card-bg)] focus-ring;
+}
+
+/* Unread Badge */
+.notif-badge {
+  @apply absolute -top-1 -right-1 min-w-[18px] h-[18px] 
+         bg-[var(--error)] text-white text-[10px] font-bold 
+         rounded-full flex items-center justify-center 
+         shadow-lg;
+}
+
+/* Backdrop Blur Overlay */
+.notif-overlay {
+  @apply fixed z-40 inset-0 bg-[rgba(var(--app-bg-rgb),0.6)] dark:bg-[rgba(var(--app-bg-rgb),0.8)] backdrop-blur-md;
+}
+
+/* Dropdown Panel */
+.notif-panel {
+  @apply fixed right-24 md-down:right-[10vw] md-down:w-[80vw] sm:w-[380px] mt-2 w-96 max-h-[80vh] 
+         bg-[var(--section-bg)] rounded-2xl shadow-2xl 
+         border border-[var(--border-color)] overflow-hidden 
+         z-[99999] animate-fadeInModal;
+}
+
+
+/* Header */
+.notif-header {
+  @apply flex items-center justify-between p-4 border-b border-[var(--border-color)] relative;
+}
+
+.notif-title {
+  @apply text-primary-bold;;
+}
+
+.notif-mark-all {
+  @apply text-sm text-[var(--linkup-purple)] hover:underline;
+}
+
+.notif-close {
+  @apply p-1 rounded-full hover:bg-[var(--card-bg)] 
+         transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}
+
+/* List */
+.notif-list {
+  @apply max-h-[440px] overflow-y-auto scrollbar-thin-purple;
+}
+
+/* Notification Item */
+.notif-item {
+  @apply flex items-start gap-3 p-4 border-b border-[var(--border-color)/30] 
+         hover:bg-[var(--card-bg)] transition-colors duration-200 
+         last:border-b-0;
+}
+
+.notif-item--unread {
+  @apply bg-[var(--linkup-purple)/5] dark:bg-[var(--linkup-purple)/10];
+}
+
+/* Avatar */
+.notif-avatar-wrapper {
+  @apply relative flex-shrink-0;
+}
+
+.notif-avatar,
+.notif-avatar-placeholder {
+  @apply w-10 h-10 rounded-full object-cover;
+}
+
+.notif-avatar-placeholder {
+  @apply bg-[var(--neutral-gray-light)] dark:bg-[var(--neutral-gray-dark)] 
+         flex items-center justify-center text-lg font-bold text-[var(--text-primary)];
+}
+
+.notif-type-icon {
+  @apply absolute -bottom-1 -right-1 w-6 h-6 rounded-full 
+         bg-[var(--card-bg)] flex items-center justify-center text-lg 
+         shadow-md border-2 border-[var(--section-bg)];
+}
+
+.notif-type-icon svg {
+  @apply text-[var(--linkup-purple)];
+}
+
+/* Content */
+.notif-content {
+  @apply flex-1 min-w-0;
+}
+
+.notif-text {
+  @apply text-sm text-[var(--text-primary)] leading-tight;
+  word-break: break-word;
+}
+
+.notif-text strong {
+  @apply font-semibold;
+}
+
+.notif-time {
+  @apply text-xs text-[var(--text-secondary)] mt-1;
+}
+
+/* Mark as Read Dot */
+.notif-mark-read {
+  @apply ml-auto self-center;
+}
+
+.notif-unread-dot {
+  @apply w-2 h-2 bg-[var(--linkup-purple)] rounded-full;
+}
+
+/* Empty State */
+.notif-empty {
+  @apply flex flex-col items-center text-center py-12 px-6 text-[var(--text-secondary)];
+}
+
+.notif-loading {
+  @apply text-center py-8 text-[var(--text-secondary)];
+}
+
+.notif-load-more {
+  @apply w-full py-3 text-center text-sm text-[var(--linkup-purple)] 
+         hover:bg-[var(--card-bg)] transition-colors;
+}
+
+/* Footer */
+.notif-footer {
+  @apply p-4 border-t border-[var(--border-color)] text-center;
+}
+
+.notif-mark-all-footer {
+  @apply text-sm font-medium text-[var(--linkup-purple)] hover:underline 
+         transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--linkup-purple)];
+}

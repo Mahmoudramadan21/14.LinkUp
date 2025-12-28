@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `${displayName}'s saved stories – a permanent collection of favorite moments on LinkUp.`,
 
     alternates: {
-      canonical: `/${username}/highlights/${highlightId}`,
+      canonical: `https://linkup-app-frontend.vercel.app/${username}/highlights/${highlightId}`,
     },
 
     robots: {
@@ -44,13 +44,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${displayName}'s Highlight on LinkUp`,
       description: `Explore ${displayName}'s curated collection of stories that never expire.`,
-      url: `https://linkup.com/${username}/highlights/${highlightId}`,
+      url: `https://linkup-app-frontend.vercel.app/${username}/highlights/${highlightId}`,
       siteName: 'LinkUp',
       type: 'website',
       locale: 'en_US',
       images: [
         {
-          url: '/og-highlight.png',
+          url: 'og/og-highlight.png',
           width: 1200,
           height: 630,
           alt: `${displayName}'s Highlight on LinkUp`,
@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: `${displayName}'s Highlight | LinkUp`,
       description: `Permanent collection of ${displayName}'s best stories`,
-      images: ['/og-highlight.png'],
+      images: ['og/og-highlight.png'],
       site: '@LinkUp',
       creator: `@${username}`,
     },
@@ -95,11 +95,11 @@ export default async function HighlightViewerPage({ params }: Props) {
           '@type': 'WebPage',
           name: `${username}'s Highlight #${highlightId}`,
           description: `Permanent story collection (highlight) from @${username} on LinkUp social platform.`,
-          url: `https://linkup.com/${username}/highlights/${highlightId}`,
+          url: `https://linkup-app-frontend.vercel.app/${username}/highlights/${highlightId}`,
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
         }}
       />
@@ -111,7 +111,7 @@ export default async function HighlightViewerPage({ params }: Props) {
           '@type': 'CollectionPage',
           name: `${username}'s Highlight`,
           description: `Curated collection of stories saved by @${username}`,
-          url: `https://linkup.com/${username}/highlights/${highlightId}`,
+          url: `https://linkup-app-frontend.vercel.app/${username}/highlights/${highlightId}`,
           mainEntity: {
             '@type': 'ItemList',
             name: 'Stories in Highlight',

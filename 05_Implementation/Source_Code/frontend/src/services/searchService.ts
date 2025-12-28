@@ -23,6 +23,5 @@ export const search = async (params: {
     users: SearchUsersResponse["users"];
     posts: SearchPostsResponse["posts"];
   }> = await api.get("/search", { params });
-  console.log("Search response:", response.data);
   return response.data;
 }; 

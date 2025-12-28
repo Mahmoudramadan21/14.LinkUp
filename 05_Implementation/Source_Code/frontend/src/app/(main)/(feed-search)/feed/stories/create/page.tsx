@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description: 'Share a photo or video as your story on LinkUp. Your friends will see it for 24 hours.',
 
   alternates: {
-    canonical: '/feed/stories/create',
+    canonical: 'https://linkup-app-frontend.vercel.app/feed/stories/create',
   },
 
   robots: {
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Create Your Story on LinkUp',
     description: 'Share a quick photo or video – your friends will see it for 24 hours!',
-    url: '/feed/stories/create',
+    url: 'https://linkup-app-frontend.vercel.app/feed/stories/create',
     siteName: 'LinkUp',
     type: 'website',
     locale: 'en_US',
     images: [
       {
-        url: '/og-create-story.png',
+        url: 'og/og-create-story.png',
         width: 1200,
         height: 630,
         alt: 'Create a new story on LinkUp',
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Create Story | LinkUp',
     description: 'Share a moment that lasts 24 hours',
-    images: ['/og-create-story.png'],
+    images: ['og/og-create-story.png'],
     site: '@LinkUp',
   },
 };
@@ -74,18 +74,18 @@ export default function CreateStoryPage() {
           '@type': 'WebPage',
           name: 'Create Story',
           description: 'Upload a photo or video to share as your story on LinkUp for 24 hours.',
-          url: 'https://linkup.com/feed/stories/create',
+          url: 'https://linkup-app-frontend.vercel.app/feed/stories/create',
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
           potentialAction: {
             '@type': 'CreateAction',
             name: 'Create a new story',
             target: {
               '@type': 'EntryPoint',
-              urlTemplate: 'https://linkup.com/feed/stories/create',
+              urlTemplate: 'https://linkup-app-frontend.vercel.app/feed/stories/create',
             },
           },
         }}

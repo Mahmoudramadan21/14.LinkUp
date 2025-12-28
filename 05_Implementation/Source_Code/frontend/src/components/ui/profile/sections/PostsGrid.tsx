@@ -7,6 +7,7 @@ import Post from '@/components/ui/post/Post';
 import PostSkeleton from '@/components/ui/post/PostSkeleton';
 import { getUserPostsThunk, getSavedPostsThunk } from '@/store/postSlice';
 import PrivateAccessNotice from '../states/PrivateAccessNotice';
+import EmptyState from '../states/EmptyState';
 
 interface PostsGridState {
   showCommentForm: number | null;
@@ -146,9 +147,14 @@ const PostsGrid: React.FC<PostsGridProps> = memo(
     // Empty state
     if (postsToShow.length === 0 && !isLoading && !profileLoading.getProfile) {
       return (
-        <p className="text-center text-gray-500 py-12 text-lg" aria-live="polite">
-          {type === 'posts' ? 'No posts yet.' : 'No saved posts yet.'}
-        </p>
+        <EmptyState
+          title={type === 'posts' ? 'No Posts Yet' : 'No Saved Posts'}
+          message={
+            type === 'posts'
+              ? 'This user hasn’t shared any posts yet.'
+              : "You haven't saved any posts yet."
+          }
+        />
       );
     }
 

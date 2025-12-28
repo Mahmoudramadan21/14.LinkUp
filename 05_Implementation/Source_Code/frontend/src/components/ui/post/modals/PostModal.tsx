@@ -47,12 +47,32 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, postId, onClose, actions 
 
   const dispatch = useDispatch<AppDispatch>();
 
-  const { posts, currentPost, loading, error } = useSelector(
+  const { posts, currentPost, usersPosts, loading, error } = useSelector(
     (state: RootState) => state.post
   );
 
+
   // Find post either in main list or in currentPost (from getPostById)
-  const selectedPost = posts.find((p) => p.PostID === postId) || currentPost;
+  const selectedPost =
+    posts.find((p) => p.PostID === postId) ||
+    usersPosts
+      .flatMap((u) => u.posts)
+      .find((p) => p.PostID === postId) ||
+    (currentPost?.PostID === postId ? currentPost : null);
+
+
+  useEffect(() => {
+    if (!isOpen || !postId) return;
+
+    const needsFetch =
+      !selectedPost ||
+      !currentPost ||
+      currentPost.PostID !== postId;
+
+    if (needsFetch) {
+      dispatch(getPostByIdThunk(postId));
+    }
+  }, [isOpen, postId, selectedPost, currentPost, dispatch]);
 
   // Local UI states for comment/reply forms and post menu
   const [showCommentForm, setShowCommentForm] = useState<number | null>(null);
@@ -75,9 +95,6 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, postId, onClose, actions 
         .then(() => {
           pendingViewsRef.current = []; // Clear after success
         })
-        .catch((err) => {
-          console.error("Failed to record batch post views:", err);
-        });
     }
   }, 10000);
 
@@ -122,13 +139,6 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, postId, onClose, actions 
       document.body.style.overflow = '';
     };
   }, []);
-
-  // Fetch post details if not already in state
-  useEffect(() => {
-    if (isOpen && postId && !selectedPost) {
-      dispatch(getPostByIdThunk(postId));
-    }
-  }, [isOpen, postId, selectedPost, dispatch]);
 
   // Load initial comments when modal opens
   useEffect(() => {

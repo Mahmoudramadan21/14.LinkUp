@@ -12,11 +12,14 @@ import { RootState } from '@/store';
 import { UpdatePostFormData, updatePostSchema } from '@/utils/validationSchemas';
 import { updatePostThunk } from '@/store/postSlice';
 
+type PostSource = 'posts' | 'usersPosts' | 'flicks' | 'explorePosts' | 'savedPosts' | 'searchedPosts';
+
 interface EditPostModalProps {
   isOpen: boolean;
   postId: number | null;
   onClose: () => void;
   user: User | null;
+  postSource?: PostSource;
 }
 
 /**
@@ -28,21 +31,29 @@ const EditPostModal: React.FC<EditPostModalProps> = ({
   postId,
   onClose,
   user,
+  postSource
 }) => {
   const dispatch = useDispatch();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Efficiently find the post across all possible post arrays in Redux store
+  // Efficiently select the post based on the source it originally came from.
   const post = useSelector((state: RootState) => {
-    const arrays = [
-      state.post.posts,
-      state.post.explorePosts,
-      state.post.flicks,
-      state.post.savedPosts,
-      state.post.searchPostResults,
-      ...state.post.usersPosts.map((u) => u.posts),
-    ];
-    return arrays.flat().find((p) => p.PostID === postId) || null;
+    switch (postSource) {
+      case 'posts':
+        return state.post.posts.find(p => p.PostID === postId);
+      case 'explorePosts':
+        return state.post.explorePosts.find(p => p.PostID === postId);
+      case 'flicks':
+        return state.post.flicks.find(p => p.PostID === postId);
+      case 'savedPosts':
+        return state.post.savedPosts.find(p => p.PostID === postId);
+      case 'searchedPosts':
+        return state.post.searchPostResults.find(p => p.PostID === postId);
+      case 'usersPosts':
+        return state.post.usersPosts.flatMap(u => u.posts).find(p => p.PostID === postId);
+      default:
+        return null;
+    }
   });
 
   const {
@@ -86,8 +97,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({
         reset();
         onClose();
       }
-    } catch (error) {
-      console.error("Failed to update post:", error);
+    } catch {
       setSubmitError("Failed to update post. Please try again.");
     }
   };

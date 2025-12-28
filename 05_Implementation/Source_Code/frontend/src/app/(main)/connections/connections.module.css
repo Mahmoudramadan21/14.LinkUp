@@ -147,7 +147,7 @@
 }
 
 .connections__user-card-name {
-  @apply text-base font-semibold text-[var(--text-primary)] sm-down:text-sm;
+  @apply text-base font-semibold text-[var(--text-primary)] sm-down:text-sm block truncate max-w-[16ch];
 }
 
 .connections__user-card-bio {
@@ -162,12 +162,12 @@
 }
 
 .connections__user-card-button--accept {
-  @apply btn-rounded--success md-down:text-base sm-down:text-sm will-transform;
-}
+  @apply btn-rounded--purple text-white text-[0.85rem] px-2 py-1 
+         disabled:bg-gray-400 disabled:cursor-not-allowed;}
 
 .connections__user-card-button--reject {
-  @apply btn-rounded bg-[var(--error)] md-down:text-base sm-down:text-sm will-transform;
-}
+  @apply btn-rounded bg-[var(--neutral-gray-light)] text-[var(--neutral-gray-dark)] 
+         text-[0.85rem] px-2 py-1 disabled:bg-gray-400 disabled:cursor-not-allowed;}
 
 /* Focus rings for action buttons */
 .connections__user-card-button--pending:focus-visible,

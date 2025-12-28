@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `Private collection – Only ${displayName} can view their saved posts on LinkUp.`,
 
     alternates: {
-      canonical: `/${username}/saved`,
+      canonical: `https://linkup-app-frontend.vercel.app/${username}/saved`,
     },
 
     // Critical: prevent indexing of private content
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${displayName}'s Saved Posts (Private) | LinkUp`,
       description:
         'This is a private collection. Only the profile owner can view saved posts.',
-      url: `https://linkup.com/${username}/saved`,
+      url: `https://linkup-app-frontend.vercel.app/${username}/saved`,
       siteName: 'LinkUp',
       type: 'profile',
       locale: 'en_US',
@@ -80,7 +80,7 @@ export default async function StoryViewerPage({ params }: Props) {
           name: `${cleanUsername}'s Saved Posts`,
           description:
             'Private collection of saved posts. Only visible to the profile owner.',
-          url: `https://linkup.com/${username}/saved`,
+          url: `https://linkup-app-frontend.vercel.app/${username}/saved`,
           accessMode: 'private',
           accessModeSufficient: ['textual'],
           isAccessibleForFree: false,

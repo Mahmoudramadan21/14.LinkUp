@@ -50,7 +50,7 @@
 
 /* Invalid input state */
 .input-block__input--invalid {
-  @apply border-[var(--error)];
+  @apply border-[var(--error)] focus:ring-[var(--error)];
 }
 
 /* Error message */

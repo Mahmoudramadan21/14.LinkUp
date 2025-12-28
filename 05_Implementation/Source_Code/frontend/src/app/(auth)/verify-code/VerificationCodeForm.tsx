@@ -46,24 +46,19 @@ const VerificationCodeForm = (): JSX.Element => {
 
   useEffect(() => {
     setValue("code", code);
-    console.log("Updated form code:", code);
   }, [code, setValue]);
 
   const onSubmit = async () => {
-    console.log("Submitting verify code:", { email: resetEmail, code });
     if (!resetEmail || code.length !== 4) {
-      console.error("Invalid input:", { email: resetEmail, code });
       return;
     }
     try {
-      const response = await dispatch(
+      await dispatch(
         verifyCodeThunk({ email: resetEmail, code })
       ).unwrap();
-      console.log("Verify code response:", response);
       router.push("/reset-password");
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      console.error("Verify code error:");
       if (!serverError) {
         dispatch({
           type: "auth/verifyCode/rejected",
@@ -75,7 +70,6 @@ const VerificationCodeForm = (): JSX.Element => {
 
   const handleResend = async () => {
     if (!resetEmail) {
-      console.error("No email available for resend");
       router.push("/forgot-password");
       return;
     }

@@ -165,11 +165,6 @@ export const getUserStoriesThunk = createAsyncThunk<
     }
 
     const userStories = await getUserStories(username);
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("getUserStories response:", userStories);
-    }
-
     if (
       !userStories ||
       !userStories.stories ||
@@ -379,13 +374,6 @@ const storySlice = createSlice({
             latestViewers: [],
           };
 
-          if (process.env.NODE_ENV === "development") {
-            console.log(
-              "createStoryThunk.fulfilled: Adding new story",
-              newStory
-            );
-          }
-
           const user = action.payload.user;
           if (user) {
             const userFeedIndex = state.storyFeed.findIndex(
@@ -489,16 +477,6 @@ const storySlice = createSlice({
           }
 
           state.currentStory = newItem.stories[0] || null;
-
-          if (process.env.NODE_ENV === "development") {
-            console.log(
-              "getUserStoriesThunk.fulfilled: Updated storyFeed and currentStory",
-              {
-                storyFeed: state.storyFeed,
-                currentStory: state.currentStory,
-              }
-            );
-          }
         }
       )
       .addCase(
@@ -668,17 +646,6 @@ const storySlice = createSlice({
           // Update currentStory if it matches
           if (state.currentStory && state.currentStory.storyId === storyId) {
             updateStory(state.currentStory);
-          }
-
-          if (process.env.NODE_ENV === "development") {
-            console.log(
-              "recordStoryViewThunk.fulfilled: Updated story view and hasUnviewedStories",
-              {
-                storyId,
-                storyFeed: state.storyFeed,
-                currentStory: state.currentStory,
-              }
-            );
           }
         }
       )

@@ -136,7 +136,7 @@
 
 /* Header (user info + close button) */
 .stories__viewer_header {
-  @apply absolute top-0 left-0 right-0 p-md z-10 bg-gradient-to-b from-[rgba(var(--app-bg-rgb),0.2)] to-transparent;
+  @apply absolute top-6 left-0 right-0 py-md px-8 z-10 max-w-[inherit] mx-auto;
 }
 .stories__viewer_user { @apply flex justify-between items-center gap-sm; }
 .stories__viewer_avatar { @apply avatar--md; }

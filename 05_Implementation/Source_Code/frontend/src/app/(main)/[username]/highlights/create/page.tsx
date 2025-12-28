@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `Create a new highlight to save your favorite stories permanently on LinkUp.`,
 
     alternates: {
-      canonical: `/${username}/highlights/create`,
+      canonical: `https://linkup-app-frontend.vercel.app/${username}/highlights/create`,
     },
 
     // This is a private/action page – never index it
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `Create a New Highlight | LinkUp`, 
       description: 'Private page – Create a new highlight to save your best stories.',
-      url: `https://linkup.com/${username}/highlights/create`,
+      url: `https://linkup-app-frontend.vercel.app/${username}/highlights/create`,
       siteName: 'LinkUp',
       type: 'website',
       locale: 'en_US',
@@ -76,7 +76,7 @@ export default async function StoryViewerPage({ params }: Props) {
           '@type': 'WebPage',
           name: 'Create New Highlight',
           description: 'Private interface for creating a new story highlight on LinkUp.',
-          url: `https://linkup.com/${username}/highlights/create`,
+          url: `https://linkup-app-frontend.vercel.app/${username}/highlights/create`,
           accessMode: 'private',
           accessModeSufficient: ['textual'],
           isAccessibleForFree: true,
@@ -87,7 +87,7 @@ export default async function StoryViewerPage({ params }: Props) {
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
         }}
       />

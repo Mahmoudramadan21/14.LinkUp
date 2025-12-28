@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
 import type { RootState } from '@/store';
+import AppLoader from '../ui/common/AppLoader';
 
 const withResetEmailProtection = <P extends object>(WrappedComponent: React.ComponentType<P>) => {
   const ProtectedComponent: React.FC<P> = (props) => {
@@ -26,9 +27,7 @@ const withResetEmailProtection = <P extends object>(WrappedComponent: React.Comp
     // Loading state
     if (isAuthLoading) {
       return (
-        <div className="auth-page__loading" role="status" aria-live="polite">
-          Loading...
-        </div>
+        <AppLoader />
       );
     }
 

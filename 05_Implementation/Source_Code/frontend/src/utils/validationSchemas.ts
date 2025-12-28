@@ -3,7 +3,7 @@ import { Gender } from "@/types/auth";
 
 // Password validation regex: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
 const passwordRegex =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 // Username validation regex: 3-20 chars, alphanumeric and underscores
 const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;

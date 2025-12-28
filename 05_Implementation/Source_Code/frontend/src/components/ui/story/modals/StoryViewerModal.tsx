@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useRef,
   useState,
-  useMemo,
   memo,
 } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -25,6 +24,8 @@ import { recordStoryViewThunk } from '@/store/storySlice';
 import { replyToStoryThunk } from '@/store/messageSlice';
 import { StoryFeedItem } from '@/types/story';
 import { SendIcon } from 'lucide-react';
+import StoryViewerSkeletonModal from '../StoryViewerSkeletonModal';
+import Link from 'next/link';
 
 /* ==================== Types & Constants ==================== */
 interface StoryViewerModalModals {
@@ -46,6 +47,10 @@ interface StoryViewerModalNavigation {
 interface StoryViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  usersListRef?: React.RefObject<HTMLDivElement | null>;
+  sentinelRef?: React.RefObject<HTMLDivElement | null>;
+  hasMoreUsers?: boolean;
+
   loading: boolean;
   storyFeed: StoryFeedItem[];
   selectedUserId: number | null;
@@ -68,7 +73,7 @@ const STORY_DURATION = 15000;
  */
 const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
 
-  ({ isOpen, onClose, loading, storyFeed, selectedUserId, currentIndex, navigation, actions }) => {
+  ({ isOpen, onClose, usersListRef, sentinelRef, hasMoreUsers, loading, storyFeed, selectedUserId, currentIndex, navigation, actions }) => {
     const { onNext, onPrev, onSelectUser } = navigation;
     const { modals, interactions } = actions;
     const { setShowReportModal, setShowDeleteModal } = modals;
@@ -96,6 +101,10 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
       ? storyFeed.find((item) => item.userId === selectedUserId)
       : null;
     const currentStory = currentStoryFeedItem?.stories[currentIndex];
+
+    const currentStoryFeedIndex = storyFeed.findIndex(
+      (item) => item.userId === selectedUserId
+    );
 
     /* ==================== Pause Handling ==================== */
     // Pause story progression when tab is hidden or window loses focus
@@ -164,6 +173,7 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
       isReplyInputFocused,
       currentIndex,
       onNext,
+      pausedAt
     ]);
 
     /* ==================== Record Story View ==================== */
@@ -254,88 +264,10 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
       };
     }, []);
 
-    /* ==================== Skeleton Components ==================== */
-    const UserListSkeleton = useMemo(
-      () => (
-        <div className={styles.stories__viewer_users} role="navigation" aria-label="Loading story users">
-          {Array.from({ length: storyFeed.length || 5 }).map((_, i) => (
-            <div
-              key={`skeleton-user-${i}`}
-              className={`${styles.stories__avatar_wrapper} ${styles.stories__skeleton} bg-neutral-gray`}
-              style={{ animationDelay: `${i * 0.1}s` }}
-            >
-              <div className={`${styles.stories__avatar_ring} ${styles.stories__skeleton} bg-neutral-gray`}>
-                <div className={`${styles.stories__avatar} ${styles.stories__skeleton} bg-neutral-gray`} />
-              </div>
-              <div className={`${styles.stories__username} ${styles.stories__skeleton} bg-neutral-gray`} />
-            </div>
-          ))}
-        </div>
-      ),
-      [storyFeed.length]
-    );
-
-    const StorySkeleton = useMemo(
-      () => (
-        <div className={styles.stories__viewer_story}>
-          <div className={styles.stories__viewer_story_header}>
-            <div className="flex items-center">
-              <div className={`${styles.stories__viewer_avatar} ${styles.stories__skeleton} bg-neutral-gray`} />
-              <div className={`${styles.stories__viewer_username} ${styles.stories__skeleton} bg-neutral-gray ml-2 w-20 h-4`} />
-            </div>
-            <div className={`${styles.stories__viewer_menu_button} ${styles.stories__skeleton} bg-neutral-gray w-8 h-8 rounded-full`} />
-          </div>
-
-          <div className={styles.stories__viewer_progress} aria-label="Loading progress">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={`progress-${i}`} className={styles.stories__viewer_progress_bar}>
-                <div
-                  className={`${styles.stories__viewer_progress_fill} ${styles.stories__skeleton} bg-neutral-gray`}
-                  style={{ animationDelay: `${i * 0.2}s` }}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className={styles.stories__viewer_content}>
-            <div className={`${styles.stories__viewer_media} ${styles.stories__skeleton} bg-neutral-gray`} />
-          </div>
-
-          <div className={styles.stories__viewer_actions}>
-            <div className={`${styles.stories__viewer_latest_viewers} ${styles.stories__skeleton} bg-neutral-gray w-32 h-6 rounded`} />
-            <div className={`${styles.stories__viewer_action} ${styles.stories__skeleton} bg-neutral-gray ml-auto mr-4 w-6 h-6 rounded-full`} />
-          </div>
-        </div>
-      ),
-      []
-    );
 
     /* ==================== Loading State ==================== */
-    if (isOpen && loading) {
-      return (
-        <div
-          className={`${styles.stories__viewer_modal_overlay} bg-overlay`}
-          role="dialog"
-          aria-modal="true"
-          aria-busy="true"
-          tabIndex={-1}
-          ref={modalRef}
-        >
-          <div className={styles.stories__viewer_modal}>
-            <div className={styles.stories__viewer_header}>
-              <div className={styles.stories__viewer_user}>
-                <span className={`${styles.stories__viewer_username} ${styles.stories__skeleton} bg-neutral-gray w-24 h-5`} />
-                <button className={`${styles.stories__viewer_close} ${styles.stories__skeleton} bg-neutral-gray w-5 h-5 rounded-full`} tabIndex={-1} />
-              </div>
-            </div>
-            <div className={styles.stories__viewer_main}>
-              {UserListSkeleton}
-              {StorySkeleton}
-            </div>
-          </div>
-        </div>
-      );
-    }
+    if (isOpen && loading) return <StoryViewerSkeletonModal />;
+
 
     if (!isOpen || loading) return null;
 
@@ -349,17 +281,17 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
           tabIndex={-1}
           ref={modalRef}
         >
-          <div className={styles.stories__viewer_modal}>
-            <div className={styles.stories__viewer_header}>
+          <div className={styles.stories__viewer_header}>
               <div className={styles.stories__viewer_user}>
                 <span className={styles.stories__viewer_username}>Error</span>
               </div>
               <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close">
                 <FaTimes size={20} />
               </button>
-            </div>
+          </div>
+          <div className={styles.stories__viewer_modal}>
             <div className={styles.stories__viewer_content}>
-              <p className={styles.stories__error}>Unable to load story. Please try again.</p>
+              <p className={styles.stories__error}>Unable to load highlight.</p>
             </div>
           </div>
         </div>
@@ -376,23 +308,23 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
         tabIndex={-1}
         ref={modalRef}
       >
-        <div className={styles.stories__viewer_modal}>
-          {/* Header */}
-          <div className={styles.stories__viewer_header}>
-            <div className={styles.stories__viewer_user}>
-              <span id="story-viewer-title" className={styles.stories__viewer_username}>
-                {currentStoryFeedItem.username || 'User'}
-              </span>
-              <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close modal">
-                <FaTimes size={20} />
-              </button>
-            </div>
+        {/* Header */}
+        <div className={styles.stories__viewer_header}>
+          <div className={styles.stories__viewer_user}>
+            <span id="story-viewer-title" className={styles.stories__viewer_username}>
+              {currentStoryFeedItem.username || 'User'}
+            </span>
+            <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close modal">
+              <FaTimes size={20} />
+            </button>
           </div>
+        </div>
 
+        <div className={styles.stories__viewer_modal}>
           {/* Main Content */}
           <div className={styles.stories__viewer_main}>
             {/* User List Sidebar */}
-            <div className={styles.stories__viewer_users} role="navigation" aria-label="Story users">
+            <div ref={usersListRef} className={styles.stories__viewer_users} role="navigation" aria-label="Story users">
               {storyFeed.map((item) => (
                 <button
                   key={item.userId}
@@ -420,6 +352,26 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
                   <span className={styles.stories__username}>{item.username}</span>
                 </button>
               ))}
+              {loading && storyFeed.length !== 0 && (
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`hl-skeleton-${i}`} className={styles.stories__avatar_wrapper}>
+                      <div className={`${styles.stories__avatar_ring} ${styles.stories__skeleton} bg-gray-700`}>
+                        <div className={`${styles.stories__avatar} ${styles.stories__skeleton} bg-gray-600`} />
+                      </div>
+                      <div className={`${styles.stories__username} ${styles.stories__skeleton} bg-gray-700 w-12 h-3 mt-1`} />
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {hasMoreUsers && (
+                <div
+                  ref={sentinelRef}
+                  className="flex-shrink-0 w-20 h-20"
+                  aria-hidden="true"
+                />
+              )}
             </div>
 
             {/* Current Story */}
@@ -427,19 +379,23 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
               {/* Story Header */}
               <div className={styles.stories__viewer_story_header}>
                 <div className="flex items-center">
-                  <Image
-                    src={currentStoryFeedItem.profilePicture || '/avatars/default-avatar.svg'}
-                    alt={`${currentStoryFeedItem.username}'s profile picture`}
-                    width={32}
-                    height={32}
-                    className={styles.stories__viewer_avatar}
-                    loading="lazy"
-                    placeholder="blur"
-                    blurDataURL="/avatars/default-avatar-blur.svg"
-                  />
-                  <span className={`${styles.stories__viewer_username} ml-2`}>
-                    {currentStoryFeedItem.username}
-                  </span>
+                  <Link href={`/${currentStoryFeedItem.username}`}>
+                    <Image
+                      src={currentStoryFeedItem.profilePicture || '/avatars/default-avatar.svg'}
+                      alt={`${currentStoryFeedItem.username}'s profile picture`}
+                      width={32}
+                      height={32}
+                      className={styles.stories__viewer_avatar}
+                      loading="lazy"
+                      placeholder="blur"
+                      blurDataURL="/avatars/default-avatar-blur.svg"
+                    />
+                  </Link>
+                  <Link href={`/${currentStoryFeedItem.username}`}>
+                    <span className={`${styles.stories__viewer_username} ml-2`}>
+                      {currentStoryFeedItem.username}
+                    </span>
+                  </Link>
                 </div>
 
                 {/* Options Menu */}
@@ -527,7 +483,7 @@ const StoryViewerModal: React.FC<StoryViewerModalProps> = memo(
                 <button
                   onClick={onPrev}
                   className={styles.stories__viewer_nav_prev}
-                  disabled={currentIndex === 0}
+                  disabled={currentIndex === 0 && currentStoryFeedIndex === 0}
                   aria-label="Previous story"
                 >
                   <FaChevronLeft className={styles.stories__viewer_nav_hint} />

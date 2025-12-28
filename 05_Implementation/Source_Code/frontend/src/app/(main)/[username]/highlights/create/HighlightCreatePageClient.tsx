@@ -1,7 +1,9 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
 import CreateHighlightModal from '@/components/ui/profile/highlights/CreateHighlightModal';
 
 /**
@@ -18,27 +20,43 @@ const FullCreateHighlightPage: React.FC = memo(() => {
   const params = useParams<{ username: string }>();
 
   // Safely extract username (handles string | string[] from App Router)
-  const username = params?.username ?? '';
+  const username = params.username ?? '';
+  const { profiles, loading } = useSelector((state: RootState) => state.profile);
+  const profile = username ? profiles[username] : null;
 
+
+  // Redirect if:
+  // - Username is invalid
+  // - Profile loaded and user is not the owner
+  useEffect(() => {
+    if (!username) {
+      router.replace('/');
+      return;
+    }
+
+    if (!loading.getProfile && profile && !profile.isMine) {
+      router.replace(`/${username}`, { scroll: false });
+    }
+  }, [profile, loading.getProfile, username, router]);
+  
   /**
    * Graceful close with proper history handling
-   * 1. Go back if possible (best UX)
-   * 2. Go to user's profile
-   * 3. Fallback to home
+   * 1. Go to user's profile
+   * 2. Fallback to home
    */
   const handleClose = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else if (username) {
+    if (username) {
       router.replace(`/${username}`, { scroll: false });
     } else {
       router.replace('/feed', { scroll: false });
     }
   };
 
-  return (
-    <CreateHighlightModal isOpen={true} onClose={handleClose} />
-  );
+  if (!loading.getProfile && profile && profile.isMine) {
+    return (
+      <CreateHighlightModal isOpen={true} onClose={handleClose} />
+    );
+  }
 });
 
 FullCreateHighlightPage.displayName = 'FullCreateHighlightPage';

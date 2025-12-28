@@ -33,7 +33,7 @@ import {
   getCommentRepliesThunk,
 } from "@/store/postSlice";
 import Link from "next/link";
-import TruncatedText from "./TruncatedText";
+import TruncatedText from "../common/TruncatedText";
 
 /**
  * Props for the Comment component

@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `Watch ${displayName}'s active story – photos, videos and moments shared with friends on LinkUp.`,
 
     alternates: {
-      canonical: `/feed/stories/${username}`,
+      canonical: `https://linkup-app-frontend.vercel.app/feed/stories/${username}`,
     },
 
     robots: {
@@ -41,13 +41,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${displayName}'s Story on LinkUp`,
       description: `See what ${displayName} is sharing right now – only visible for 24 hours`,
-      url: `https://linkup.com/feed/stories/${username}`,
+      url: `https://linkup-app-frontend.vercel.app/feed/stories/${username}`,
       siteName: 'LinkUp',
       type: 'website',
       locale: 'en_US',
       images: [
         {
-          url: '/og-story.png', // you can later make this dynamic per user
+          url: 'og/og-story.png', // you can later make this dynamic per user
           width: 1200,
           height: 630,
           alt: `${displayName}'s active story on LinkUp`,
@@ -59,7 +59,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: `${displayName}'s Story | LinkUp`,
       description: `Check out ${displayName}'s latest story`,
-      images: ['/og-story.png'],
+      images: ['og/og-story.png'],
       site: '@LinkUp',
       creator: `@${username}`,
     },
@@ -89,11 +89,11 @@ export default async function StoryViewerPage({ params }: Props) {
           '@type': 'WebPage',
           name: `${cleanUsername}'s Story`,
           description: `Full-screen story viewer for @${username} on LinkUp social platform. Stories disappear after 24 hours.`,
-          url: `https://linkup.com/feed/stories/${username}`,
+          url: `https://linkup-app-frontend.vercel.app/feed/stories/${username}`,
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
         }}
       />
@@ -105,7 +105,7 @@ export default async function StoryViewerPage({ params }: Props) {
           '@type': 'ProfilePage',
           name: `${username}'s Story`,
           description: `Temporary story content from @${username}`,
-          url: `https://linkup.com/feed/stories/${username}`,
+          url: `https://linkup-app-frontend.vercel.app/feed/stories/${username}`,
           about: {
             '@type': 'Person',
             alternateName: username,

@@ -72,15 +72,6 @@ const CreatePostTrigger: React.FC<CreatePostTriggerProps> = ({
         <label
           htmlFor="image-upload"
           className={`${styles.feed__create_post_media_label} ${styles.feed__create_post_image_label}`}
-          onClick={(e) => {
-            // Trigger hidden input only if clicking the label itself (not child input)
-            if (
-              e.target === e.currentTarget ||
-              (e.target as HTMLElement).tagName !== "INPUT"
-            ) {
-              imageInputRef.current?.click();
-            }
-          }}
         >
           <FaImage /> Photo
           <input
@@ -94,18 +85,10 @@ const CreatePostTrigger: React.FC<CreatePostTriggerProps> = ({
         </label>
 
         {/* Video Upload */}
-        <label
-          htmlFor="video-upload"
-          className={`${styles.feed__create_post_media_label} ${styles.feed__create_post_video_label}`}
-          onClick={(e) => {
-            if (
-              e.target === e.currentTarget ||
-              (e.target as HTMLElement).tagName !== "INPUT"
-            ) {
-              videoInputRef.current?.click();
-            }
-          }}
-        >
+          <label
+            htmlFor="video-upload"
+            className={`${styles.feed__create_post_media_label} ${styles.feed__create_post_video_label}`}
+          >
           <FaVideo /> Video
           <input
             ref={videoInputRef}

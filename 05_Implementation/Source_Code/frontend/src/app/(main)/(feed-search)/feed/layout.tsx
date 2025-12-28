@@ -23,7 +23,7 @@ const FeedPageLayout = memo(({ children }: { children?: ReactNode }) => {
           name: 'Your Feed',
           description:
             'Personalized social media feed showing posts and stories from friends on LinkUp.',
-          url: 'https://linkup.com/feed',
+          url: 'https://linkup-app-frontend.vercel.app/feed',
           breadcrumb: {
             '@type': 'BreadcrumbList',
             itemListElement: [
@@ -31,7 +31,7 @@ const FeedPageLayout = memo(({ children }: { children?: ReactNode }) => {
                 '@type': 'ListItem',
                 position: 1,
                 name: 'Home',
-                item: 'https://linkup.com/',
+                item: 'https://linkup-app-frontend.vercel.app/',
               },
               {
                 '@type': 'ListItem',
@@ -49,7 +49,7 @@ const FeedPageLayout = memo(({ children }: { children?: ReactNode }) => {
           '@type': 'CollectionPage',
           name: 'LinkUp Social Feed',
           description: 'Latest posts and stories from people you follow.',
-          url: 'https://linkup.com/feed',
+          url: 'https://linkup-app-frontend.vercel.app/feed',
           mainEntity: {
             '@type': 'ItemList',
             name: 'Social Media Posts',

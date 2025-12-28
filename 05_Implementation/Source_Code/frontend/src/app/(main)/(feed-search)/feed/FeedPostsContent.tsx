@@ -289,6 +289,7 @@ const FeedPostsContent = memo(() => {
             postId={showEditModal}
             onClose={() => setShowEditModal(null)}
             user={user}
+            postSource="posts"
           />
         )}
         {showDeleteModal && (

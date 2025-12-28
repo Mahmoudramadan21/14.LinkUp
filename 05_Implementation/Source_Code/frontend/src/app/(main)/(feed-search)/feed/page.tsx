@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 
   // Canonical URL
   alternates: {
-    canonical: '/feed',
+    canonical: 'https://linkup-app-frontend.vercel.app/feed',
   },
 
   // Full indexing – this is your homepage alternative
@@ -50,13 +50,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Your Feed on LinkUp',
     description: 'Stay connected with friends through posts, stories, and real-time updates.',
-    url: '/feed',
+    url: 'https://linkup-app-frontend.vercel.app/feed',
     siteName: 'LinkUp',
     type: 'website',
     locale: 'en_US',
     images: [
       {
-        url: '/og-feed.png',          
+        url: 'og/og-feed.png',          
         width: 1200,
         height: 630,
         alt: 'LinkUp Feed – Posts and Stories from Friends',
@@ -69,18 +69,9 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Your Feed | LinkUp',
     description: 'See the latest from your friends on LinkUp.',
-    images: ['/og-feed.png'],
+    images: ['og/og-feed.png'],
     creator: '@LinkUp',
     site: '@LinkUp',
-  },
-
-  // PWA & Mobile
-  manifest: '/manifest.json',
-  themeColor: '#4361ee',
-  appleWebApp: {
-    capable: true,
-    title: 'LinkUp',
-    statusBarStyle: 'black-translucent',
   },
 };
 

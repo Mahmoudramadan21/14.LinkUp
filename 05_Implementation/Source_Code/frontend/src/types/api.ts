@@ -5,6 +5,7 @@ export interface ErrorResponse {
   message: string;
   error?: string; // Only in development
   errors?: Array<{ field: string; error: string }>;
+  statusCode?: number;
 }
 
 /**

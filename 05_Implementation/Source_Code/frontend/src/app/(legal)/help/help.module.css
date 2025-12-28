@@ -1,0 +1,155 @@
+/* app/help/help.module.css */
+/* Ultra-Modern Help Center – LinkUp Design System 2025 */
+
+/* Tailwind Base */
+@tailwind components;
+@tailwind utilities;
+
+/* ====================== ROOT ====================== */
+.help {
+  @apply container py-16 md:py-20;
+}
+
+/* ====================== HERO ====================== */
+.help__hero {
+  @apply text-center mb-12;
+}
+
+.help__title {
+  @apply text-3xl md:text-4xl font-extrabold tracking-tight mb-3;
+  background: var(--gradient-purple-teal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.help__subtitle {
+  @apply text-base md:text-lg text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed;
+}
+
+/* ====================== STICKY NAV ====================== */
+.help__nav {
+  @apply sticky top-[110px] md:top-16 z-20 backdrop-blur-xl 
+         border-b border-[var(--border-color)] py-3 mb-10;
+  background-color: rgba(var(--app-bg), 0.8);
+}
+
+.help__navList {
+  @apply flex flex-wrap justify-center gap-4 md:gap-6;
+}
+
+.help__navLink {
+  @apply px-4 py-1.5 text-sm md:text-base font-medium 
+         text-[var(--text-secondary)] hover:text-[var(--linkup-purple)]
+         rounded-full transition-colors focus-ring-teal;
+}
+
+.help__navLink:hover {
+  @apply bg-[var(--card-bg)];
+}
+
+/* ====================== CONTENT ====================== */
+.help__content {
+  @apply max-w-4xl mx-auto space-y-16;
+}
+
+.help__section {
+  @apply scroll-mt-28;
+}
+
+.help__sectionTitle {
+  @apply text-lg md:text-xl font-bold mb-6 text-[var(--text-primary)]
+         relative inline-block;
+}
+
+.help__sectionTitle::after {
+  content: '';
+  @apply absolute -bottom-1 left-0 w-14 h-[3px] bg-[var(--linkup-purple)] rounded-full;
+}
+
+/* ====================== CARDS ====================== */
+.help__grid {
+  @apply grid md:grid-cols-2 gap-5;
+}
+
+.help__card {
+  @apply p-6 rounded-xl border border-[var(--border-color)]
+         bg-[var(--card-bg)] hover:shadow-md transition-all duration-300;
+}
+
+.help__cardTitle {
+  @apply text-lg font-semibold mb-3 text-[var(--text-primary)];
+}
+
+.help__text {
+  @apply text-base text-[var(--text-secondary)] leading-relaxed;
+}
+
+/* ====================== LISTS ====================== */
+.help__list {
+  @apply space-y-3 text-base;
+}
+
+.help__listItem {
+  @apply flex items-center gap-3;
+}
+
+.help__bullet {
+  @apply w-2 h-2 bg-[var(--linkup-purple)] rounded-full;
+;
+}
+
+/* ====================== FAQ ====================== */
+.help__faq {
+  @apply space-y-4;
+}
+
+.help__faqItem {
+  @apply border border-[var(--border-color)] rounded-xl overflow-hidden
+         bg-[var(--section-bg)] transition-all;
+}
+
+.help__faqQuestion {
+  @apply cursor-pointer px-6 py-4 text-base md:text-lg font-medium
+         text-[var(--text-primary)] flex items-center justify-between
+         hover:bg-[var(--card-bg)] transition-colors;
+}
+
+.help__faqQuestion::after {
+  content: "›";
+  @apply text-2xl text-[var(--linkup-purple)] transition-transform duration-300;
+}
+
+.help__faqItem[open] .help__faqQuestion::after {
+  transform: rotate(90deg);
+}
+
+.help__faqAnswer {
+  @apply px-6 pb-5 pt-2 text-[var(--text-secondary)] text-sm md:text-base leading-relaxed;
+}
+
+/* ====================== FOOTER CTA ====================== */
+.help__footer {
+  @apply bg-[var(--card-bg)] rounded-xl text-center max-w-4xl mx-auto py-12 mt-16 border-t border-[var(--border-color)];
+}
+
+.help__footerTitle {
+  @apply text-2xl md:text-3xl font-semibold text-[var(--text-primary)] mb-3;
+}
+
+.help__footerText {
+  @apply text-base md:text-lg text-[var(--text-secondary)] mb-6;
+}
+
+.help__footerButton {
+  @apply inline-block bg-[var(--linkup-purple)] text-white font-medium
+         px-6 py-3 rounded-full hover:bg-[var(--linkup-purple-light)]
+         transition-all duration-200 focus-ring shadow-md;
+}
+
+/* ====================== RESPONSIVE ====================== */
+@media (max-width: 640px) {
+  .help__title { @apply text-3xl; }
+  .help__card { @apply p-5; }
+  .help__faqQuestion { @apply text-base px-5 py-4; }
+}

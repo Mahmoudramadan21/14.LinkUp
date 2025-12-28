@@ -49,7 +49,6 @@ const makeApiRequest = async <T>(
 
     return response.data;
   } catch (error) {
-    console.error(`API request failed: ${method} ${endpoint}`, error);
     throw error;
   }
 };

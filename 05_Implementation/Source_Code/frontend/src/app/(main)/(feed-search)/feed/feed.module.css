@@ -149,7 +149,7 @@
 .feed__delete_cancel_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring; }
 
 /* Report Modal */
-.feed__report_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__report_modal_overlay { @apply modal-overlay z-[100] transition-opacity duration-medium; }
 .feed__report_modal { @apply card modal--sm; }
 .feed__report_modal_title { @apply text-primary-bold mb-sm; }
 .feed__report_form { @apply flex flex-col gap-sm; }
@@ -173,19 +173,18 @@
 .feed__likes_list { @apply flex flex-col gap-sm; }
 .feed__likes_item { @apply flex items-center gap-sm; }
 .feed__likes_avatar { @apply avatar--md; }
-.feed__likes_username { @apply text-secondary font-medium; }
+.feed__likes_username { @apply text-secondary font-medium truncate max-w-[20ch]; }
 
 /* Share Modal */
-.feed__share_modal_overlay { @apply modal-overlay z-50 transition-opacity duration-medium; }
+.feed__share_modal_overlay { @apply modal-overlay z-[100] transition-opacity duration-medium; }
 .feed__share_modal { @apply card modal; }
 .feed__share_modal_title { @apply text-primary-bold mb-sm; }
 .feed__share_form { @apply flex flex-col gap-sm; }
 .feed__share_input { @apply w-full p-sm rounded-lg border border-[var(--border-color)] bg-[var(--section-bg)] text-[var(--text-primary)] focus-ring text-secondary; }
 .feed__share_button { @apply btn-rounded--purple; }
-.feed__share_options { @apply flex flex-col sm:flex-row gap-sm mt-md sm-down:flex-col; }
-.feed__share_native_button { @apply btn-rounded--success; }
-.feed__share_copy_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring; }
-.feed__share_close_button { @apply btn-rounded bg-[var(--section-bg)] text-[var(--text-primary)] hover:bg-[var(--border-color)] focus-ring w-full text-center; }
+.feed__share_native_button { @apply btn-rounded bg-[var(--linkup-teal)] hover:bg-[var(--linkup-teal-light)] text-white focus-ring; }
+.feed__share_copy_button { @apply btn-rounded bg-[var(--linkup-orange)] hover:bg-[var(--linkup-orange-light)] text-white focus-ring; }
+.feed__share_close_button { @apply btn-rounded bg-[var(--neutral-gray)] hover:bg-[var(--neutral-gray-light)] text-white focus-ring w-full; }
 
 /* ==========================================================================
    Post Menu (three-dot menu)
@@ -220,7 +219,7 @@
 .feed__post_video_mute { @apply absolute bottom-4 right-2 text-[var(--linkup-purple)] focus-ring-teal p-2 bg-gray-300 backdrop-blur-md rounded-full; }
 
 .feed__post_actions { @apply flex justify-between mt-md; }
-.feed__post_actions_interactions { @apply flex items-center gap-md sm-down:gap-sm; }
+.feed__post_actions_interactions { @apply flex items-center gap-md; }
 .feed__post_actions_save { @apply flex justify-end items-center; }
 .feed__post_action { @apply flex items-center gap-xs text-secondary hover:text-[var(--linkup-purple)] focus-ring-teal transition-all duration-fast; }
 .feed__post_action__saved { @apply text-[var(--linkup-purple)]; }
@@ -278,7 +277,7 @@
 .feed__comment_input_group,
 .feed__reply_input_group { @apply flex flex-1 bg-[var(--section-bg)] rounded-full relative; }
 .feed__comment_input,
-.feed__reply_input { @apply bg-[var(--card-bg)] flex-1 text-secondary py-3 pl-md pr-20 rounded-full placeholder:text-[var(--text-muted)] border border-[var(--border-color)] focus-ring; }
+.feed__reply_input { @apply w-full bg-[var(--card-bg)] flex-1 text-secondary py-3 pl-md pr-20 rounded-full placeholder:text-[var(--text-muted)] border border-[var(--border-color)] focus-ring; }
 .feed__reply_input { @apply pr-24; }
 .feed__comment_button,
 .feed__reply_button { @apply btn-rounded--purple py-1 md-down:text-base sm-down:text-sm absolute right-2 top-1/2 transform -translate-y-1/2; }

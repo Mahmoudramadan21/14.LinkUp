@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { FaArrowLeft, FaArrowRight, FaTimes } from "react-icons/fa";
 import styles from "@/app/(main)/(feed-search)/feed/feed.module.css";
 import Post from "@/components/ui/post/Post";
-import { RootState } from "@/store";
+import { AppDispatch, RootState } from "@/store";
+import { getExplorePostsThunk } from "@/store/postSlice";
 
 /**
  * Full-screen immersive post viewer for the Explore page.
@@ -40,7 +41,9 @@ const ExplorePostModal: React.FC<ExplorePostModalProps> = ({
     setShowUserListModal,
   } = actions;
   
-  const { explorePosts } = useSelector((state: RootState) => state.post);
+  const dispatch = useDispatch<AppDispatch>();
+
+  const { explorePosts, hasMoreExplorePosts, loading } = useSelector((state: RootState) => state.post);
   const [currentIndex, setCurrentIndex] = useState(postIndex || 0);
   const [showCommentForm, setShowCommentForm] = useState<number | null>(null);
   const [showReplyForm, setShowReplyForm] = useState<number | null>(null);
@@ -61,6 +64,16 @@ const ExplorePostModal: React.FC<ExplorePostModalProps> = ({
       recordView(postId);
     }
   }, [isOpen, currentIndex, explorePosts, recordView]);
+
+  // Load more posts when the user reaches near the end of the list
+  useEffect(() => {
+    if (!isOpen || loading.getExplorePosts || !hasMoreExplorePosts) return;
+
+    if (currentIndex >= explorePosts.length - 5) {
+      const nextPage = Math.floor(explorePosts.length / 10) + 1;
+      dispatch(getExplorePostsThunk({ page: nextPage, limit: 10 }));
+    }
+  }, [currentIndex, explorePosts.length, isOpen, hasMoreExplorePosts, loading.getExplorePosts, dispatch]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -106,11 +119,22 @@ const ExplorePostModal: React.FC<ExplorePostModalProps> = ({
 
   return (
     <div className={`${styles.feed__post_modal_overlay} bg-overlay`} onClick={onClose}>
-      <div
-        ref={modalRef}
-        className={styles.feed__post_modal}
-        onClick={(e) => e.stopPropagation()}
+      {/* Navigation Arrows */}
+      {hasPrev && (
+        <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handlePrev();
+        }}
+        disabled={currentIndex === 0}
+        className={`${styles.feed__modal_nav_button} left-2`}
+        aria-label="Previous post"
       >
+        <FaArrowLeft />
+      </button>
+      )}
+
+      <div ref={modalRef} className={styles.feed__post_modal} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className={styles.feed__post_modal_header}>
           <h2 id="post-modal-title" className={styles.feed__post_modal_title}>Explore</h2>
@@ -122,18 +146,6 @@ const ExplorePostModal: React.FC<ExplorePostModalProps> = ({
             <FaTimes size={20} />
           </button>
         </div>
-
-        {/* Navigation Arrows */}
-        {hasPrev && (
-          <button
-          onClick={handlePrev}
-          disabled={currentIndex === 0}
-          className={`${styles.feed__modal_nav_button} left-2`}
-          aria-label="Previous post"
-        >
-          <FaArrowLeft />
-        </button>
-        )}
 
         {/* Post Content */}
         <Post
@@ -156,20 +168,23 @@ const ExplorePostModal: React.FC<ExplorePostModalProps> = ({
             setShowPostModal: () => {}, // Not needed in modal
           }}
         />
-
-
-        {/* Navigation Arrows */}
-        {hasNext && (
-          <button
-            onClick={handleNext}
-            disabled={currentIndex === explorePosts.length - 1}
-            className={`${styles.feed__modal_nav_button} right-2`}
-            aria-label="Next post"
-          >
-            <FaArrowRight />
-          </button>
-        )}
       </div>
+
+      {/* Navigation Arrows */}
+      {hasNext && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNext();
+          }}
+          disabled={currentIndex === explorePosts.length - 1}
+          className={`${styles.feed__modal_nav_button} right-2`}
+          aria-label="Next post"
+        >
+          <FaArrowRight />
+        </button>
+      )}
+
     </div>
   );
 };

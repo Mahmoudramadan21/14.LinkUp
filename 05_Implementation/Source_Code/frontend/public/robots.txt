@@ -1,0 +1,106 @@
+# ==================================================
+# LinkUp – robots.txt
+# Production – December 2025
+# Fully SEO-optimized + maximum privacy protection
+# ==================================================
+
+User-agent: *
+# Public pages – explicitly allowed (helps crawlers prioritize)
+Allow: /
+Allow: /feed
+Allow: /explore
+Allow: /flicks
+Allow: /search
+Allow: /[username]$
+Allow: /[username]/
+Allow: /[username]/followers
+Allow: /[username]/following
+Allow: /[username]/highlights/
+Allow: /feed/stories/
+Allow: /help
+Allow: /privacy
+Allow: /terms
+
+# Private / sensitive pages – completely blocked
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /verify-code
+Disallow: /reset-password
+Disallow: /password-reset-success
+Disallow: /edit
+Disallow: /messages
+Disallow: /messages/
+Disallow: /connections
+Disallow: /connections/
+Disallow: /[username]/saved
+Disallow: /[username]/highlights/create
+Disallow: /feed/stories/create
+Disallow: /feed/stories/[username]
+
+# Technical & duplicate prevention
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/
+Disallow: /*?                # Block all URLs with query parameters
+Disallow: /*.php$
+Disallow: /*.env
+
+# Good bots – give them full access (except truly private areas)
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /verify-code
+Disallow: /reset-password
+Disallow: /edit
+Disallow: /messages
+Disallow: /connections
+Disallow: /[username]/saved
+Disallow: /[username]/highlights/create
+
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /edit
+Disallow: /messages
+Disallow: /[username]/saved
+
+User-agent: FacebookExternalHit
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /edit
+Disallow: /messages
+Disallow: /[username]/saved
+
+User-agent: Twitterbot
+Allow: /
+Disallow: /api/
+
+User-agent: LinkedInBot
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /edit
+Disallow: /messages
+
+User-agent: WhatsApp
+Allow: /
+Disallow: /api/
+
+User-agent: TelegramBot
+Allow: /
+
+# Sitemap (add both if you have multiple)
+Sitemap: https://linkup-app-frontend.vercel.app/sitemap.xml
+Sitemap: https://linkup-app-frontend.vercel.app/sitemap-index.xml
+
+# Optional: gentle crawl rate (uncomment only if you notice server strain)
+# Crawl-delay: 2

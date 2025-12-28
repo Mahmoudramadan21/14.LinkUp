@@ -14,6 +14,7 @@ import {
   getUserHighlightByIdThunk,
   updateHighlightThunk,
   deleteHighlightThunk,
+  getUserHighlightsThunk,
 } from '@/store/highlightSlice';
 import { deleteStoryThunk } from '@/store/storySlice';
 
@@ -61,6 +62,13 @@ const HighlightModalPage: React.FC = memo(() => {
   const [showViewersModal, setShowViewersModal] = useState<number | null>(null);
 
   const hasFetchedRef = useRef(false);
+  const highlightListRef = useRef<HTMLDivElement>(null);
+  const highlightSentinelRef = useRef<HTMLDivElement>(null);
+
+  const hasMoreHighlights = highlights.length > 0;
+  const hasMore = highlightsData.pagination
+    ? highlightsData.pagination.page < highlightsData.pagination.totalPages
+    : false;
 
   // Fetch highlight if not in store
   useEffect(() => {
@@ -72,6 +80,48 @@ const HighlightModalPage: React.FC = memo(() => {
     }
     hasFetchedRef.current = true;
   }, [username, highlightId, highlights, dispatch]);
+
+  useEffect(() => {
+    if (!hasMore || loading.getUserHighlights || !highlightSentinelRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          const limit = highlightsData.pagination?.limit || 15;
+          const nextOffset = highlights.length;
+
+          dispatch(
+            getUserHighlightsThunk({
+              username,
+              params: { limit, offset: nextOffset },
+            })
+          );
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+
+    observer.observe(highlightSentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [dispatch, username, hasMore, loading.getUserHighlights, highlights.length, highlightsData.pagination]);
+
+  useEffect(() => {
+    const currentIdx = highlights.findIndex(h => h.highlightId === highlightId);
+
+    if (currentIdx >= highlights.length - 2 && hasMore && !loading.getUserHighlights) {
+      const limit = highlightsData.pagination?.limit || 15;
+      const nextOffset = highlights.length;
+
+      dispatch(
+        getUserHighlightsThunk({
+          username,
+          params: { limit, offset: nextOffset },
+        })
+      );
+    }
+  }, [currentStoryIndex, currentHighlight, highlights, dispatch, username, hasMore, loading.getUserHighlights]);
+
 
   const handleClose = useCallback(() => {
     router.push(`/${username}`, { scroll: false });
@@ -88,8 +138,7 @@ const HighlightModalPage: React.FC = memo(() => {
       const currentIdx = highlights.findIndex((h) => h.highlightId === highlightId);
       if (currentIdx < highlights.length - 1) {
         const next = highlights[currentIdx + 1];
-        router.push(`/${username}/highlights/${next.highlightId}`, { scroll: false });
-        setCurrentStoryIndex(0);
+        router.replace(`/${username}/highlights/${next.highlightId}`, { scroll: false });
       } else {
         handleClose();
       }
@@ -104,15 +153,14 @@ const HighlightModalPage: React.FC = memo(() => {
       const currentIdx = highlights.findIndex((h) => h.highlightId === highlightId);
       if (currentIdx > 0) {
         const prev = highlights[currentIdx - 1];
-        router.push(`/${username}/highlights/${prev.highlightId}`, { scroll: false });
-        setCurrentStoryIndex(prev.stories.length - 1);
+        router.replace(`/${username}/highlights/${prev.highlightId}`, { scroll: false });
       }
     }
   }, [currentStoryIndex, highlights, highlightId, username, router]);
 
   const handleSelectHighlight = useCallback(
     (newId: number) => {
-      router.push(`/${username}/highlights/${newId}`, { scroll: false });
+      router.replace(`/${username}/highlights/${newId}`, { scroll: false });
       setCurrentStoryIndex(0);
     },
     [router, username]
@@ -151,6 +199,9 @@ const HighlightModalPage: React.FC = memo(() => {
         highlights={highlights}
         selectedHighlightId={highlightId}
         currentIndex={currentStoryIndex}
+        highlightListRef={highlightListRef}
+        highlightSentinelRef={highlightSentinelRef}
+        hasMoreHighlights={hasMoreHighlights}
         navigation={{
           onNext: handleNext,
           onPrev: handlePrev,

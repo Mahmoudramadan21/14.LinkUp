@@ -196,7 +196,7 @@ module.exports = {
       md: "768px",
       lg: "1024px",
       xl: "1280px",
-      "md-down": { max: "1023px" },
+      "md-down": { max: "768px" },
       "sm-down": { max: "640px" },
     },
   },
@@ -306,7 +306,7 @@ module.exports = {
 
         /* Modal Overlay */
         ".modal-overlay": {
-          "@apply fixed inset-0 flex justify-center items-center bg-[rgba(var(--app-bg-rgb),0.6)] dark:bg-[rgba(var(--app-bg-rgb),0.8)] backdrop-blur-sm":
+          "@apply fixed inset-0 flex justify-center items-center bg-[rgba(var(--app-bg-rgb),0.6)] dark:bg-[rgba(var(--app-bg-rgb),0.8)] backdrop-blur-md":
             {},
         },
 

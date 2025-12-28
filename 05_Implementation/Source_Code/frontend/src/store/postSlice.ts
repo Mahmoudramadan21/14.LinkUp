@@ -23,7 +23,7 @@ import {
   getUserPosts,
   getSavedPosts,
 } from "@/services/postService";
-import { search } from "@/services/searchService"; // Added import for search
+import { search } from "@/services/searchService";
 import {
   Post,
   CreatePostRequest,
@@ -57,9 +57,11 @@ interface PostState {
   savedPosts: Post[];
   hasMoreUsersPosts: { username: string; hasMore: boolean }[];
   hasMoreSavedPosts: boolean;
+  hasMoreExplorePosts: boolean;
   currentPost: Post | null;
   searchPostResults: Post[]; // Added: Array of searched posts
-  searchPostPagination?: { // Added: Pagination info for search posts
+  searchPostPagination?: {
+    // Added: Pagination info for search posts
     page: number;
     limit: number;
     totalPages: number;
@@ -90,7 +92,7 @@ interface PostState {
     deleteComment: boolean;
     getCommentReplies: boolean;
     recordBatchPostViews: boolean;
-    searchPosts: boolean; // Added: Loading for search posts
+    searchPosts: boolean;
   };
   error: {
     createPost: string | null;
@@ -115,7 +117,7 @@ interface PostState {
     deleteComment: string | null;
     getCommentReplies: string | null;
     recordBatchPostViews: string | null;
-    searchPosts: string | null; // Added: Error for search posts
+    searchPosts: string | null;
   };
 }
 
@@ -129,10 +131,11 @@ const initialState: PostState = {
   savedPosts: [],
   hasMoreUsersPosts: [],
   hasMoreSavedPosts: true,
+  hasMoreExplorePosts: true,
   currentPost: null,
-  searchPostResults: [], // Added
-  hasMoreSearchPosts: false, // Added
-  currentSearchPostQuery: null, // Added
+  searchPostResults: [],
+  hasMoreSearchPosts: false,
+  currentSearchPostQuery: null,
   loading: {
     createPost: false,
     getPosts: true,
@@ -156,7 +159,7 @@ const initialState: PostState = {
     deleteComment: false,
     getCommentReplies: false,
     recordBatchPostViews: false,
-    searchPosts: true, // Added
+    searchPosts: true,
   },
   error: {
     createPost: null,
@@ -181,7 +184,7 @@ const initialState: PostState = {
     deleteComment: null,
     getCommentReplies: null,
     recordBatchPostViews: null,
-    searchPosts: null, // Added
+    searchPosts: null,
   },
 };
 
@@ -190,17 +193,20 @@ export const searchPostsThunk = createAsyncThunk<
   SearchResponse,
   { query: string; page?: number; limit?: number },
   { rejectValue: string }
->("post/searchPosts", async ({ query, page = 1, limit = 10 }, { rejectWithValue }) => {
-  try {
-    const response = await search({ query, type: "POSTS", page, limit });
-    return response;
-  } catch (error: unknown) {
-    const axiosError = error as AxiosError<{ message?: string }>;
-    return rejectWithValue(
-      axiosError.response?.data?.message || "Failed to search posts"
-    );
+>(
+  "post/searchPosts",
+  async ({ query, page = 1, limit = 10 }, { rejectWithValue }) => {
+    try {
+      const response = await search({ query, type: "POSTS", page, limit });
+      return response;
+    } catch (error: unknown) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+      return rejectWithValue(
+        axiosError.response?.data?.message || "Failed to search posts"
+      );
+    }
   }
-});
+);
 
 // Async thunks
 export const createPostThunk = createAsyncThunk<
@@ -692,7 +698,6 @@ export const recordBatchPostViewsThunk = createAsyncThunk<
   }
 });
 
-
 export const updateUserFollowStatus = createAction<{
   userId: number;
   isFollowed: boolean | "pending";
@@ -722,7 +727,8 @@ const postSlice = createSlice({
     clearFeedPosts: (state) => {
       state.posts = [];
     },
-    clearSearchPostResults: (state) => { // Added: Reducer to clear search posts
+    clearSearchPostResults: (state) => {
+      // Added: Reducer to clear search posts
       state.searchPostResults = [];
       state.currentSearchPostQuery = null;
       state.hasMoreSearchPosts = false;
@@ -751,27 +757,36 @@ const postSlice = createSlice({
           state.currentSearchPostQuery = query;
 
           // Avoid duplicates using Set
-          // const existingPostIds = new Set(state.searchPostResults.map((p) => p.PostID));
-          // const newPosts = action.payload.posts.filter(
-          //   (p) => !existingPostIds.has(p.PostID)
-          // );
+          const existingPostIds = new Set(
+            state.searchPostResults.map((p) => p.PostID)
+          );
+          const newPosts = action.payload.posts.filter(
+            (p) => !existingPostIds.has(p.PostID)
+          );
 
           // Append or replace
-          // state.searchPostResults =
-          //   page > 1
-          //     ? [...state.searchPostResults, ...newPosts]
-          //     : action.payload.posts;
-
+          if (query !== state.currentSearchPostQuery || page === 1) {
+            state.searchPostResults = newPosts;
+          } else {
+            state.searchPostResults = [...state.searchPostResults, ...newPosts];
+          }
 
           // Update pagination (Assuming backend returns totalPosts, totalPages in SearchResponse)
           // If not, adjust backend or use length-based hasMore
           state.searchPostPagination = {
             page,
             limit: action.meta.arg.limit || 10,
-            totalPages: (action.payload as any).totalPages || Math.ceil((action.payload as any).totalPosts / (action.meta.arg.limit || 10)),
-            totalPosts: (action.payload as any).totalPosts || action.payload.posts.length,
+            totalPages:
+              (action.payload as any).totalPages ||
+              Math.ceil(
+                (action.payload as any).totalPosts /
+                  (action.meta.arg.limit || 10)
+              ),
+            totalPosts:
+              (action.payload as any).totalPosts || action.payload.posts.length,
           };
-          state.hasMoreSearchPosts = page < (state.searchPostPagination.totalPages || 1);
+          state.hasMoreSearchPosts =
+            page < (state.searchPostPagination.totalPages || 1);
         }
       )
       .addCase(
@@ -836,17 +851,21 @@ const postSlice = createSlice({
           >
         ) => {
           state.loading.getPosts = false;
+
           if (action.meta.arg.page && action.meta.arg.page > 1) {
             const existingIds = new Set(state.posts.map((p) => p.PostID));
             const newPosts = action.payload.filter(
               (p) => !existingIds.has(p.PostID)
             );
+
             state.posts = [...state.posts, ...newPosts];
+
+            state.hasMore = newPosts.length >= 2;
           } else {
             state.posts = action.payload;
+            state.hasMore =
+              action.payload.length >= (action.meta.arg.limit || 10);
           }
-          state.hasMore =
-            action.payload.length === (action.meta.arg.limit || 10);
         }
       )
       .addCase(
@@ -901,8 +920,7 @@ const postSlice = createSlice({
               state.hasMoreUsersPosts.push({
                 username,
                 hasMore:
-                  payload.length ===
-                  (action.meta.arg.params.limit || 10),
+                  payload.length === (action.meta.arg.params.limit || 10),
               });
             }
           } else {
@@ -913,8 +931,7 @@ const postSlice = createSlice({
               state.hasMoreUsersPosts.push({
                 username,
                 hasMore:
-                  payload.length ===
-                  (action.meta.arg.params.limit || 10),
+                  payload.length === (action.meta.arg.params.limit || 10),
               });
             }
           }
@@ -996,17 +1013,18 @@ const postSlice = createSlice({
           >
         ) => {
           state.loading.getExplorePosts = false;
-          if (action.meta.arg.page && action.meta.arg.page > 1) {
-            const existingIds = new Set(
-              state.explorePosts.map((p) => p.PostID)
-            );
-            const newPosts = action.payload.filter(
-              (p) => !existingIds.has(p.PostID)
-            );
+
+          const newPosts = action.payload;
+          const page = action.meta.arg.page || 1;
+
+          if (page > 1) {
             state.explorePosts = [...state.explorePosts, ...newPosts];
           } else {
-            state.explorePosts = action.payload;
+            state.explorePosts = newPosts;
           }
+
+          state.hasMoreExplorePosts =
+            newPosts.length === (action.meta.arg.limit || 10);
         }
       )
       .addCase(
@@ -1298,7 +1316,7 @@ const postSlice = createSlice({
               post.commentCount += 1;
             }
           };
-          
+
           state.posts.forEach(updatePost);
           state.searchPostResults.forEach(updatePost);
           state.explorePosts.forEach(updatePost);
@@ -2027,7 +2045,9 @@ const postSlice = createSlice({
           const updatePostLikes = (post: Post) => {
             if (post.Likes) {
               post.Likes = post.Likes.map((like) =>
-                like.userId === userId ? { ...like, isFollowed: isFollowedValue } : like
+                like.userId === userId
+                  ? { ...like, isFollowed: isFollowedValue }
+                  : like
               );
             }
           };
@@ -2123,22 +2143,22 @@ const postSlice = createSlice({
         }
       )
       .addCase(updateUserFollowStatus, (state, action) => {
-      const { userId, isFollowed } = action.payload;
+        const { userId, isFollowed } = action.payload;
 
-      const updatePostUser = (post: Post) => {
-        if (post.User.UserID === userId) {
-          post.User.isFollowed = isFollowed;
-        }
-      };
+        const updatePostUser = (post: Post) => {
+          if (post.User.UserID === userId) {
+            post.User.isFollowed = isFollowed;
+          }
+        };
 
-      state.posts.forEach(updatePostUser);
-      state.explorePosts.forEach(updatePostUser);
-      state.flicks.forEach(updatePostUser);
-      state.usersPosts.forEach((up) => up.posts.forEach(updatePostUser));
-      state.savedPosts.forEach(updatePostUser);
-      state.searchPostResults.forEach(updatePostUser);
-      if (state.currentPost) updatePostUser(state.currentPost);
-    });
+        state.posts.forEach(updatePostUser);
+        state.explorePosts.forEach(updatePostUser);
+        state.flicks.forEach(updatePostUser);
+        state.usersPosts.forEach((up) => up.posts.forEach(updatePostUser));
+        state.savedPosts.forEach(updatePostUser);
+        state.searchPostResults.forEach(updatePostUser);
+        if (state.currentPost) updatePostUser(state.currentPost);
+      });
   },
 });
 

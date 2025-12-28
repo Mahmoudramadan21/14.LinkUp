@@ -20,6 +20,7 @@ import ShareModal from "@/components/ui/post/modals/ShareModal";
 import UserListModal from "@/components/ui/modal/UserListModal";
 
 import styles from "./explore.module.css";
+import PostGridSkeleton from "./PostGridSkeleton";
 
 /**
  * ExplorePageClient Component
@@ -29,7 +30,7 @@ import styles from "./explore.module.css";
  */
 const ExplorePageClient = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { explorePosts, loading, error } = useSelector((state: RootState) => state.post);
+  const { explorePosts, hasMoreExplorePosts, loading, error } = useSelector((state: RootState) => state.post);
 
   // Modal visibility states
   const [showReportModal, setShowReportModal] = useState<number | null>(null);
@@ -41,6 +42,9 @@ const ExplorePageClient = () => {
 
   // Track pending post view recordings to batch send
   const pendingViewsRef = useRef<Set<number>>(new Set());
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef(1);
 
   /**
    * Debounced function to send batched post view records
@@ -63,6 +67,35 @@ const ExplorePageClient = () => {
     }, 8000),
     [dispatch]
   );
+
+  /**
+   * Fetch the next page of posts if not already loading and more posts exist
+   */
+  const loadMore = useCallback(() => {
+    if (loading.getExplorePosts || !hasMoreExplorePosts) return;
+    pageRef.current += 1;
+    dispatch(getExplorePostsThunk({ page: pageRef.current, limit: 10 }));
+  }, [dispatch, loading.getExplorePosts, hasMoreExplorePosts]);
+
+  /**
+   * Start observing the sentinel element to trigger loading more posts
+   * when it becomes visible near the bottom of the page
+   */
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMoreExplorePosts) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: "300px" }
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreExplorePosts, loadMore]);
 
   /**
    * Handle post tile click - opens full post modal and records view
@@ -95,9 +128,11 @@ const ExplorePageClient = () => {
   /* -------------------------------------------------------------------------- */
 
   useEffect(() => {
-    // Initial load: fetch first page of explore posts
+    pageRef.current = 1;
     dispatch(getExplorePostsThunk({ page: 1, limit: 10 }));
+  }, [dispatch]);
 
+  useEffect(() => {
     // Cleanup on unmount: flush pending views immediately
     return () => {
       sendBatchViews.flush?.();
@@ -148,6 +183,7 @@ const ExplorePageClient = () => {
               postId={showEditModal}
               onClose={() => setShowEditModal(null)}
               user={null}
+              postSource="explorePosts"
             />
           )}
 
@@ -190,7 +226,7 @@ const ExplorePageClient = () => {
             />
           )}
 
-          {showPostModal && (
+          {showPostModal !== null && (
             <ExplorePostModal
               isOpen={showPostModal !== null}
               postIndex={showPostModal}
@@ -208,8 +244,8 @@ const ExplorePageClient = () => {
 
           {/* Posts Grid */}
           <div role="region" aria-live="polite">
-            {loading.getExplorePosts ? (
-              <p className={styles.explore__loading}>Loading posts...</p>
+            {loading.getExplorePosts && explorePosts.length === 0 ? (
+              <PostGridSkeleton count={12} />
             ) : error.getExplorePosts ? (
               <p className={styles.explore__error}>{error.getExplorePosts}</p>
             ) : explorePosts.length === 0 ? (
@@ -256,6 +292,16 @@ const ExplorePageClient = () => {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+            {hasMoreExplorePosts && (
+              <div ref={sentinelRef} key="explore-sentinel" className="h-10" aria-hidden="true" />
+            )}
+
+            {loading.getExplorePosts && explorePosts.length > 0 && (
+              <div className="mt-8">
+                <PostGridSkeleton count={8} /> {/* Optional: smaller skeleton for "load more" */}
+                <p className="text-center text-gray-500 mt-6 text-sm">Loading more...</p>
               </div>
             )}
           </div>

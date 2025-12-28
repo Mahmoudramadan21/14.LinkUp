@@ -4,11 +4,11 @@
  */
 
 const prisma = require("../utils/prisma");
+const NotificationService = require("../services/notificationService");
 const { del } = require("../utils/redisUtils");
 const { handleServerError } = require("../utils/errorHandler");
 const { uploadToCloud } = require("../services/cloudService");
 const { encryptMessage, decryptMessage } = require("../utils/encryption");
-const { generateLinkPreview } = require("../services/linkPreviewService");
 const rateLimit = require("express-rate-limit");
 
 // Rate limiting: 30 messages per 15 seconds per user
@@ -23,7 +23,13 @@ const messageRateLimiter = rateLimit({
 /**
  * Helper: Emit message to all participants
  */
-const emitMessageToParticipants = (io, conversationId, message, senderId, status = "SENT") => {
+const emitMessageToParticipants = (
+  io,
+  conversationId,
+  message,
+  senderId,
+  status = "SENT"
+) => {
   prisma.conversation
     .findUnique({
       where: { Id: conversationId },
@@ -35,7 +41,10 @@ const emitMessageToParticipants = (io, conversationId, message, senderId, status
       const payload = {
         ...message,
         Content: message.Content,
-        status: status === "SENT" && message.SenderId === senderId ? "SENT" : "DELIVERED",
+        status:
+          status === "SENT" && message.SenderId === senderId
+            ? "SENT"
+            : "DELIVERED",
       };
 
       conv.Participants.forEach((p) => {
@@ -114,13 +123,14 @@ const getConversations = async (req, res) => {
         ) {
           const type = c.LastMessage.Attachments[0].Type;
           // content = type === "IMAGE" ? "Image" : type === "VIDEO" ? "Video" : "Attachment";
-          content = type === "IMAGE"
-            ? "Image"
-            : type === "VIDEO"
-            ? "Video"
-            : type === "VOICE"
-            ? "Voice message"
-            : "Attachment";
+          content =
+            type === "IMAGE"
+              ? "Image"
+              : type === "VIDEO"
+              ? "Video"
+              : type === "VOICE"
+              ? "Voice message"
+              : "Attachment";
         } else {
           content = decryptMessage(c.LastMessage.Content, c.Id);
         }
@@ -170,7 +180,12 @@ const startConversation = async (req, res) => {
   try {
     const participant = await prisma.user.findUnique({
       where: { UserID: participantId },
-      select: { UserID: true, Username: true, ProfilePicture: true, IsBanned: true },
+      select: {
+        UserID: true,
+        Username: true,
+        ProfilePicture: true,
+        IsBanned: true,
+      },
     });
 
     if (!participant || participant.IsBanned) {
@@ -195,13 +210,12 @@ const startConversation = async (req, res) => {
       },
     });
 
-    
     /**
      * Helper to format conversation data
      */
     const formatConversation = (conversation) => ({
       conversationId: conversation.Id,
-      participants: conversation.Participants
+      participants: conversation.Participants,
     });
 
     if (!conversation) {
@@ -252,7 +266,10 @@ const getMessages = async (req, res) => {
       select: { Participants: { select: { UserID: true } } },
     });
 
-    if (!conversation || !conversation.Participants.some((p) => p.UserID === userId)) {
+    if (
+      !conversation ||
+      !conversation.Participants.some((p) => p.UserID === userId)
+    ) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -266,11 +283,17 @@ const getMessages = async (req, res) => {
       take: parseInt(limit),
       orderBy: { CreatedAt: "desc" },
       include: {
-        Sender: { select: { UserID: true, Username: true, ProfilePicture: true } },
+        Sender: {
+          select: { UserID: true, Username: true, ProfilePicture: true },
+        },
         Attachments: true,
-        Reactions: { include: { User: { select: { UserID: true, Username: true } } } },
+        Reactions: {
+          include: { User: { select: { UserID: true, Username: true } } },
+        },
         ReadBy: { select: { UserID: true } },
-        ReplyTo: { select: { Id: true, Content: true, SenderId: true, IsDeleted: true } },
+        ReplyTo: {
+          select: { Id: true, Content: true, SenderId: true, IsDeleted: true },
+        },
       },
     });
 
@@ -284,7 +307,10 @@ const getMessages = async (req, res) => {
 
         let decryptedReplyContent = null;
         if (msg.ReplyTo && msg.ReplyTo.Content && !msg.ReplyTo.IsDeleted) {
-          decryptedReplyContent = decryptMessage(msg.ReplyTo.Content, conversationId);
+          decryptedReplyContent = decryptMessage(
+            msg.ReplyTo.Content,
+            conversationId
+          );
         } else if (msg.ReplyTo?.IsDeleted) {
           decryptedReplyContent = "Message deleted";
         }
@@ -296,7 +322,9 @@ const getMessages = async (req, res) => {
             where: { StoryID: storyId },
             select: { User: true, ExpiresAt: true },
           });
-          const isExpired = story ? new Date(story.ExpiresAt) < new Date() : true;
+          const isExpired = story
+            ? new Date(story.ExpiresAt) < new Date()
+            : true;
           storyReference = {
             storyId,
             userId: story?.User?.UserID,
@@ -312,7 +340,7 @@ const getMessages = async (req, res) => {
           ...rest,
           Content: decryptedContent,
           ReplyTo: msg.ReplyTo
-            ? { ...msg.ReplyTo, Content: decryptedReplyContent, }
+            ? { ...msg.ReplyTo, Content: decryptedReplyContent }
             : null,
           storyReference,
         };
@@ -330,7 +358,10 @@ const getMessages = async (req, res) => {
     });
 
     // Emit read status
-    io.to(`conversation:${conversationId}`).emit("messages:read", { userId, conversationId });
+    io.to(`conversation:${conversationId}`).emit("messages:read", {
+      userId,
+      conversationId,
+    });
 
     res.json({
       messages: decrypted.reverse(),
@@ -354,7 +385,10 @@ const sendMessage = async (req, res) => {
       where: { Id: conversationId },
       select: { Participants: { select: { UserID: true } } },
     });
-    if (!conversation || !conversation.Participants.some((p) => p.UserID === userId)) {
+    if (
+      !conversation ||
+      !conversation.Participants.some((p) => p.UserID === userId)
+    ) {
       return res.status(403).json({ error: "Access denied" });
     }
     let attachment = null;
@@ -386,7 +420,9 @@ const sendMessage = async (req, res) => {
         FileSize: req.file.size,
       };
     }
-    const encryptedContent = content ? encryptMessage(content, conversationId) : null;
+    const encryptedContent = content
+      ? encryptMessage(content, conversationId)
+      : null;
     const message = await prisma.$transaction(
       async (tx) => {
         const msg = await tx.message.create({
@@ -399,7 +435,9 @@ const sendMessage = async (req, res) => {
           },
           include: {
             Attachments: true,
-            Sender: { select: { UserID: true, Username: true, ProfilePicture: true } },
+            Sender: {
+              select: { UserID: true, Username: true, ProfilePicture: true },
+            },
           },
         });
         await tx.conversation.update({
@@ -421,7 +459,10 @@ const sendMessage = async (req, res) => {
       if (replyMsg) {
         let decryptedReplyContent = null;
         if (replyMsg.Content && !replyMsg.IsDeleted) {
-          decryptedReplyContent = decryptMessage(replyMsg.Content, conversationId);
+          decryptedReplyContent = decryptMessage(
+            replyMsg.Content,
+            conversationId
+          );
         } else if (replyMsg.IsDeleted) {
           decryptedReplyContent = "Message deleted";
         }
@@ -433,13 +474,16 @@ const sendMessage = async (req, res) => {
         };
       }
     }
-    
 
     const formattedMessage = {
       Id: message.Id,
       ConversationId: message.ConversationId,
       SenderId: message.SenderId,
-      Content: content ? (!message.IsDeleted ? content : "Message deleted") : null,
+      Content: content
+        ? !message.IsDeleted
+          ? content
+          : "Message deleted"
+        : null,
       Status: message.Status || "SENT",
       ReadAt: message.ReadAt,
       ReplyToId: message.ReplyToId,
@@ -470,7 +514,7 @@ const sendMessage = async (req, res) => {
  * Reply to story (with real-time)
  */
 const replyToStory = async (req, res) => {
-  const { UserID: senderId } = req.user;
+  const { UserID: senderId, Username: senderUsername } = req.user;
   const { storyId, content } = req.body;
   const io = req.app.get("io");
 
@@ -517,7 +561,9 @@ const replyToStory = async (req, res) => {
       await del(`conversations:${story.UserID}`);
     }
 
-    const encryptedContent = content ? encryptMessage(content, conversation.Id) : null;
+    const encryptedContent = content
+      ? encryptMessage(content, conversation.Id)
+      : null;
 
     const message = await prisma.$transaction(async (tx) => {
       const msg = await tx.message.create({
@@ -551,22 +597,37 @@ const replyToStory = async (req, res) => {
         SenderID: senderId,
         Type: "MESSAGE",
         Content: `${req.user.Username} replied to your story`,
-        Metadata: { conversationId: conversation.Id, isStoryReply: true, storyId: story.StoryID },
+        Metadata: {
+          conversationId: conversation.Id,
+          isStoryReply: true,
+          storyId: story.StoryID,
+        },
       },
     });
 
-    io.to(`user:${story.UserID}`).emit("notification:new", {
-      type: "STORY_REPLY",
-      message: `${req.user.Username} replied to your story`,
-      data: { conversationId: conversation.Id, storyId: story.StoryID },
+    await NotificationService.createNotification({
+      userId: story.UserID,
+      senderId: senderId,
+      type: "MESSAGE",
+      content: `${senderUsername} replied to your story`,
+      metadata: {
+        conversationId: conversation.Id,
+        storyId: story.StoryID,
+        mediaUrl: story.MediaURL,
+        isStoryReply: true,
+      },
     });
 
     const formattedMessage = {
       message: { ...message, Content: content },
       conversationId: conversation.Id,
       isNewConversation,
-      storyPreview: { StoryID: story.StoryID, MediaURL: story.MediaURL, ExpiresAt: story.ExpiresAt },
-    }
+      storyPreview: {
+        StoryID: story.StoryID,
+        MediaURL: story.MediaURL,
+        ExpiresAt: story.ExpiresAt,
+      },
+    };
 
     const formattedMessagePayload = {
       Id: message.Id,
@@ -597,7 +658,12 @@ const replyToStory = async (req, res) => {
     };
 
     // Emit real-time
-    emitMessageToParticipants(io, conversation.Id, formattedMessagePayload, senderId);
+    emitMessageToParticipants(
+      io,
+      conversation.Id,
+      formattedMessagePayload,
+      senderId
+    );
 
     res.status(201).json(formattedMessage);
   } catch (error) {

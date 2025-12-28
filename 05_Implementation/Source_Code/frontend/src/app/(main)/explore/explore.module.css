@@ -54,11 +54,6 @@
     @apply column-count-4;
   }
 }
-@screen lg {
-  .explore__posts_grid {
-    @apply column-count-5;
-  }
-}
 
 /* Individual post tile in masonry */
 .explore__post_tile {

@@ -1,261 +1,262 @@
-# LinkUp Authentication Pages
+# LinkUp — Social Feed & Messaging (Next.js + TypeScript)
 
-This document provides an overview of the authentication pages for the **LinkUp** application, built using **Next.js 14** with the **App Router**. The pages include `Login`, `Signup`, `Forgot Password`, `Verify Code`, `Reset Password`, and `Password Reset Success`. These pages handle user authentication and password reset flows, ensuring a secure, accessible, and user-friendly experience.
+LinkUp is a modern, responsive social feed and messaging frontend built with Next.js (App Router) and TypeScript. It combines realtime messaging, social feed features, and robust authentication in a modular, scalable codebase designed for production.
 
-## Table of Contents
+---
 
-- [Overview](#overview)
-- [Project Structure](#project-structure)
-- [Pages](#pages)
-  - [Login](#login)
-  - [Signup](#signup)
-  - [Forgot Password](#forgot-password)
-  - [Verify Code](#verify-code)
-  - [Reset Password](#reset-password)
-  - [Password Reset Success](#password-reset-success)
-- [Shared Components and Utilities](#shared-components-and-utilities)
-- [Technologies](#technologies)
-- [Setup and Running](#setup-and-running)
-- [Testing](#testing)
-- [Accessibility](#accessibility)
-- [SEO](#seo)
-- [Contributing](#contributing)
+## Key Value
+- Fast developer experience with strict TypeScript and modular feature-first architecture.
+- Real-time messaging & notifications, secure auth flows, and accessible UI primitives.
 
-## Overview
+---
 
-The authentication pages are a core part of the **LinkUp** application's user authentication system. They provide the following functionality:
+## Features
+- Authentication: signup, login, refresh tokens, logout, forgot password, verify code, reset password.
+- Real-time: messaging and notifications using `socket.io-client` with a singleton socket hook (`src/socket/useAppSocket.ts`).
+- State management: Redux Toolkit slices per feature (`auth`, `post`, `story`, `profile`, `message`, `notification`, `ui`).
+- API client: centralized Axios instance with automatic token refresh and error handling (`src/services/api.ts`).
+- Forms & validation: `react-hook-form` + `zod` via `@hookform/resolvers`.
+- Media utilities: FFmpeg clients, `fabric`, `html2canvas` for client-side media processing.
+- Modular UI: reusable primitives in `src/components/ui/*` (Input, Button, modals, avatar, etc.) with accessibility in mind.
+- Styling: Tailwind + CSS Modules with BEM-like naming.
+- Performance: code-splitting, dynamic imports, virtualization (`react-window`) and infinite scroll.
+- SEO & sitemaps: route-aware sitemaps under `src/app/sitemaps`.
 
-1. **Login**: Authenticates users with their email and password.
-2. **Signup**: Allows new users to create an account with required details.
-3. **Forgot Password**: Initiates the password reset process by sending a verification code to the user's email.
-4. **Verify Code**: Verifies the user's identity using a 4-digit code.
-5. **Reset Password**: Enables users to set a new password after verification.
-6. **Password Reset Success**: Confirms successful password reset and redirects to the login page.
+---
 
-The pages follow a consistent structure, leveraging reusable components, hooks, and utilities for maintainability and scalability. The codebase prioritizes **accessibility**, **SEO**, and **type safety** using TypeScript.
+## Tech Stack
+- Next.js (App Router) + React 19
+- TypeScript 5 (strict mode enabled)
+- Redux Toolkit, `react-redux`, `next-redux-wrapper`
+- react-hook-form, zod
+- socket.io-client
+- Tailwind CSS + CSS Modules
+- Axios, date-fns, lodash, uuid, js-cookie
+- FFmpeg (`@ffmpeg/ffmpeg`), fabric, html2canvas
+- framer-motion, headlessui, react-icons
+- ESLint (flat config, extends `next/core-web-vitals`)
 
-## Project Structure
+---
 
-The authentication pages and their related files are organized as follows:
+## Project Structure (important files & folders)
+
+Root (pruned view):
 
 ```
-app/(auth)
-├── login
-│   └── page.tsx
-├── signup
-│   └── page.tsx
-├── forgot-password
-│   └── page.tsx
-├── verify-code
-│   └── page.tsx
-├── reset-password
-│   └── page.tsx
-├── password-reset-success
-│   └── page.tsx
-forms/auth
-├── LoginForm.tsx
-├── SignupForm.tsx
-├── ForgotPasswordForm.tsx
-├── VerificationCodeForm.tsx
-├── ResetPasswordForm.tsx
-├── PasswordResetSuccess.tsx
-hooks/auth
-├── useLogin.ts
-├── useSignup.ts
-├── useForgotPassword.ts
-├── useVerifyCode.ts
-├── useResetPassword.ts
-├── usePasswordResetSuccess.ts
-types
-├── authTypes.ts
-utils
-├── validation.ts
-services
-├── authService.ts
+package.json
+next.config.ts
+tsconfig.json
+tailwind.config.ts
+.env
+public/
+src/
+  app/
+    (auth)/
+      layout.tsx
+      auth-layout.module.css
+      login/
+        LoginClient.tsx
+        LoginForm.tsx
+    (main)/
+      layout.tsx
+      page.tsx
+      (feed-search)/
+        layout.tsx
+        feed/
+        search/
+    providers.tsx
+    error.tsx
+  components/
+    guards/
+    initializers/
+    seo/
+    ui/
+      common/
+        Input/
+        Button/
+  services/
+    api.ts
+    authService.ts
+    postService.ts
+    profileService.ts
+  socket/
+    useAppSocket.ts
+  store/
+    index.ts
+    authSlice.ts
+  styles/
+    globals.css
+  types/
+  utils/
 ```
 
-- **`app/(auth)/*.tsx`**: Next.js page components for each authentication route.
-- **`forms/auth/*.tsx`**: Reusable form components for each page.
-- **`hooks/auth/*.ts`**: Custom hooks encapsulating form logic, validation, and API calls.
-- **`types/authTypes.ts`**: TypeScript interfaces for form data, errors, and API responses.
-- **`utils/validation.ts`**: Centralized validation logic for all forms.
-- **`services/authService.ts`**: API service for authentication-related HTTP requests.
+Folder purposes:
+- `src/app`: Next.js routes, layouts, route groups and page-level server/client components.
+- `src/components`: UI primitives and feature UIs (grouped by feature).
+- `src/services`: Typed service layer interacting with backend APIs.
+- `src/socket`: WebSocket management and hooks for realtime interactions.
+- `src/store`: Redux Toolkit configuration and slices.
+- `src/styles`: global and module styles.
+- `src/types` & `src/utils`: shared TypeScript models and helpers.
 
-## Pages
+---
 
-### Login
+## Code Quality & Best Practices
+- `tsconfig.json` uses `strict: true` for strong typing.
+- Centralized API client (`src/services/api.ts`) handles 401 refresh, retry, and 429 throttling.
+- Redux Toolkit patterns: slices, typed `AppDispatch` and `RootState`, and `createAsyncThunk` for side effects.
+- Clear separation between server components and client components (`'use client'` where needed).
+- Accessible components: ARIA attributes, live error regions, semantic form controls.
+- Performance: dynamic imports, lazy loading of icons, virtualization and tailwind-based utility classes.
+- Linting: ESLint configured to extend Next.js recommended rules.
 
-- **Path**: `/login`
-- **Purpose**: Authenticates users by accepting their email and password.
-- **Components**:
-  - `LoginForm`: Renders inputs for email and password, and a submit button.
-- **Hook**: `useLogin`
-  - Manages form state, validation, and submission.
-  - Handles API response to store authentication tokens.
-- **API**: Calls `login` from `authService.ts` to authenticate the user.
-- **Features**:
-  - Email and password validation using `validateLoginForm`.
-  - Success/error messages with ARIA roles for accessibility.
-  - Redirects to the dashboard or home page (e.g., `/dashboard`) on successful login.
-  - Link to `/forgot-password` for password recovery.
+---
 
-### Signup
+## Getting Started
 
-- **Path**: `/signup`
-- **Purpose**: Allows new users to create an account by providing details like username, email, password, and additional fields (e.g., gender, date of birth).
-- **Components**:
-  - `SignupForm`: Renders inputs for registration details, password confirmation, and a submit button.
-- **Hook**: `useCallback`
-  - Manages form state, validation, and submission.
-  - Handles API response to store authentication tokens or redirect on success.
-- **API**: Calls `signup` from `authService.ts` to create a new user.
-- **Features**:
-  - Comprehensive validation (username, email, password complexity, etc.) using `validateSignupForm`.
-  - Success/error messages with ARIA roles.
-  - Redirects to `/login` or `/dashboard` on successful signup.
-  - Link to `/login` for existing users.
+Prerequisites: Node.js 18+ recommended.
 
-### Forgot Password
+Install:
 
-- **Path**: `/forgot-password`
-- **Purpose**: Allows users to initiate the password reset process by entering their email address.
-- **Components**:
-  - `ForgotPasswordForm`: Renders an email input and a submit button.
-- **Hook**: `useForgotPassword`
-  - Manages form state, validation, and submission.
-  - Stores `resetEmail` in `sessionStorage`.
-  - Redirects to `/verify-code` on success.
-- **API**: Calls `forgotPassword` from `authService.ts` to send a verification code.
-- **Features**:
-  - Email validation using `validateForgotPasswordForm`.
-  - Success/error messages with ARIA roles.
-  - Redirects to `/verify-code` after 1.5 seconds on success.
+```powershell
+npm install
+```
 
-### Verify Code
+Run dev:
 
-- **Path**: `/verify-code`
-- **Purpose**: Verifies the user's identity by accepting a 4-digit code sent to their email.
-- **Components**:
-  - `VerificationCodeForm`: Renders a 4-digit code input, a timer, and resend/verify buttons.
-- **Hook**: `useVerifyCode`
-  - Manages form state, code validation, timer, and resend logic.
-  - Retrieves `resetEmail` from `sessionStorage`.
-  - Stores `resetToken` in `sessionStorage` on success.
-  - Redirects to `/reset-password` on success.
-- **API**:
-  - `verifyCode`: Verifies the code.
-  - `forgotPassword`: Resends a new code if requested.
-- **Features**:
-  - Code validation using `validateVerifyCodeForm`.
-  - 30-second timer for resend functionality.
-  - Success/error messages with ARIA roles.
-  - Redirects to `/reset-password` after 1.5 seconds on success.
+```powershell
+npm run dev
+```
 
-### Reset Password
+Build & start:
 
-- **Path**: `/reset-password`
-- **Purpose**: Allows users to set a new password after verifying their identity.
-- **Components**:
-  - `ResetPasswordForm`: Renders inputs for new password and confirm password, and a submit button.
-- **Hook**: `usePasswordReset`
-  - Manages form state, password validation, and submission.
-  - Retrieves `resetToken` from `sessionStorage`.
-  - Clears `sessionStorage` on success.
-  - Redirects to `/password-reset-success` on success.
-- **API**: Calls `resetPassword` from `authService.ts` to update the password.
-- **Features**:
-  - Password validation (8+ characters, uppercase, lowercase, number, special character) using `validateResetPasswordForm`.
-  - Success/error messages with ARIA roles.
-  - Redirects to `/password-reset-success` after 1.5 seconds on success.
+```powershell
+npm run build
+npm run start
+```
 
-### Password Reset Success
+Lint:
 
-- **Path**: `/password-reset-success`
-- **Purpose**: Displays a success message after a password reset and provides navigation to the login page.
-- **Components**:
-  - `PasswordResetSuccess`: Renders a success message, a checkmark icon, and a continue button.
-- **Hook**: `useCallback`
-  - Handles navigation to `/login`.
-- **API**: None (static success page).
-- **Features**:
-  - Displays a success checkmark (`/svgs/success-checkmark.svg`).
-  - Accessible success message with `aria-describedby`.
-  - Navigates to `/login` when the "Continue to Login" button is clicked.
+```powershell
+npm run lint
+```
 
-## Shared Components and Utilities
+---
 
-- **Components**:
-  - `Input` (`@/components/auth/InputData`): Used for text and password inputs in `LoginForm`, `SignupForm`, `ForgotPasswordForm`, and `ResetPasswordForm`.
-  - `Button` (`@/components/button/Button`): Used for form submissions and navigation across all forms.
-  - `CodeInput` (`@/components/code/CodeInput`): Custom 4-digit code input for `VerificationCodeForm`.
-  - `Select` (optional, `@/components/ui/select`): Used in `SignupForm` for fields like `gender`.
-- **Utilities**:
-  - `validation.ts`: Contains validation functions (`validateLoginForm`, `validateSignupForm`, `validateForgotPasswordForm`, `validateVerifyCodeForm`, `validateResetPasswordForm`) for form data.
-  - `authService.ts`: Handles API calls using `axiosInstance` for `login`, `signup`, `forgotPassword`, `verifyCode`, and `resetPassword`.
-- **Types**:
-  - `authTypes.ts`: Defines interfaces for form data (`LoginFormData`, `SignupFormData`, `ForgotPasswordFormData`, `VerifyCodeFormData`, `ResetPasswordFormData`), errors, and API responses (`LoginResponse`, `SignupResponse`, `ForgotPasswordResponse`, `VerifyCodeResponse`, `ResetPasswordResponse`).
+## Environment Variables
+Detected or referenced variables (see `.env`):
 
-## Technologies
+- `NEXT_PUBLIC_API_BASE_URL` — API base URL (e.g. `http://localhost:3000/api`). Required by `src/services/api.ts`.
+- `NEXT_PUBLIC_API_URL` — base URL used for websocket connections (optional override).
+- `NEXT_PUBLIC_NODE_ENV` — environment flag (present in `.env`).
+- Optional commented examples present for `NEXT_PUBLIC_WEBSOCKET_URL`.
 
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: CSS Modules (assumed, based on `className` usage)
-- **HTTP Client**: Axios (`axiosInstance` in `lib/api.ts`)
-- **Storage**: `sessionStorage` for temporary data (`resetEmail`, `resetToken`)
-- **Accessibility**: ARIA roles and attributes for screen reader support
-- **SEO**: Next.js `Metadata` for API verification
+Set these in `.env.local` or in your deployment provider.
 
-## Setup and Running
+---
 
-1. **Clone the Repository**:
+## Conventions & Naming
+- Components: `PascalCase` files (e.g. `LoginForm.tsx`).
+- Hooks: `use*` prefix (`useAppSocket`).
+- Redux slices: `<feature>Slice.ts` and exported thunks are `<action>Thunk`.
+- CSS Modules: `.module.css` co-located, BEM-like classnames (`auth-form__title`).
+- Types: `src/types/*` with explicit interfaces and enums.
+- Path alias: `@/*` mapped to `src` (configured in `tsconfig.json`).
 
-   ```bash
-   git clone https://github.com/Mahmoudramadan21/linkup-app
-   cd linkup
-   ```
+---
 
-2. **Install Dependencies**:
+## Example Snippets
 
-   ```bash
-   npm install
-   ```
+- Reusable Input (accessible, react-hook-form compatible):
 
-3. **Run the Development Server**:
+```tsx
+// src/components/ui/common/Input/index.tsx (excerpt)
+import React, { memo, useState } from 'react';
 
-   ```bash
-   npm run dev
-   ```
+const Input = ({ id, type = 'text', label, error, required, ...props }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const inputType = type === 'password' && showPassword ? 'text' : type;
 
-   Open `http://localhost:3000` in your browser.
+  return (
+    <fieldset className="input-block">
+      {label && <label htmlFor={id}>{label}{required && '*'} </label>}
+      <input id={id} type={inputType} {...props} aria-invalid={!!error} />
+      {error && <span role="alert">{error}</span>}
+    </fieldset>
+  );
+};
 
-4. **Access the Pages**:
+export default memo(Input);
+```
 
-   - **Login**: `/login`
-   - **Signup**: `/signup`
-   - **Forgot Password**: `/forgot-password`
-   - **Verify Code**: `/verify-code` (after submitting `/forgot-password`)
-   - **Reset Password**: `/reset-password` (after verifying code)
-   - **Password Reset Success**: `/password-reset-success` (after resetting password)
+- Centralized API with refresh handling (excerpt):
 
-5. **Manual Testing**:
-   - **Login**:
-     - Enter valid/invalid email and password → Check success/error messages.
-     - Submit → Should redirect to `/dashboard` or `/home`.
-     - Verify link to `/forgot-password`.
-   - **Signup**:
-     - Enter valid/invalid registration details → Check validation errors.
-     - Submit → Should redirect to `/login`.
-     - Verify link to `/login`.
-   - **Forgot Password**:
-     - Enter valid/invalid email → Check success/error messages.
-     - Submit → Should redirect to `/verify-code` after 1.5 seconds.
-     - Check `sessionStorage` for `resetEmail`.
-   - **Verify Code**:
-     - Enter valid/invalid 4-digit code → Check error messages.
-     - Test resend after 30 seconds → Should show success message.
-     - Submit valid code → Should redirect to `/reset-password` and store `resetToken` in `sessionStorage`.
-   - **Reset Password**:
-     - Enter valid/invalid passwords → Check validation errors.
-     - Submit → Should redirect to `/password-reset-success` and clear `sessionStorage`.
-   - **Password Reset Success**:
-     - Click "Continue to Login" → Should navigate to `/login`.
+```ts
+// src/services/api.ts
+import axios from 'axios';
+const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_BASE_URL, withCredentials: true });
+api.interceptors.response.use(res => res, async (error) => {
+  const originalRequest = error.config;
+  if (error.response?.status === 401 && (!originalRequest._retryCount || originalRequest._retryCount < 2)) {
+    originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+    await api.post('/auth/refresh');
+    return api(originalRequest);
+  }
+  return Promise.reject(error);
+});
+export default api;
+```
+
+---
+
+## Testing
+- No test runner or tests detected in `package.json`. Recommended additions:
+  - Unit tests: `jest` + `@testing-library/react` + `ts-jest`.
+  - E2E: Playwright or Cypress for critical flows (auth, messaging).
+
+Suggested install for tests:
+
+```powershell
+npm i -D jest @testing-library/react @testing-library/jest-dom ts-jest
+```
+
+---
+
+## Deployment
+- Recommended: Vercel (native Next.js support). Make sure env vars are set in the deployment.
+- Build: `npm run build` and `npm run start` for custom hosts.
+
+Notes:
+- `next.config.ts` contains remote image patterns (Cloudinary) and an SVGR webpack rule for `.svg` as React components.
+
+---
+
+## Screenshots & Demos
+- Screenshots are not included. To add visuals, place images under `public/screenshots/` and reference them here.
+
+---
+
+## Contributing
+- Fork → branch → PR with clear summary and tests.
+- Run lint and TypeScript checks before PR:
+
+```powershell
+npm run lint
+npx tsc --noEmit
+```
+
+PR checklist (suggested): types, tests, accessibility checks, small focused changes.
+
+---
+
+## License
+- No license file was detected in the repository. If you intend to publish this repository, add a `LICENSE` file (e.g. MIT).
+
+---
+
+## Architecture Notes
+- Feature-first layout: each feature has slice/service/components/types, making it easy to scale.
+- Centralized concerns: `api.ts` (HTTP), `useAppSocket.ts` (realtime), `store/index.ts` (state) provide clear integration points.
+- Opportunities: add tests, CI pipeline, and a `CONTRIBUTING.md` + `LICENSE` for OSS usage.
+
+If you want, I can also add `CONTRIBUTING.md` and `LICENSE` (MIT) now, or scaffold a basic Jest setup.

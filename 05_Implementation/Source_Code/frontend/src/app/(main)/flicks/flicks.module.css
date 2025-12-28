@@ -81,7 +81,7 @@
 }
 
 .flicks__user-username {
-  @apply text-secondary font-semibold;
+  @apply text-secondary font-semibold truncate max-w-[12ch] md:max-w-[auto];
 }
 
 .flicks__follow-status-button {
@@ -157,8 +157,8 @@
    Comments Modal (Slide-up from bottom)
    ========================================================================== */
 .flicks__comment-modal {
-  @apply max-w-[380px] m-auto fixed bottom-0 left-0 right-0 
-         xl:right-[325px] h-[85vh] bg-[var(--section-bg)] rounded-t-3xl 
+  @apply sm:max-w-[380px] m-auto fixed bottom-0 left-0 right-0 
+         xl:right-[333px] h-[85vh] bg-[var(--section-bg)] rounded-t-3xl 
          z-50 shadow-2xl overflow-hidden animate-fadeInModal;
 }
 

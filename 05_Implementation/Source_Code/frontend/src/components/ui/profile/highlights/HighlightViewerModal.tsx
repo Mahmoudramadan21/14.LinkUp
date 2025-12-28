@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useRef,
   useState,
-  useMemo,
   memo,
 } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -23,6 +22,7 @@ import {
 import { AppDispatch, RootState } from '@/store';
 import { recordStoryViewThunk } from '@/store/storySlice';
 import { Highlight } from '@/types/highlight';
+import StoryViewerSkeletonModal from '@/components/ui/story/StoryViewerSkeletonModal';
 
 /**
  * Props for the HighlightViewerModal component.
@@ -50,6 +50,11 @@ interface HighlightViewerModalProps {
   currentIndex: number;
   highlights: Highlight[];
 
+  // Optional: refs and infinite scroll
+  highlightListRef?: React.RefObject<HTMLDivElement | null>;
+  highlightSentinelRef?: React.RefObject<HTMLDivElement | null>;
+  hasMoreHighlights?: boolean;
+
   // Navigation
   navigation: {
     onNext: () => void;
@@ -72,7 +77,7 @@ const STORY_DURATION = 15000;
  * progress bars, and contextual actions (edit, delete, report, etc.).
  */
 const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
-  ({ isOpen, loading, onClose, highlights, selectedHighlightId, currentIndex, navigation, actions }) => {
+  ({ isOpen, loading, onClose, highlights, selectedHighlightId, currentIndex, highlightListRef, highlightSentinelRef, hasMoreHighlights, navigation, actions }) => {
   
     const { onNext, onPrev, onSelectHighlight } = navigation;
     const { modals, interactions } = actions;
@@ -91,6 +96,10 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
     const currentHighlight = selectedHighlightId
       ? highlights.find((h) => h.highlightId === selectedHighlightId)
       : null;
+
+    const currentHighlightIndex = highlights.findIndex(
+      (h) => h.highlightId === selectedHighlightId
+    );
 
     const currentStory = currentHighlight?.stories[currentIndex];
 
@@ -184,75 +193,11 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
         document.body.style.overflow = '';
       };
     }, []);
-
-    // Memoized skeleton loaders
-    const HighlightListSkeleton = useMemo(
-      () =>
-        Array.from({ length: highlights.length || 5 }).map((_, i) => (
-          <div
-            key={i}
-            className={`${styles.stories__avatar_wrapper} ${styles.stories__skeleton} bg-neutral-gray`}
-            style={{ animationDelay: `${i * 0.1}s` }}
-          >
-            <div className={`${styles.stories__avatar_ring} ${styles.stories__skeleton} bg-neutral-gray`}>
-              <div className={`${styles.stories__avatar} ${styles.stories__skeleton} bg-neutral-gray`} />
-            </div>
-            <div className={`${styles.stories__username} ${styles.stories__skeleton} bg-neutral-gray`} />
-          </div>
-        )),
-      [highlights.length]
-    );
-
-    const StorySkeleton = useMemo(
-      () => (
-        <div className={styles.stories__viewer_story}>
-          <div className={styles.stories__viewer_story_header}>
-            <div className="flex items-center">
-              <div className={`${styles.stories__viewer_avatar} ${styles.stories__skeleton} bg-neutral-gray`} />
-              <div className={`${styles.stories__viewer_username} ${styles.stories__skeleton} bg-neutral-gray ml-2 w-20 h-4`} />
-            </div>
-          </div>
-          <div className={styles.stories__viewer_progress}>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className={styles.stories__viewer_progress_bar}>
-                <div className={`${styles.stories__viewer_progress_fill} ${styles.stories__skeleton} bg-neutral-gray`} />
-              </div>
-            ))}
-          </div>
-          <div className={styles.stories__viewer_content}>
-            <div className={`${styles.stories__viewer_media} ${styles.stories__skeleton} bg-neutral-gray`} />
-          </div>
-        </div>
-      ),
-      []
-    );
+    
 
     // Loading state
-    if (isOpen && loading) {
-      return (
-        <div
-          className={`${styles.stories__viewer_modal_overlay} bg-overlay`}
-          role="dialog"
-          aria-modal="true"
-          aria-busy="true"
-          tabIndex={-1}
-          ref={modalRef}
-        >
-          <div className={styles.stories__viewer_modal}>
-            <div className={styles.stories__viewer_header}>
-              <div className={styles.stories__viewer_user}>
-                <span className={`${styles.stories__viewer_username} ${styles.stories__skeleton} bg-neutral-gray w-24 h-5`} />
-                <button className={`${styles.stories__viewer_close} ${styles.stories__skeleton} bg-neutral-gray w-5 h-5 rounded-full`} tabIndex={-1} />
-              </div>
-            </div>
-            <div className={styles.stories__viewer_main}>
-              {HighlightListSkeleton}
-              {StorySkeleton}
-            </div>
-          </div>
-        </div>
-      );
-    }
+   if (isOpen && loading && highlights.length === 0) return <StoryViewerSkeletonModal />;
+
 
     // Error / invalid state
     if (!isOpen || !currentHighlight || !currentStory?.mediaUrl) {
@@ -264,15 +209,15 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
           tabIndex={-1}
           ref={modalRef}
         >
-          <div className={styles.stories__viewer_modal}>
-            <div className={styles.stories__viewer_header}>
-              <div className={styles.stories__viewer_user}>
-                <span className={styles.stories__viewer_username}>Error</span>
-              </div>
-              <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close">
-                <FaTimes size={20} />
-              </button>
+          <div className={styles.stories__viewer_header}>
+            <div className={styles.stories__viewer_user}>
+              <span className={styles.stories__viewer_username}>Error</span>
             </div>
+            <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close">
+              <FaTimes size={20} />
+            </button>
+          </div>
+          <div className={styles.stories__viewer_modal}>
             <div className={styles.stories__viewer_content}>
               <p className={styles.stories__error}>Unable to load highlight.</p>
             </div>
@@ -290,23 +235,23 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
         tabIndex={-1}
         ref={modalRef}
       >
-        <div className={styles.stories__viewer_modal}>
-          {/* Header */}
-          <div className={styles.stories__viewer_header}>
-            <div className={styles.stories__viewer_user}>
-              <span id="highlight-viewer-title" className={styles.stories__viewer_username}>
-                {currentHighlight.title || 'Highlight'}
-              </span>
-              <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close modal">
-                <FaTimes size={20} />
-              </button>
-            </div>
+        {/* Header */}
+        <div className={styles.stories__viewer_header}>
+          <div className={styles.stories__viewer_user}>
+            <span id="highlight-viewer-title" className={styles.stories__viewer_username}>
+              {currentHighlight.title || 'Highlight'}
+            </span>
+            <button onClick={onClose} className={styles.stories__viewer_close} aria-label="Close modal">
+              <FaTimes size={20} />
+            </button>
           </div>
-
+        </div>
+        
+        <div className={styles.stories__viewer_modal}>
           {/* Main Content */}
           <div className={styles.stories__viewer_main}>
             {/* Highlight List */}
-            <div className={styles.stories__viewer_users} role="navigation" aria-label="Highlights">
+            <div ref={highlightListRef} className={styles.stories__viewer_users} role="navigation" aria-label="Highlights">
               {highlights.map((h) => (
                 <button
                   key={h.highlightId}
@@ -336,6 +281,25 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
                   <span className={styles.stories__username}>{h.title}</span>
                 </button>
               ))}
+              {loading && highlights.length > 0 && (
+                <>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={`hl-skeleton-${i}`} className={styles.stories__avatar_wrapper}>
+                      <div className={`${styles.stories__avatar_ring} ${styles.stories__skeleton} bg-gray-700`}>
+                        <div className={`${styles.stories__avatar} ${styles.stories__skeleton} bg-gray-600`} />
+                      </div>
+                      <div className={`${styles.stories__username} ${styles.stories__skeleton} bg-gray-700 w-12 h-3 mt-1`} />
+                    </div>
+                  ))}
+                </>
+              )}
+              {hasMoreHighlights && (
+                <div
+                  ref={highlightSentinelRef}
+                  className="w-16 h-20 flex-shrink-0"
+                  aria-hidden="true"
+                />
+              )}
             </div>
 
             {/* Current Story Viewer */}
@@ -459,7 +423,7 @@ const HighlightViewerModal: React.FC<HighlightViewerModalProps> = memo(
               <div className={styles.stories__viewer_nav}>
                 <button
                   onClick={onPrev}
-                  disabled={currentIndex === 0}
+                  disabled={currentIndex === 0 && currentHighlightIndex === 0}
                   className={styles.stories__viewer_nav_prev}
                   aria-label="Previous story"
                 >

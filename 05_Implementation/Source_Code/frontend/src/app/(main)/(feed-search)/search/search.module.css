@@ -85,7 +85,7 @@
 }
 
 .search__user__name {
-  @apply text-base font-semibold text-[var(--text-primary)] hover:underline;
+  @apply text-base font-semibold text-[var(--text-primary)] truncate max-w-[16ch] md:max-w-[auto] hover:underline;
 }
 
 .search__user__link:hover .search__user__name {

@@ -1,222 +1,335 @@
-# LinkUp Social Media Application
+# LinkUp Backend
 
-## Overview
+A robust backend API for the LinkUp social media platform, built with Node.js and Express.js. This backend handles authentication, real-time communication, database operations, and business logic for a full-stack social media application.
 
-LinkUp is a modern social media platform built with Node.js, Express, and PostgreSQL, designed to facilitate user interactions through posts, stories, highlights, real-time messaging, and more. The application provides a robust API for user authentication, profile management, content creation, and administrative functionalities.
+## Backend Overview
 
-## Features
+The LinkUp backend serves as the core engine for the social media platform, providing secure API endpoints for user management, content creation, real-time messaging, and administrative functions. It ensures data integrity, performance optimization, and scalable architecture to support a growing user base.
 
-- **User Authentication**: Secure signup, login, password reset, and token refresh.
-- **Profile Management**: Update profiles, manage privacy settings, follow/unfollow users, and handle follow requests.
-- **Posts**: Create, update, delete, like, comment, save, and report posts with media support.
-- **Stories & Highlights**: Share temporary stories and organize them into highlights.
-- **Real-Time Messaging**: One-on-one conversations with reactions, typing indicators, and media attachments.
-- **Notifications**: Manage user notifications with customizable preferences.
-- **Admin Controls**: Manage reported posts, user roles, bans, and perform administrative actions.
-- **API Documentation**: Interactive Swagger UI for exploring and testing endpoints.
+### Key Responsibilities
+- **Authentication & Authorization**: Secure user registration, login, and access control
+- **Business Logic**: Post management, user interactions, content moderation
+- **Database Access**: Efficient data storage and retrieval using PostgreSQL
+- **Real-time Communication**: Instant messaging and live updates via WebSocket
+- **Security & Performance**: Rate limiting, input validation, and optimized queries
 
-## Repository
+## Tech Stack
 
-- **Main Repository**: https://github.com/Mahmoudramadan21/14.LinkUp
-- **Backend Source Code**: https://github.com/Mahmoudramadan21/14.LinkUp/tree/main/05_Implementation/Source_Code/backend/
-- **Main Branch**: `main`
+### Runtime & Framework
+- **Node.js**: Server-side JavaScript runtime
+- **Express.js**: Web application framework for API development
+
+### Database & ORM
+- **PostgreSQL**: Primary relational database
+- **Prisma**: Type-safe ORM for database operations and migrations
+
+### Authentication
+- **JWT (jsonwebtoken)**: Token-based authentication
+- **bcrypt/bcryptjs**: Password hashing and verification
+- **Passport.js**: OAuth integration (Google, Facebook, Twitter)
+
+### Real-time Layer
+- **Socket.IO**: Real-time bidirectional communication
+- **Redis**: In-memory data structure store for caching and session management
+
+### Additional Libraries
+- **Winston**: Logging framework
+- **Multer**: File upload handling
+- **Cloudinary**: Cloud-based image and video management
+- **SendGrid**: Email service for notifications
+- **Express Rate Limit**: API rate limiting
+- **Swagger**: API documentation
 
 ## Project Structure
 
 ```
-backend/
-├── node_modules/          # Node.js dependencies
-├── src/                  # Source code
-│   ├── controllers/      # Business logic for handling requests
-│   ├── middleware/       # Custom middleware (auth, validation, upload, etc.)
-│   ├── models/           # Database models and Prisma schema
-│   │   └── prisma/
-│   │       └── schema.prisma # Prisma schema file
-│   ├── routes/           # API routes
-│   │   ├── adminRoutes.js    # Admin management endpoints
-│   │   ├── authRoutes.js     # Authentication endpoints
-│   │   ├── highlightRoutes.js# Story highlights management
-│   │   ├── index.js          # Route aggregator
-│   │   ├── messageRoutes.js  # Real-time messaging endpoints
-│   │   ├── notificationRoutes.js # Notification management
-│   │   ├── postRoutes.js     # Post management endpoints
-│   │   ├── profileRoutes.js  # User profile management
-│   │   └── storyRoutes.js    # Story management endpoints
-│   ├── validators/       # Input validation schemas
-│   └── docs/
-│       └── swagger.js    # Swagger configuration for API documentation
-├── uploads/              # Temporary storage for media uploads
-├── .env                  # Environment variables
-├── package.json          # Project dependencies and scripts
-├── package-lock.json     # Dependency lock file
-└── README.md             # Project documentation
+src/
+├── controllers/          # Request handlers for business logic
+│   ├── authController.js
+│   ├── postController.js
+│   ├── messagesController.js
+│   ├── profileController.js
+│   ├── storyController.js
+│   ├── notificationController.js
+│   ├── searchController.js
+│   ├── adminController.js
+│   └── highlightController.js
+├── routes/               # API route definitions
+│   ├── index.js
+│   ├── authRoutes.js
+│   ├── postRoutes.js
+│   ├── messagesRoutes.js
+│   ├── profileRoutes.js
+│   ├── storyRoutes.js
+│   ├── notificationRoutes.js
+│   ├── searchRoutes.js
+│   ├── adminRoutes.js
+│   ├── highlightRoutes.js
+│   └── testRoutes.js
+├── services/             # Business logic and external integrations
+│   ├── authService.js
+│   ├── notificationService.js
+│   ├── cloudService.js
+│   ├── emailService.js
+│   ├── moderationService.js
+│   ├── uploadService.js
+│   └── linkPreviewService.js
+├── middleware/           # Custom middleware functions
+│   ├── authMiddleware.js
+│   ├── csrfMiddleware.js
+│   ├── uploadMiddleware.js
+│   ├── errorHandler.js
+│   ├── validationMiddleware.js
+│   ├── moderationMiddleware.js
+│   └── postOwnershipMiddleware.js
+├── models/               # Database models and schemas
+│   └── prisma/
+│       ├── schema.prisma
+│       └── migrations/
+├── socket/               # Real-time communication handlers
+│   ├── index.js
+│   ├── middleware/
+│   │   └── auth.js
+│   └── events/
+│       ├── message.js
+│       ├── story.js
+│       ├── typing.js
+│       └── status.js
+├── utils/                # Utility functions and helpers
+│   ├── logger.js
+│   ├── redis.js
+│   ├── redisUtils.js
+│   ├── redisCleanup.js
+│   ├── prisma.js
+│   ├── encryption.js
+│   ├── signalEncryption.js
+│   ├── errorHandler.js
+│   ├── validators.js
+│   └── cloudinary.js
+├── validators/           # Input validation schemas
+│   ├── authValidators.js
+│   ├── postValidators.js
+│   ├── messageValidators.js
+│   ├── profileValidators.js
+│   ├── highlightValidators.js
+│   ├── notificationValidator.js
+│   └── searchValidators.js
+├── docs/                 # API documentation
+│   └── swagger.js
+├── config/               # Configuration files
+│   └── cloudinary.js
+└── logs/                 # Application logs
+    ├── combined.log
+    └── error.log
 ```
 
-## Prerequisites
+## API Design
 
-- **Node.js**: v14 or higher
-- **npm**: For dependency management
-- **PostgreSQL**: Database (e.g., Supabase or local PostgreSQL)
-- **Prisma**: For database migrations and ORM
-- **Redis**: For real-time features (e.g., typing indicators)
-- **Cloudinary**: For media storage
-- **SendGrid**: For email services
-- **Hugging Face**: For AI-related features (optional)
+### REST Principles
+The API follows RESTful conventions with resource-based URLs, standard HTTP methods, and consistent response formats. All endpoints return JSON responses with appropriate HTTP status codes.
 
-## Installation
+### Separation of Concerns
+- **Routes**: Define API endpoints and delegate to controllers
+- **Controllers**: Handle HTTP requests and responses
+- **Services**: Contain business logic and external API calls
+- **Models**: Define data structures and database interactions
+- **Middleware**: Handle cross-cutting concerns like authentication and validation
 
-1. **Clone the repository**:
+### Error Handling Strategy
+- Centralized error handling middleware
+- Consistent error response format
+- Proper HTTP status codes for different error types
+- Detailed logging for debugging and monitoring
 
-   ```bash
-   git clone https://github.com/Mahmoudramadan21/14.LinkUp.git
-   cd 14.LinkUp/05_Implementation/Source_Code/backend
-   ```
+## Authentication & Authorization
 
-2. **Install dependencies**:
+### Password Hashing
+Passwords are securely hashed using bcrypt with salt rounds for enhanced security.
 
+### Token Strategy
+- **JWT Tokens**: Used for stateless authentication
+- **Access Tokens**: Short-lived tokens for API access
+- **Refresh Tokens**: Long-lived tokens for token renewal
+- **Cookie-based**: Secure HTTP-only cookies for token storage
+
+### Protected Routes
+All sensitive endpoints require valid JWT tokens. Middleware validates tokens and attaches user information to requests. Role-based access control implemented for admin functions.
+
+## Realtime Architecture
+
+### Socket Usage
+Socket.IO enables real-time features including:
+- Instant messaging between users
+- Live typing indicators
+- Online status updates
+- Real-time notifications
+
+### Events Overview
+- **Connection Management**: User authentication and room joining
+- **Message Events**: Send, receive, and status updates
+- **Typing Events**: Start/stop typing indicators
+- **Status Events**: Online/offline status changes
+
+### State Synchronization
+Real-time updates ensure UI consistency across connected clients. Redis is used for temporary data storage and session management.
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Database
+DATABASE_URL=postgresql://username:password@localhost:5432/linkup
+DIRECT_URL=postgresql://username:password@localhost:5432/linkup
+
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key
+JWT_REFRESH_SECRET=your-refresh-token-secret
+
+# OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+FACEBOOK_APP_ID=your-facebook-app-id
+FACEBOOK_APP_SECRET=your-facebook-app-secret
+TWITTER_CONSUMER_KEY=your-twitter-consumer-key
+TWITTER_CONSUMER_SECRET=your-twitter-consumer-secret
+
+# Email Service
+SENDGRID_API_KEY=your-sendgrid-api-key
+
+# Cloud Storage
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Server
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+# Security
+CSRF_SECRET=your-csrf-secret
+```
+
+## Getting Started
+
+### Prerequisites
+- Node.js (v16 or higher)
+- PostgreSQL database
+- Redis server
+- npm or yarn package manager
+
+### Installation
+1. Clone the repository
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. **Set up environment variables**: Create a `.env` file in the `backend/` directory and add the following variables with your own values:
+3. Set up environment variables in `.env` file
 
-   ```env
-   # Database
-   DATABASE_URL=your_supabase_or_postgresql_connection_string_with_pgbouncer
-   DIRECT_URL=your_direct_postgresql_connection_string_for_migrations
-
-   # Server
-   PORT=your_server_port
-   FRONTEND_URL=your_frontend_url
-
-   # Authentication
-   JWT_SECRET=your_jwt_secret_key
-   JWT_REFRESH_SECRET=your_jwt_refresh_secret_key
-
-   # Email
-   SENDGRID_API_KEY=your_sendgrid_api_key
-   EMAIL_FROM=your_email_address
-
-   # Cloudinary
-   CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-   CLOUDINARY_API_KEY=your_cloudinary_api_key
-   CLOUDINARY_API_SECRET=your_cloudinary_api_secret
-
-   # Redis
-   REDIS_URL=your_redis_connection_string
-
-   # Hugging Face
-   HF_TOKEN=your_hugging_face_api_token
-   ```
-
-4. **Set up the database**:
-
-   - Ensure your PostgreSQL database is running (e.g., via Supabase or local setup).
-
-   - Navigate to the Prisma directory:
-
-     ```bash
-     cd src/models/prisma
-     ```
-
-   - Run Prisma migrations to set up the database schema:
-
-     ```bash
-     npx prisma migrate dev
-     ```
-
-   - Generate Prisma client:
-
-     ```bash
-     npx prisma generate
-     ```
-
-5. **Run the application**:
-
+4. Run database migrations:
    ```bash
-   npm start
+   npx prisma migrate deploy
    ```
 
-6. **Access the API**:
+5. Generate Prisma client:
+   ```bash
+   npx prisma generate
+   ```
 
-   - API base URL: `http://localhost:3000/api/`
-   - Swagger UI: `http://localhost:3000/api-docs`
-   - Raw Swagger JSON: `http://localhost:3000/api-docs.json`
+### Running Locally
+Start the development server:
+```bash
+npm start
+```
 
-## API Documentation
+The server will run on `http://localhost:3000` with Socket.IO support.
 
-The API is documented using Swagger/OpenAPI 3.0. Key endpoints include:
+### Development Mode
+For development with auto-restart:
+```bash
+npm run dev
+```
 
-- **Authentication** (`/auth`):
-  - `POST /signup`: Register a new user
-  - `POST /login`: Authenticate and get tokens
-  - `POST /refresh`: Refresh access token
-  - `POST /forgot-password`: Request password reset
-  - `POST /verify-code`: Verify reset code
-  - `POST /reset-password`: Reset password
-- **Profile** (`/profile`):
-  - `GET /`: Get user profile
-  - `PUT /edit`: Update profile details
-  - `PUT /privacy`: Update privacy settings
-  - `POST /follow/{userId}`: Follow a user
-  - `GET /followers/{userId}`: Get followers list
-- **Posts** (`/posts`):
-  - `POST /`: Create a new post
-  - `GET /`: Get public posts
-  - `POST /{postId}/like`: Like/unlike a post
-  - `POST /{postId}/report`: Report a post
-- **Highlights** (`/highlights`):
-  - `POST /`: Create a highlight
-  - `GET /user/{userId}`: Get user highlights
-  - `PUT /{highlightId}`: Update a highlight
-- **Messages** (`/messanger`):
-  - `GET /conversations`: Get user conversations
-  - `POST /conversations`: Start a new conversation
-  - `POST /conversations/{conversationId}/messages`: Send a message
-- **Notifications** (`/notifications`):
-  - `GET /`: Fetch user notifications
-  - `PUT /{notificationId}/read`: Mark notification as read
-  - `PUT /preferences`: Update notification preferences
-- **Admin** (`/admin`):
-  - `GET /reports`: Get reported posts
-  - `GET /users`: Get all users
-  - `PUT /users/{userId}`: Update user role/ban status
-  - `POST /actions`: Perform admin actions (delete post, ban user, etc.)
+## Scripts
 
-Explore the full API documentation at `/api-docs`.
+- `npm start`: Start the production server
+- `npm run dev`: Start development server with nodemon
+- `npm test`: Run test suite
+- `npm run lint`: Run ESLint for code quality
+- `npm run build`: Build for production (if applicable)
 
-## Security
+## Security Practices
 
-- **JWT Authentication**: All protected routes require a Bearer token.
-- **Rate Limiting**: Applied to prevent abuse (e.g., login attempts, post creation).
-- **Content Moderation**: Middleware to filter inappropriate content.
-- **Role-Based Access**: Admin routes restricted to users with `ADMIN` role.
-- **Input Validation**: Joi-based validation for all inputs.
+### Rate Limiting
+- Express Rate Limit middleware prevents abuse
+- Configurable limits per endpoint and user
+- Redis-backed rate limiting for distributed environments
 
-## Development
+### Input Validation
+- Express Validator for request sanitization
+- Custom validation middleware for complex rules
+- SQL injection prevention through Prisma ORM
 
-- **Database Migrations**:
-  - Update `src/models/prisma/schema.prisma` for schema changes.
-  - Run migrations: `npx prisma migrate dev`.
-  - Generate Prisma client: `npx prisma generate`.
-- **Linting**: Use ESLint for code consistency (`npm run lint`).
-- **Swagger**: Update API specs in `src/docs/swagger.js` and route files.
+### CORS
+- Configured allowed origins for cross-origin requests
+- Credentials enabled for authenticated requests
+- Secure headers for additional protection
 
-## Contributing
+### Secure Headers
+- Helmet.js for security headers
+- CSRF protection with csurf middleware
+- HTTPS enforcement in production
 
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/your-feature`).
-3. Commit changes (`git commit -m 'Add your feature'`).
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Open a pull request.
+## Performance Optimizations
+
+### Query Optimization
+- Prisma query optimization with select/include
+- Database indexing on frequently queried fields
+- Connection pooling for efficient database access
+
+### Caching & Batching
+- Redis caching for frequently accessed data
+- Batch database operations where possible
+- CDN integration for static assets
+
+### Indexing
+- Strategic database indexes on UserID, CreatedAt, and foreign keys
+- Composite indexes for complex queries
+- Regular index maintenance and monitoring
+
+## Deployment
+
+### Production Build
+The application is containerized using Docker and deployed to Fly.io.
+
+### Environment Configs
+- Production environment variables configured in Fly.io
+- Database connection optimized for production
+- Logging configured for production monitoring
+
+### Hosting Platform
+**Fly.io** provides:
+- Global CDN for low-latency responses
+- Auto-scaling based on request load
+- Built-in SSL/TLS certificates
+- Easy deployment with `fly deploy`
+
+## Future Improvements
+
+### Backend-focused Enhancements
+- **Microservices Architecture**: Split monolithic app into microservices
+- **GraphQL API**: Alternative to REST for flexible data fetching
+- **Advanced Caching**: Implement Redis clusters for better performance
+- **API Versioning**: Implement versioning strategy for backward compatibility
+- **Monitoring & Analytics**: Integrate application performance monitoring
+- **Database Sharding**: Horizontal scaling for massive user growth
+- **Machine Learning**: AI-powered content moderation and recommendations
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE for details.
-
-## Contact
-
-- **Developer**: Mahmoud Ramadan
-- **Email**: mahmoud.fci25@gmail.com
-- **LinkedIn**: [Mahmoud Ramadan](https://www.linkedin.com/in/mahmoud-ramadan-9a6618250/)
-- **Support**: For additional support, contact mahmoud.fci25@gmail.com.
+ISC License

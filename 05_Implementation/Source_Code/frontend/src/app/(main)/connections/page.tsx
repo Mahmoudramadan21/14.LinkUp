@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     'Discover people you may know, manage followers, following, and follow requests on LinkUp.',
 
   alternates: {
-    canonical: '/connections',
+    canonical: 'https://linkup-app-frontend.vercel.app/connections',
   },
 
   robots: {
@@ -31,13 +31,13 @@ export const metadata: Metadata = {
     title: 'Your Connections on LinkUp',
     description:
       'Grow your network — manage followers, following, and discover people you may know.',
-    url: '/connections',
+    url: 'https://linkup-app-frontend.vercel.app/connections',
     siteName: 'LinkUp',
     type: 'profile',
     locale: 'en_US',
     images: [
       {
-        url: '/og-connections.png',
+        url: 'og/og-connections.png',
         width: 1200,
         height: 630,
         alt: 'Manage your connections and discover new people on LinkUp',
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Connections • LinkUp',
     description: 'Grow your network and discover people you may know.',
-    images: ['/og-connections.png'],
+    images: ['og/og-connections.png'],
     site: '@LinkUp',
   },
 };
@@ -68,11 +68,11 @@ export default function ConnectionsPage() {
           name: 'Your Connections',
           description:
             'Manage followers, following, pending requests, and discover people you may know on LinkUp.',
-          url: 'https://linkup.com/connections',
+          url: 'https://linkup-app-frontend.vercel.app/connections',
           isPartOf: {
             '@type': 'WebSite',
             name: 'LinkUp',
-            url: 'https://linkup.com',
+            url: 'https://linkup-app-frontend.vercel.app',
           },
         }}
       />
@@ -83,12 +83,12 @@ export default function ConnectionsPage() {
           '@context': 'https://schema.org',
           '@type': 'SocialNetwork',
           name: 'LinkUp',
-          url: 'https://linkup.com',
+          url: 'https://linkup-app-frontend.vercel.app',
           potentialAction: {
             '@type': 'FollowAction',
             target: {
               '@type': 'EntryPoint',
-              urlTemplate: 'https://linkup.com/connections',
+              urlTemplate: 'https://linkup-app-frontend.vercel.app/connections',
             },
           },
         }}
@@ -102,7 +102,7 @@ export default function ConnectionsPage() {
           name: 'People You May Know on LinkUp',
           description:
             'Suggested connections based on mutual friends, interests, and interactions.',
-          url: 'https://linkup.com/connections?tab=suggestions',
+          url: 'https://linkup-app-frontend.vercel.app/connections?tab=suggestions',
           itemListElement: [], // Will be dynamically injected from client in future
         }}
       />

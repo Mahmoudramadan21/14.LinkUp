@@ -24,8 +24,8 @@ import {
   deletePostThunk,
 } from '@/store/postSlice';
 
-import SearchTabs, { TabValue } from './components/SearchTabs';
-import SearchResults from './components/SearchResults';
+import SearchTabs, { TabValue } from '@/components/ui/search/SearchTabs';
+import SearchResults from '@/components/ui/search/SearchResults';
 
 import EditPostModal from '@/components/ui/post/modals/EditPostModal';
 import ConfirmationModal from '@/components/ui/modal/ConfirmationModal';
@@ -234,6 +234,7 @@ const SearchPageClient = memo(() => {
           postId={showEditModal}
           onClose={() => setShowEditModal(null)}
           user={currentUser}
+          postSource="searchedPosts"
         />
       )}
 

@@ -89,7 +89,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, post, onClose }) => {
       return;
     }
 
-    const url = `${window.location.origin}/post/${post.PostID}`;
+    const url = `${window.location.origin}/feed?postId=${post.PostID}`;
     const shareData: ShareData = {
       title: `Post by ${post.User.Username}`,
       text: post.Content || 'Check out this post!',
@@ -123,7 +123,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, post, onClose }) => {
   const handleCopyLink = async () => {
     if (!post) return;
 
-    const url = `${window.location.origin}/post/${post.PostID}`;
+    const url = `${window.location.origin}/feed?postId=${post.PostID}`;
 
     if (navigator.clipboard?.writeText) {
       try {
@@ -228,7 +228,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, post, onClose }) => {
           </div>
         )}
 
-        {/* Repost with Caption */}
+        {/* Repost with Caption + Share Options */}
         <form onSubmit={handleSubmit(onSubmit)} className="mb-6">
           <textarea
             {...register('caption')}
@@ -243,56 +243,60 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, post, onClose }) => {
               {errors.caption.message}
             </p>
           )}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`${styles.feed__share_button} mt-3 w-full flex items-center justify-center gap-2 ${
-              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <FaSpinner className="animate-spin" /> Reposting...
-              </>
-            ) : (
-              <>
-                Repost <FaPaperPlane />
-              </>
-            )}
-          </button>
+
+          <div className="mt-3 flex flex-wrap gap-3 justify-center">
+            {/* Repost Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`${styles.feed__share_button} flex-1 min-w-[150px] flex items-center justify-center gap-2 ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <FaSpinner className="animate-spin" /> Reposting...
+                </>
+              ) : (
+                <>
+                  Repost <FaPaperPlane />
+                </>
+              )}
+            </button>
+
+            {/* Share via Apps */}
+            <button
+              onClick={handleNativeShare}
+              disabled={isSubmitting || shareStatus === 'Opening share menu...'}
+              className={`${styles.feed__share_native_button} flex-1 min-w-[150px] flex items-center justify-center gap-2 transition ${
+                isSubmitting || shareStatus === 'Opening share menu...'
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:opacity-90'
+              }`}
+              aria-label="Share using device apps"
+            >
+              <FaShare /> Share via Apps
+            </button>
+
+            {/* Copy Link */}
+            <button
+              onClick={handleCopyLink}
+              disabled={isSubmitting}
+              className={`${styles.feed__share_copy_button} flex-1 min-w-[150px] flex items-center justify-center gap-2 transition ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+              }`}
+              aria-label="Copy post link"
+            >
+              <FaCopy /> Copy Link
+            </button>
+          </div>
         </form>
 
-        {/* Share Options */}
-        <div className={styles.feed__share_options}>
-          <button
-            onClick={handleNativeShare}
-            disabled={isSubmitting || shareStatus === 'Opening share menu...'}
-            className={`${styles.feed__share_native_button} flex items-center justify-center gap-2 transition ${
-              isSubmitting || shareStatus === 'Opening share menu...'
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:opacity-90'
-            }`}
-            aria-label="Share using device apps"
-          >
-            <FaShare /> Share via Apps
-          </button>
-
-          <button
-            onClick={handleCopyLink}
-            disabled={isSubmitting}
-            className={`${styles.feed__share_copy_button} flex items-center justify-center gap-2 transition ${
-              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
-            }`}
-            aria-label="Copy post link"
-          >
-            <FaCopy /> Copy Link
-          </button>
-        </div>
 
         {/* Cancel Button */}
         <button
           onClick={onClose}
-          className={`${styles.feed__share_close_button} mt-6 w-full`}
+          className={`${styles.feed__share_close_button} w-full`}
           aria-label="Cancel sharing"
         >
           Cancel

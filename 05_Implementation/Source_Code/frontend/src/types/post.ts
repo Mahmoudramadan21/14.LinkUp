@@ -51,7 +51,7 @@ export interface Post {
   saveTime?: string;
   Comments?: Comment[];
   isMine: boolean;
-  SharedPost?: Post;
+  SharedPost?: Post | null;
   Likes?: LikedBy[];
 }
 

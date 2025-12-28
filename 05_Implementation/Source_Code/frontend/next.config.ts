@@ -1,33 +1,86 @@
-/**
- * Next.js configuration for the LinkUp application.
- * @type {import('next').NextConfig}
- */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   /**
-   * Enables React Strict Mode for development to catch potential issues.
+   * Enable React strict mode for catching issues during development.
    */
   reactStrictMode: true,
 
   /**
-   * Configures allowed domains for Next.js Image optimization.
+   * Optimize and compress output using built-in SWC minifier.
+   */
+  swcMinify: true,
+
+  /**
+   * Remove `X-Powered-By: Next.js` for better security.
+   */
+  poweredByHeader: false,
+
+  /**
+   * Enable HTTP compression (Gzip + Brotli).
+   */
+  compress: true,
+
+  /**
+   * Configure image optimization domains.
    */
   images: {
-    domains: ["res.cloudinary.com"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+    ],
+    formats: ["image/avif", "image/webp"], // Best performance
   },
 
+  /**
+   * Enable file-system based caching for faster incremental builds.
+   */
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+    webpackBuildWorker: true,
+  },
+
+  /**
+   * Only generate source maps in development to avoid huge build size.
+   */
+  productionBrowserSourceMaps: false,
+
+  /**
+   * Custom Webpack config: SVG support via SVGR.
+   */
   webpack(config) {
     config.module.rules.push({
-      test: /\.svg$/,
+      test: /\.svg$/i,
+      issuer: /\.[jt]sx?$/,
       use: ["@svgr/webpack"],
     });
     return config;
   },
 
   /**
-   * Enables source maps in production for debugging.
-   * Note: This may increase bundle size and should be disabled if not needed.
+   * Strict Content-Security-Policy headers (Optional enhancement).
+   * Uncomment if using next-safe for best security.
    */
-  productionBrowserSourceMaps: false,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { RootState, AppDispatch } from '@/store';
 import { setCurrentConversationId } from '@/store/messageSlice';
 
-import ChatWindow from '../components/ChatWindow';
+import ChatWindow from '@/components/ui/messages/ChatWindow';
 
 /**
  * ChatPage - Dynamic route for individual conversations (/messages/[id])

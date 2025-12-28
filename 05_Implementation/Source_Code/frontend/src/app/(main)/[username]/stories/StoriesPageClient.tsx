@@ -52,20 +52,23 @@ const FullStoryViewerPage: React.FC = memo(() => {
     }
   }, [dispatch, username, currentStoryFeedItem, error.getUserStories]);
 
-  // Set initial story index (first unviewed, or 0)
+  // Jump to first unviewed story when user stories load
   useEffect(() => {
-    if (!currentStoryFeedItem?.stories) return;
-
-    if (currentStoryFeedItem.stories.length === 0) {
-      setCurrentIndex(-1); // No stories
-      return;
+    if (currentStoryFeedItem?.stories) {
+      const firstUnviewedIndex = currentStoryFeedItem.stories.findIndex(
+        (story) => !story.isViewed
+      );
+      if (firstUnviewedIndex !== -1) {
+        setCurrentIndex(firstUnviewedIndex);
+      }
     }
-
-    const firstUnviewed = currentStoryFeedItem.stories.findIndex((s) => !s.isViewed);
-    setCurrentIndex(firstUnviewed !== -1 ? firstUnviewed : 0);
   }, [currentStoryFeedItem]);
 
   // Handle navigation to next story/user
+  const handleClose = useCallback(() => {
+    router.push(`/${username}`, { scroll: false });
+  }, [router, username]);
+
   const handleNext = useCallback(() => {
     if (!currentStoryFeedItem?.stories) return;
 
@@ -73,12 +76,11 @@ const FullStoryViewerPage: React.FC = memo(() => {
       setCurrentIndex((i) => i + 1);
     } else if (currentStoryFeedIndex < storyFeed.length - 1) {
       const nextUser = storyFeed[currentStoryFeedIndex + 1];
-      router.push(`/feed/stories/${nextUser.username}`, { scroll: false });
-      setCurrentIndex(0);
+      router.replace(`/feed/stories/${nextUser.username}`, { scroll: false });
     } else {
-      router.push('/feed', { scroll: false });
+      handleClose();
     }
-  }, [currentIndex, currentStoryFeedItem, currentStoryFeedIndex, storyFeed, router]);
+  }, [currentIndex, currentStoryFeedItem, currentStoryFeedIndex, storyFeed, router, handleClose]);
 
   // Handle navigation to previous story/user
   const handlePrev = useCallback(() => {
@@ -88,8 +90,7 @@ const FullStoryViewerPage: React.FC = memo(() => {
       setCurrentIndex((i) => i - 1);
     } else if (currentStoryFeedIndex > 0) {
       const prevUser = storyFeed[currentStoryFeedIndex - 1];
-      router.push(`/feed/stories/${prevUser.username}`, { scroll: false });
-      setCurrentIndex(prevUser.stories.length - 1);
+      router.replace(`/feed/stories/${prevUser.username}`, { scroll: false });
     }
   }, [currentIndex, currentStoryFeedItem, currentStoryFeedIndex, storyFeed, router]);
 
@@ -100,7 +101,7 @@ const FullStoryViewerPage: React.FC = memo(() => {
       if (e.key === 'ArrowRight') handleNext();
       if (e.key === 'ArrowLeft') handlePrev();
     },
-    [handleNext, handlePrev]
+    [handleNext, handlePrev, handleClose]
   );
 
   useEffect(() => {
@@ -108,17 +109,12 @@ const FullStoryViewerPage: React.FC = memo(() => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const handleClose = useCallback(() => {
-    router.push(`/${username}`, { scroll: false });
-  }, [router, username]);
 
   useEffect(() => {
     if (username && !loading.getUserStories && currentStoryFeedItem === undefined) {
       router.replace(`/${username}`, { scroll: false });
     }
   }, [username, currentStoryFeedItem, router, loading.getUserStories]);
-
-  console.log(currentStoryFeedItem)
 
   const currentStory = currentStoryFeedItem?.stories[currentIndex];
 
@@ -138,7 +134,7 @@ const FullStoryViewerPage: React.FC = memo(() => {
               onSelectUser: (newUserId) => {
                 const newUser = storyFeed.find((item) => item.userId === newUserId);
                 if (newUser) {
-                  router.push(`/feed/stories/${newUser.username}`, { scroll: false });
+                  router.replace(`/feed/stories/${newUser.username}`, { scroll: false });
                   setCurrentIndex(0);
                 }
               },
